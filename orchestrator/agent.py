@@ -13,9 +13,10 @@ The orchestrator: a small LangGraph graph with two nodes.
            "pending" and NOT executed -- it waits for a human to approve it
            from the dashboard instead.
 
-This is intentionally the whole orchestrator for Phase 0. Later modules don't
-change this graph -- they just add more MCP servers to `MCP_SERVERS` and the
-planner automatically sees their tools.
+This graph doesn't change as more modules get added -- they just add more
+MCP servers to config.MCP_SERVERS and the planner automatically sees their
+tools, and act_node automatically routes to the right server and logs under
+the right module.
 """
 
 import asyncio
@@ -36,15 +37,9 @@ from config import (
     LLM_API_KEY,
     AUTO_EXECUTE_CONFIDENCE_THRESHOLD,
 )
-from mcp_client import list_tools, call_tool
+from mcp_client import list_tools, call_tool, find_server_for_tool
 
 llm_client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
-
-# Which module each MCP server belongs to, for logging purposes. Extend this
-# as more MCP servers get added in later phases.
-MODULE_BY_SERVER = {
-    "task-mcp": "tasks",
-}
 
 
 class OrchestratorState(TypedDict, total=False):
@@ -99,6 +94,26 @@ def _keyword_fallback(request: str, tools: list[dict]) -> dict:
                 "reasoning": "Keyword fallback matched task-listing phrasing.",
                 "confidence": 0.4,
             }
+    if any(w in lowered for w in ("applied to", "add application", "log application", "new application")):
+        name = next((t["name"] for t in tools if t["name"] == "add_application"), None)
+        if name:
+            return {
+                "tool_name": name,
+                "tool_args": {},
+                "reasoning": "Keyword fallback matched application-logging phrasing; "
+                "args left empty since company/role couldn't be reliably extracted "
+                "without the LLM — this will need review before executing.",
+                "confidence": 0.3,
+            }
+    if any(w in lowered for w in ("follow up", "followup", "haven't heard back")):
+        name = next((t["name"] for t in tools if t["name"] == "get_pending_followups"), None)
+        if name:
+            return {
+                "tool_name": name,
+                "tool_args": {},
+                "reasoning": "Keyword fallback matched follow-up phrasing.",
+                "confidence": 0.4,
+            }
     return {
         "tool_name": None,
         "tool_args": {},
@@ -146,9 +161,12 @@ async def plan_node(state: OrchestratorState) -> OrchestratorState:
 async def act_node(state: OrchestratorState) -> OrchestratorState:
     tool_name = state.get("tool_name")
     confidence = state.get("confidence", 0.0)
-    module = MODULE_BY_SERVER.get("task-mcp", "unknown")  # single server in Phase 0
+    tools = state.get("tools", [])
 
-    if tool_name is None:
+    tool_meta = next((t for t in tools if t["name"] == tool_name), None)
+    module = tool_meta["module"] if tool_meta else "unknown"
+
+    if tool_name is None or tool_meta is None:
         entry = ActionLogEntry(
             module=module,
             action="no_op",
@@ -158,7 +176,7 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
             metadata={"request": state["request"]},
         )
         log_id = log_action(entry)
-        return {**state, "result": None, "log_id": log_id, "status": "failed"}
+        return {**state, "module": module, "result": None, "log_id": log_id, "status": "failed"}
 
     if confidence < AUTO_EXECUTE_CONFIDENCE_THRESHOLD:
         entry = ActionLogEntry(
@@ -170,9 +188,10 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
             metadata={"request": state["request"], "tool_args": state["tool_args"]},
         )
         log_id = log_action(entry)
-        return {**state, "result": None, "log_id": log_id, "status": "pending"}
+        return {**state, "module": module, "result": None, "log_id": log_id, "status": "pending"}
 
-    result = await call_tool(tool_name, state["tool_args"])
+    server = find_server_for_tool(tool_name, tools)
+    result = await call_tool(server, tool_name, state["tool_args"])
     entry = ActionLogEntry(
         module=module,
         action=tool_name,
@@ -186,7 +205,7 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
         },
     )
     log_id = log_action(entry)
-    return {**state, "result": result, "log_id": log_id, "status": "auto_executed"}
+    return {**state, "module": module, "result": result, "log_id": log_id, "status": "auto_executed"}
 
 
 def build_graph():

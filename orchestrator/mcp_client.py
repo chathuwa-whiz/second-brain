@@ -1,28 +1,31 @@
 """
-Thin wrapper around the official `mcp` Python SDK client, so the rest of the
-orchestrator doesn't need to know about MCP session/transport plumbing.
+Thin wrapper around the official `mcp` Python SDK client, generalized to talk
+to multiple MCP servers (see config.MCP_SERVERS) and let the orchestrator
+treat "all tools from all connected servers" as one flat list.
 
-Local dev: connects to task-mcp as a stdio subprocess (MCP_SERVER_COMMAND/ARGS).
+Local dev: each server in MCP_SERVERS connects as a stdio subprocess.
 
-Production on your VPS: once task-mcp runs as a standalone service (transport
-switched to "sse" or "streamable-http" in server.py), replace `stdio_client`
-below with `mcp.client.sse.sse_client(url)` or the streamable-http equivalent
-and point it at the deployed URL. Everything else (list_tools/call_tool) stays
-the same — that's the point of going through MCP instead of calling task-mcp
-directly.
+Production on your VPS: once a server runs standalone (transport switched to
+"sse" or "streamable-http" in its server.py), give that server's config entry
+a "url" instead of "command"/"args", and swap `stdio_client` below for
+`mcp.client.sse.sse_client(url)` (or the streamable-http equivalent) in
+`_open_session`. Everything else — list_tools/call_tool signatures — stays
+the same, which is the point of going through MCP instead of calling each
+server's code directly.
 """
 
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-from config import MCP_SERVER_COMMAND, MCP_SERVER_ARGS
+from config import MCP_SERVERS
 
 
 @asynccontextmanager
-async def mcp_session():
-    params = StdioServerParameters(command=MCP_SERVER_COMMAND, args=MCP_SERVER_ARGS)
+async def _open_session(server: dict):
+    params = StdioServerParameters(command=server["command"], args=server["args"])
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -30,24 +33,40 @@ async def mcp_session():
 
 
 async def list_tools() -> list[dict]:
-    """Return [{name, description, input_schema}, ...] for the planner prompt."""
-    async with mcp_session() as session:
-        resp = await session.list_tools()
-        return [
-            {
-                "name": t.name,
-                "description": t.description or "",
-                "input_schema": t.inputSchema,
-            }
-            for t in resp.tools
-        ]
+    """Return tools from every configured server, flattened, each tagged
+    with which server (and module) it belongs to:
+    [{name, description, input_schema, server, module}, ...]
+    """
+    all_tools = []
+    for server in MCP_SERVERS:
+        async with _open_session(server) as session:
+            resp = await session.list_tools()
+            for t in resp.tools:
+                all_tools.append(
+                    {
+                        "name": t.name,
+                        "description": t.description or "",
+                        "input_schema": t.inputSchema,
+                        "server": server["name"],
+                        "module": server["module"],
+                    }
+                )
+    return all_tools
 
 
-async def call_tool(name: str, arguments: dict) -> dict:
-    """Call a tool by name, return its result as a plain dict/string."""
-    async with mcp_session() as session:
+def find_server_for_tool(tool_name: str, tools: list[dict]) -> Optional[dict]:
+    """Given a tool name and the list returned by list_tools(), find which
+    configured server owns it."""
+    for t in tools:
+        if t["name"] == tool_name:
+            return next((s for s in MCP_SERVERS if s["name"] == t["server"]), None)
+    return None
+
+
+async def call_tool(server: dict, name: str, arguments: dict) -> dict:
+    """Call a tool by name on a specific server, return its result as a
+    plain dict."""
+    async with _open_session(server) as session:
         result = await session.call_tool(name, arguments)
-        # MCP tool results are a list of content blocks; task-mcp's tools
-        # return JSON-serializable dicts via FastMCP, which arrive as text.
         texts = [block.text for block in result.content if hasattr(block, "text")]
         return {"raw": texts, "is_error": result.isError}

@@ -5,13 +5,30 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://62.171.163.6:20128/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "GeminiALL")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 
-# task-mcp server — launched as a local subprocess over stdio by default.
-# When task-mcp is deployed on the VPS instead, swap MCP_SERVER_COMMAND for
-# an HTTP/SSE client (see mcp_client.py docstring).
-MCP_SERVER_COMMAND = os.environ.get("MCP_SERVER_COMMAND", "python")
-MCP_SERVER_ARGS = os.environ.get(
-    "MCP_SERVER_ARGS", "../mcp-servers/task-mcp/server.py"
-).split()
+# MCP servers the orchestrator can route to, each launched as a local
+# subprocess over stdio by default. "module" is what gets written to the
+# trust-layer log's `module` column for any tool call landing on that server.
+# When a server moves to the VPS instead, switch its entry from
+# {"command", "args"} to {"url"} and update mcp_client.py's session-opening
+# logic accordingly (see that file's docstring).
+MCP_SERVERS = [
+    {
+        "name": "task-mcp",
+        "module": "tasks",
+        "command": os.environ.get("TASK_MCP_COMMAND", "python"),
+        "args": os.environ.get(
+            "TASK_MCP_ARGS", "../mcp-servers/task-mcp/server.py"
+        ).split(),
+    },
+    {
+        "name": "job-tracker-mcp",
+        "module": "job_finding",
+        "command": os.environ.get("JOB_TRACKER_MCP_COMMAND", "python"),
+        "args": os.environ.get(
+            "JOB_TRACKER_MCP_ARGS", "../mcp-servers/job-tracker-mcp/server.py"
+        ).split(),
+    },
+]
 
 # Below this confidence, the planner's decision is logged as "pending" instead
 # of "auto_executed" — i.e. it waits for a human to approve it from the dashboard.
