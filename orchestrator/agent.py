@@ -5,6 +5,12 @@ The orchestrator: a small LangGraph graph with two nodes.
            connected MCP servers, ask the LLM to pick a tool, fill its args,
            and state its confidence + reasoning. Falls back to a rule-based
            guess if the LLM call fails or returns something unparseable.
+           Destructive tools (deletes, sends, etc.) get a hard confidence
+           cap applied here in code — see _is_destructive_tool — rather than
+           relying solely on the system prompt telling the LLM to be
+           conservative, since that alone wasn't reliable (an explicit,
+           unambiguous delete request got confidence 1.0 in testing despite
+           the prompt saying deletes should stay below 0.75).
 
   act   -- call the chosen MCP tool, then write the whole decision (module,
            action, reasoning, confidence, result) to the trust-layer log,
@@ -78,8 +84,58 @@ Respond with ONLY a JSON object, no markdown fences, matching this shape:
 
 Be conservative with confidence: use below 0.75 whenever the request is
 ambiguous, could be destructive (deletes, sends, payments), or you're
-guessing at argument values the user didn't actually provide.
+guessing at argument values the user didn't actually provide. This applies
+even when the request gives an exact, unambiguous ID or target for a
+destructive action — knowing exactly WHAT to delete is not the same as
+being confident it SHOULD be deleted right now without a human glancing
+at it first. Treat any delete/remove/send/payment tool as needing human
+review by default, regardless of how precisely specified the request is.
 """
+
+# Deliberate second line of defense, enforced in code rather than left to
+# the LLM's judgment alone: destructive tools are ALWAYS capped below the
+# auto-execute threshold, no matter what confidence the planner (or the
+# keyword fallback) assigns. Prompt instructions are a request, not a
+# guarantee — this is the guarantee. Extend this list as new modules add
+# their own destructive/high-stakes tools (e.g. future send_email).
+DESTRUCTIVE_TOOL_PREFIXES = ("delete_", "remove_")
+DESTRUCTIVE_TOOL_KEYWORDS = ("send_", "payment", "withdraw")
+
+
+def _is_destructive_tool(tool_name: Optional[str]) -> bool:
+    if not tool_name:
+        return False
+    lowered = tool_name.lower()
+    if lowered.startswith(DESTRUCTIVE_TOOL_PREFIXES):
+        return True
+    return any(k in lowered for k in DESTRUCTIVE_TOOL_KEYWORDS)
+
+
+def _apply_destructive_confidence_cap(decision: dict) -> dict:
+    """Force destructive-tool confidence below AUTO_EXECUTE_CONFIDENCE_THRESHOLD,
+    regardless of what the planner (LLM or keyword fallback) assigned.
+    Recomputes the cap from the live threshold each call so this stays
+    correct even if AUTO_EXECUTE_CONFIDENCE_THRESHOLD is tuned via env var.
+    """
+    tool_name = decision.get("tool_name")
+    confidence = float(decision.get("confidence", 0.0))
+
+    if not _is_destructive_tool(tool_name):
+        return decision
+
+    cap = min(0.5, AUTO_EXECUTE_CONFIDENCE_THRESHOLD - 0.01)
+    if confidence < cap:
+        return decision  # already below the cap, nothing to do
+
+    decision = dict(decision)
+    decision["confidence"] = cap
+    decision["reasoning"] = (
+        f"{decision.get('reasoning', '')} "
+        f"[confidence capped at {cap:.2f}: {tool_name!r} is a destructive "
+        "action and always requires human approval regardless of how "
+        "precisely specified the request was.]"
+    ).strip()
+    return decision
 
 
 def _extract_task_title(request: str) -> str:
@@ -185,6 +241,8 @@ async def plan_node(state: OrchestratorState) -> OrchestratorState:
         print(f"[plan_node] LLM call failed, using keyword fallback: "
               f"{type(e).__name__}: {e}", file=sys.stderr)
         decision = _keyword_fallback(state["request"], tools)
+
+    decision = _apply_destructive_confidence_cap(decision)
 
     return {
         **state,
