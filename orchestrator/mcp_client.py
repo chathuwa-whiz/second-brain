@@ -14,6 +14,7 @@ the same, which is the point of going through MCP instead of calling each
 server's code directly.
 """
 
+import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -25,7 +26,14 @@ from config import MCP_SERVERS
 
 @asynccontextmanager
 async def _open_session(server: dict):
-    params = StdioServerParameters(command=server["command"], args=server["args"])
+    # IMPORTANT: the MCP SDK does NOT inherit the parent process's full
+    # environment by default — it only passes a small safe allowlist (PATH,
+    # HOME, etc.), not MONGO_URL/LLM_BASE_URL/etc. Pass the current
+    # environment through explicitly, or task-mcp/job-tracker-mcp will fail
+    # with "MONGO_URL is not set" even though it's exported in your shell.
+    params = StdioServerParameters(
+        command=server["command"], args=server["args"], env=os.environ.copy()
+    )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
