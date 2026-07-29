@@ -36,7 +36,23 @@ from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from drive_resumes import list_resume_files, get_resume_text
+from local_resumes import (
+    list_resume_files as list_local_resume_files,
+    get_resume_text as get_local_resume_text,
+)
+
+# The Drive backend is optional — only import it (and require its extra
+# deps, google-api-python-client/google-auth) if it's actually configured.
+# This keeps the local-storage path (the primary/recommended one) fully
+# usable even if you never touch Google Cloud Console at all.
+try:
+    from drive_resumes import (
+        list_resume_files as list_drive_resume_files,
+        get_resume_text as get_drive_resume_text,
+    )
+    _DRIVE_AVAILABLE = True
+except ImportError:
+    _DRIVE_AVAILABLE = False
 
 # Loads job-tracker-mcp/.env if present. No-op when launched by the
 # orchestrator (which passes MONGO_URL etc. through explicitly already) —
@@ -60,8 +76,12 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 # generic sign-off (no fabricated name) if not set.
 CANDIDATE_NAME = os.environ.get("CANDIDATE_NAME", "")
 
-# Optional: default Drive folder ID for select_best_resume, so callers
-# don't have to pass folder_id every time. Can still be overridden per-call.
+# select_best_resume's storage backend. Local (RESUME_DIR) is primary and
+# recommended — it's just a directory the second-brain webapp's upload
+# handler writes resume files into, no external API or credentials
+# involved. Drive (RESUME_DRIVE_FOLDER_ID) is optional/secondary, only
+# used as a fallback if RESUME_DIR isn't set.
+RESUME_DIR = os.environ.get("RESUME_DIR", "")
 RESUME_DRIVE_FOLDER_ID = os.environ.get("RESUME_DRIVE_FOLDER_ID", "")
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -227,41 +247,72 @@ async def match_resume_to_posting(resume_text: str, job_description: str) -> dic
 
 
 @mcp.tool()
-async def select_best_resume(job_description: str, folder_id: str = "") -> dict:
-    """Look through your resumes stored in Google Drive and pick the one
-    that best matches a job posting. Reads .docx/.pdf/Google Docs from a
-    Drive folder (shared with the service account — see drive_resumes.py
-    for one-time setup), scores each against the posting with the LLM in a
-    single comparison call, and returns the winning resume's full text —
-    ready to feed straight into match_resume_to_posting or
-    draft_cover_letter.
+async def select_best_resume(
+    job_description: str, resume_dir: str = "", folder_id: str = ""
+) -> dict:
+    """Look through your stored resumes and pick the one that best matches
+    a job posting. Reads .docx/.pdf files, scores each against the posting
+    with the LLM in a single comparison call, and returns the winning
+    resume's full text — ready to feed straight into
+    match_resume_to_posting or draft_cover_letter.
+
+    Uses local/VPS storage by default (resumes uploaded via the
+    second-brain webapp). Google Drive is available as an optional
+    secondary source if configured, but local storage takes priority
+    whenever both are set.
 
     Args:
         job_description: The full text of the job posting to match against.
-        folder_id: Google Drive folder ID to search. If omitted, uses
+        resume_dir: Local directory to search. If omitted, uses RESUME_DIR
+            from .env. This is the primary, recommended source.
+        folder_id: Google Drive folder ID to search instead — only used if
+            no local directory is configured/given. If omitted, uses
             RESUME_DRIVE_FOLDER_ID from .env.
     """
-    target_folder = folder_id.strip() or RESUME_DRIVE_FOLDER_ID
-    if not target_folder:
-        return {"error": "No folder_id given and RESUME_DRIVE_FOLDER_ID is not set in .env"}
     if not job_description.strip():
         return {"error": "job_description is required"}
 
-    try:
-        files = list_resume_files(target_folder)
-    except Exception as e:
-        return {"error": f"Could not list Drive folder {target_folder}: {e}"}
+    target_dir = resume_dir.strip() or RESUME_DIR
+    target_folder = folder_id.strip() or RESUME_DRIVE_FOLDER_ID
+
+    if target_dir:
+        source = "local"
+        try:
+            files = list_local_resume_files(target_dir)
+        except Exception as e:
+            return {"error": f"Could not list local resume directory {target_dir}: {e}"}
+    elif target_folder:
+        if not _DRIVE_AVAILABLE:
+            return {
+                "error": "RESUME_DRIVE_FOLDER_ID is set but the Drive backend's "
+                "dependencies aren't installed. Run: pip install "
+                "google-api-python-client google-auth"
+            }
+        source = "drive"
+        try:
+            files = list_drive_resume_files(target_folder)
+        except Exception as e:
+            return {"error": f"Could not list Drive folder {target_folder}: {e}"}
+    else:
+        return {
+            "error": "No resume source configured. Set RESUME_DIR in .env "
+            "(local/VPS storage — recommended) or pass resume_dir directly. "
+            "RESUME_DRIVE_FOLDER_ID (optional Google Drive backend) is used "
+            "only if RESUME_DIR isn't set."
+        }
 
     if not files:
-        return {
-            "error": f"No supported resume files (.docx/.pdf/Google Doc) "
-            f"found in Drive folder {target_folder}"
-        }
+        where = target_dir if source == "local" else target_folder
+        return {"error": f"No supported resume files (.docx/.pdf) found in {where}"}
 
     candidates = []
     for f in files:
         try:
-            text = get_resume_text(f["id"], f["mimeType"])
+            text = (
+                get_local_resume_text(f["id"])
+                if source == "local"
+                else get_drive_resume_text(f["id"], f["mimeType"])
+            )
         except Exception as e:
             candidates.append({"file_name": f["name"], "file_id": f["id"], "extract_error": str(e)})
             continue
@@ -273,7 +324,7 @@ async def select_best_resume(job_description: str, folder_id: str = "") -> dict:
     usable = [c for c in candidates if "text" in c]
     if not usable:
         return {
-            "error": "Found resume files in Drive but couldn't extract text from any of them",
+            "error": f"Found resume files ({source}) but couldn't extract text from any of them",
             "details": candidates,
         }
 
@@ -314,6 +365,7 @@ async def select_best_resume(job_description: str, folder_id: str = "") -> dict:
 
     chosen = usable[idx]
     return {
+        "source": source,
         "file_name": chosen["file_name"],
         "file_id": chosen["file_id"],
         "resume_text": chosen["text"],
