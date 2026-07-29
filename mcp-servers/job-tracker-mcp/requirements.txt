@@ -3,7 +3,12 @@ motor>=3.5.0
 pymongo>=4.8.0
 openai>=1.40.0
 python-dotenv>=1.0.0
-google-api-python-client>=2.140.0
-google-auth>=2.34.0
 python-docx>=1.1.0
 pypdf>=4.3.0
+
+# Optional — only needed if using the Google Drive backend for
+# select_best_resume (RESUME_DRIVE_FOLDER_ID in .env). Not required for
+# the primary local/VPS storage path (RESUME_DIR). Safe to skip these two
+# if you're not using Drive.
+# google-api-python-client>=2.140.0
+# google-auth>=2.34.0
