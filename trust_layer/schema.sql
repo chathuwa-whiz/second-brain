@@ -27,9 +27,21 @@ CREATE TABLE IF NOT EXISTS agent_actions (
 
     -- set when a human approves/rejects a pending action from the dashboard
     reviewed_at     TIMESTAMPTZ,
-    reviewed_by     TEXT
+    reviewed_by     TEXT,
+
+    -- set once approval_executor.py has actually called the MCP tool for a
+    -- row that was approved. Distinct from reviewed_at: reviewing (approve/
+    -- reject) happens instantly from the dashboard click; execution happens
+    -- shortly after via the poller. NULL means "approved but not yet run".
+    executed_at     TIMESTAMPTZ,
+    execution_result JSONB
 );
 
 CREATE INDEX IF NOT EXISTS idx_agent_actions_created_at ON agent_actions (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_agent_actions_module ON agent_actions (module);
 CREATE INDEX IF NOT EXISTS idx_agent_actions_status ON agent_actions (status);
+
+-- Fast lookup for approval_executor.py's poll query (approved + not yet executed).
+CREATE INDEX IF NOT EXISTS idx_agent_actions_pending_execution
+    ON agent_actions (status, executed_at)
+    WHERE status = 'approved' AND executed_at IS NULL;
