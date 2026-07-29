@@ -1,39 +1,35 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { pool } from "@/lib/db";
-import ActionsTable from "./ActionsTable";
-import SignOutButton from "./SignOutButton";
+import ResumesManager from "./ResumesManager";
+import SignOutButton from "../actions/SignOutButton";
 
 export const dynamic = "force-dynamic";
 
-export default async function ActionsPage() {
+export default async function ResumesPage() {
   const session = await getServerSession(authOptions);
   if (!session) {
     redirect("/login");
   }
 
-  const { rows } = await pool.query(
-    "SELECT * FROM agent_actions ORDER BY created_at DESC LIMIT 100"
-  );
-
   return (
     <main className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Agent Actions</h1>
+          <h1 className="text-2xl font-semibold">Resumes</h1>
           <p className="text-sm text-slate-400">
-            Every decision the orchestrator has made, most recent first.
+            Add or remove resumes here — select_best_resume picks between
+            these when matching a job posting.
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <a href="/resumes" className="text-sm text-slate-400 hover:text-slate-200">
-            Resumes
+          <a href="/actions" className="text-sm text-slate-400 hover:text-slate-200">
+            Actions
           </a>
           <SignOutButton />
         </div>
       </div>
-      <ActionsTable initialActions={rows} />
+      <ResumesManager />
     </main>
   );
 }

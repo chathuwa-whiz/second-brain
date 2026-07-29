@@ -9,18 +9,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const idsParam = req.nextUrl.searchParams.get("ids");
   const status = req.nextUrl.searchParams.get("status");
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? 50);
 
-  const query = status
-    ? {
-        text: "SELECT * FROM agent_actions WHERE status = $1 ORDER BY created_at DESC LIMIT $2",
-        values: [status, limit],
-      }
-    : {
-        text: "SELECT * FROM agent_actions ORDER BY created_at DESC LIMIT $1",
-        values: [limit],
-      };
+  let query;
+  if (idsParam) {
+    // Used by ActionsTable's post-approve polling: fetch just the specific
+    // rows it's waiting on for execution results, instead of the whole list.
+    const ids = idsParam
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isInteger(n));
+    if (ids.length === 0) {
+      return NextResponse.json({ actions: [] });
+    }
+    query = {
+      text: "SELECT * FROM agent_actions WHERE id = ANY($1::bigint[])",
+      values: [ids],
+    };
+  } else if (status) {
+    query = {
+      text: "SELECT * FROM agent_actions WHERE status = $1 ORDER BY created_at DESC LIMIT $2",
+      values: [status, limit],
+    };
+  } else {
+    query = {
+      text: "SELECT * FROM agent_actions ORDER BY created_at DESC LIMIT $1",
+      values: [limit],
+    };
+  }
 
   try {
     const { rows } = await pool.query(query);
