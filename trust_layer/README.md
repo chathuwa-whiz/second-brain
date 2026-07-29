@@ -1,0 +1,51 @@
+# Logging / Observability Layer
+
+The "trust layer." Every agent action — planned, executed, or awaiting human
+approval — gets a row in `agent_actions`.
+
+## Setup
+
+1. Postgres running (locally, Docker, or on your VPS — same host you'd eventually
+   put next to n8n is fine).
+
+   ```bash
+   docker run -d --name second-brain-pg \
+     -e POSTGRES_PASSWORD=postgres \
+     -e POSTGRES_DB=second_brain \
+     -p 5432:5432 postgres:16
+   ```
+
+2. Apply the schema:
+
+   ```bash
+   psql postgresql://postgres:postgres@localhost:5432/second_brain -f schema.sql
+   ```
+
+3. Install deps and smoke-test:
+
+   ```bash
+   pip install psycopg2-binary
+   export LOG_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/second_brain"
+   python logger.py
+   ```
+
+   You should see `Logged action id=1` and a list containing that row.
+
+## Usage from other modules
+
+```python
+from logging.logger import log_action, ActionLogEntry
+
+log_action(ActionLogEntry(
+    module="tasks",
+    action="reprioritize",
+    reasoning="Task X is due in 2 hours and marked high-priority; moved to top.",
+    confidence=0.92,
+    status="auto_executed",
+    metadata={"task_id": "abc123"},
+))
+```
+
+For actions that should wait for your sign-off (e.g. sending a cover letter),
+log with `status="pending"` and call `update_status(id, "approved")` once you
+approve it from the dashboard.
