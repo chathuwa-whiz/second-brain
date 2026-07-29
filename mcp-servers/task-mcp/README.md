@@ -15,8 +15,8 @@ your deploy target's secret manager.
 
 ```bash
 pip install -r requirements.txt
-cp ../../orchestrator/.env.example .env   # or write your own
-export $(grep -v '^#' .env | xargs)       # exports MONGO_URL, MONGO_DB, etc.
+cp .env.example .env   # then edit .env with your real Atlas connection string
+export $(grep -v '^#' .env | xargs)       # exports MONGO_URL, MONGO_DB
 python server.py
 ```
 
@@ -43,6 +43,9 @@ directly and see the raw responses — the fastest way to confirm the server
 works before wiring the orchestrator to it.
 
 ## MongoDB
+
+Make sure your current IP is allowed in Atlas's Network Access list (or use
+`0.0.0.0/0` if this will run somewhere with a changing IP, like a VPS).
 
 No manual schema setup needed — Motor/PyMongo create the `tasks` collection
 on first insert. Each task document:
