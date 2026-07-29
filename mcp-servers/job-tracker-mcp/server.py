@@ -187,6 +187,26 @@ async def update_application_status(application_id: str, status: str) -> dict:
 
 
 @mcp.tool()
+async def delete_application(application_id: str) -> dict:
+    """Permanently delete a job application record. Use for cleaning up
+    test/mistaken entries — for real applications, prefer
+    update_application_status (e.g. "withdrawn") to keep the history.
+
+    Args:
+        application_id: The application's id, as returned by add_application/get_applications.
+    """
+    try:
+        oid = ObjectId(application_id)
+    except Exception:
+        return {"error": f"invalid application_id: {application_id!r}"}
+
+    result = await applications_collection.find_one_and_delete({"_id": oid})
+    if result is None:
+        return {"error": f"no application found with id {application_id}"}
+    return {"deleted": _serialize(result)}
+
+
+@mcp.tool()
 async def get_pending_followups(days_since_applied: int = 7) -> dict:
     """Find applications that may need a follow-up: still "applied" status
     (no interview/offer/rejection recorded) and past the given number of
