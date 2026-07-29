@@ -82,19 +82,43 @@ guessing at argument values the user didn't actually provide.
 """
 
 
-def _keyword_fallback(request: str, tools: list[dict]) -> dict:
-    """Rule-based safety net if the LLM call fails or returns bad JSON."""
+def _extract_task_title(request: str) -> str:
+    """Best-effort title extraction for the keyword fallback: strip a leading
+    "add a task:"/"add task -"/"new task:" style prefix if present, otherwise
+    just use the whole request."""
     lowered = request.lower()
-    if any(w in lowered for w in ("add task", "create task", "new task", "todo")):
+    if ":" in request:
+        # e.g. "add a task: renew VPS domain" -> "renew VPS domain"
+        return request.split(":", 1)[1].strip() or request.strip()
+    for lead in ("add a task", "add task", "create a task", "create task", "new task"):
+        if lowered.startswith(lead):
+            rest = request[len(lead):].strip(" -–—")
+            if rest:
+                return rest
+    return request.strip()
+
+
+def _keyword_fallback(request: str, tools: list[dict]) -> dict:
+    """Rule-based safety net if the LLM call fails or returns bad JSON.
+
+    Deliberately loose (substring/word checks, not exact phrases) since this
+    is the safety net for when the LLM is unavailable — better to catch
+    "add a task: x" and "please add task x" alike than to require one exact
+    phrasing. Confidence stays low (0.3-0.4) so these still land in the
+    human-approval queue rather than auto-executing.
+    """
+    lowered = request.lower()
+
+    if "task" in lowered and any(w in lowered for w in ("add", "create", "new", "todo")):
         name = next((t["name"] for t in tools if t["name"] == "add_task"), None)
         if name:
             return {
                 "tool_name": name,
-                "tool_args": {"title": request},
+                "tool_args": {"title": _extract_task_title(request)},
                 "reasoning": "Keyword fallback matched task-creation phrasing.",
                 "confidence": 0.4,
             }
-    if any(w in lowered for w in ("list task", "show task", "my tasks", "pending task")):
+    if "task" in lowered and any(w in lowered for w in ("list", "show", "my", "pending")):
         name = next((t["name"] for t in tools if t["name"] == "get_tasks"), None)
         if name:
             return {
@@ -154,7 +178,12 @@ async def plan_node(state: OrchestratorState) -> OrchestratorState:
         raw = completion.choices[0].message.content.strip()
         raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         decision = json.loads(raw)
-    except Exception:
+    except Exception as e:
+        # Surface the real failure reason instead of silently falling back —
+        # otherwise "gateway unreachable" and "model returned bad JSON" both
+        # look identical from the outside (a low-confidence no-op).
+        print(f"[plan_node] LLM call failed, using keyword fallback: "
+              f"{type(e).__name__}: {e}", file=sys.stderr)
         decision = _keyword_fallback(state["request"], tools)
 
     return {
