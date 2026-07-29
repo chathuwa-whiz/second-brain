@@ -26,7 +26,12 @@ export default async function ActionsPage() {
             Every decision the orchestrator has made, most recent first.
           </p>
         </div>
-        <SignOutButton />
+        <div className="flex items-center gap-4">
+          <a href="/resumes" className="text-sm text-slate-400 hover:text-slate-200">
+            Resumes
+          </a>
+          <SignOutButton />
+        </div>
       </div>
       <ActionsTable initialActions={rows} />
     </main>
