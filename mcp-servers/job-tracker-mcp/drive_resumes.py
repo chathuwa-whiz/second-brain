@@ -2,14 +2,19 @@
 drive_resumes.py — read resume files from a Google Drive folder via a
 service account, and extract plain text from them.
 
-Deliberately a SERVICE ACCOUNT integration, not OAuth user-consent: this
-runs as an unattended background process (today on a local machine,
-eventually on a headless VPS with no browser to complete a login flow), so
-a service account with the folder explicitly shared to it is the right
-fit — no login screen, no token refresh dance, just a JSON key file that
-only has read access to whatever folder you explicitly share with it.
+OPTIONAL / DORMANT: this backend is only used if GOOGLE_SERVICE_ACCOUNT_FILE
+and RESUME_DRIVE_FOLDER_ID are set in .env. If you're using local_resumes.py
+instead (resumes uploaded via the second-brain webapp onto shared VPS
+storage), you don't need any of the Google Cloud setup below and this file
+is simply never imported at runtime.
 
-One-time setup (Google Cloud Console):
+Deliberately a SERVICE ACCOUNT integration, not OAuth user-consent: this
+would run as an unattended background process, so a service account with
+the folder explicitly shared to it is the right fit — no login screen, no
+token refresh dance, just a JSON key file that only has read access to
+whatever folder you explicitly share with it.
+
+One-time setup (Google Cloud Console), if you choose to use this backend:
     1. Create/select a project, enable the "Google Drive API".
     2. APIs & Services -> Credentials -> Create Credentials -> Service
        Account. Any name is fine (e.g. "second-brain-resumes").
@@ -29,11 +34,11 @@ import io
 import os
 from pathlib import Path
 
-from docx import Document as DocxDocument
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
-from pypdf import PdfReader
+
+from resume_extract import extract_docx_text, extract_pdf_text
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
@@ -72,22 +77,6 @@ def list_resume_files(folder_id: str) -> list[dict]:
     return results.get("files", [])
 
 
-def _extract_docx_text(raw: bytes) -> str:
-    doc = DocxDocument(io.BytesIO(raw))
-    parts = [p.text for p in doc.paragraphs if p.text.strip()]
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                if cell.text.strip():
-                    parts.append(cell.text.strip())
-    return "\n".join(parts)
-
-
-def _extract_pdf_text(raw: bytes) -> str:
-    reader = PdfReader(io.BytesIO(raw))
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-
 def get_resume_text(file_id: str, mime_type: str) -> str:
     """Download a single Drive file and extract its plain text."""
     service = _get_drive_service()
@@ -105,5 +94,5 @@ def get_resume_text(file_id: str, mime_type: str) -> str:
     raw = buffer.getvalue()
 
     if mime_type == "application/pdf":
-        return _extract_pdf_text(raw)
-    return _extract_docx_text(raw)
+        return extract_pdf_text(raw)
+    return extract_docx_text(raw)
