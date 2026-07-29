@@ -25,6 +25,15 @@ import sys
 from pathlib import Path
 from typing import Any, Optional, TypedDict
 
+from dotenv import load_dotenv
+
+# Load orchestrator/.env into the process environment BEFORE importing
+# anything (config, logger) that reads os.environ at import time. This is
+# required on Windows/PowerShell, where `export $(cat .env | xargs)` (a Bash
+# idiom) does nothing — without this, os.environ.get(...) calls below would
+# see nothing even with a correctly filled-in .env file sitting right there.
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
 from langgraph.graph import StateGraph, END
 from openai import OpenAI
 

@@ -20,11 +20,19 @@ Run:
 
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from mcp.server.fastmcp import FastMCP
+from dotenv import load_dotenv
+
+# Loads task-mcp/.env if present. When launched by the orchestrator as a
+# subprocess, MONGO_URL etc. are already passed through explicitly, so this
+# is a no-op then — it only matters when running this file standalone (e.g.
+# via the MCP inspector). load_dotenv() never overwrites vars already set.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 MONGO_URL = os.environ.get("MONGO_URL")
 if not MONGO_URL:

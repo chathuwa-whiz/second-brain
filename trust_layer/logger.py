@@ -13,10 +13,19 @@ import os
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Optional
 
 import psycopg2
 import psycopg2.extras
+from dotenv import load_dotenv
+
+# Loads trust_layer/.env if present — only relevant when running this file
+# standalone (`python logger.py`, the smoke test below). When imported by
+# the orchestrator, orchestrator/.env has already been loaded into the
+# process environment before this import happens, so this is a no-op then;
+# load_dotenv() never overwrites vars already set.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 DATABASE_URL = os.environ.get("LOG_DATABASE_URL")
 if not DATABASE_URL:

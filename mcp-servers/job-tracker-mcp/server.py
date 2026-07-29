@@ -20,19 +20,25 @@ file sends anything anywhere.
 Run:
     pip install -r requirements.txt
     cp .env.example .env   # then edit with real values
-    export $(grep -v '^#' .env | xargs)
     python server.py
 """
 
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
+from dotenv import load_dotenv
+
+# Loads job-tracker-mcp/.env if present. No-op when launched by the
+# orchestrator (which passes MONGO_URL etc. through explicitly already) —
+# only matters for standalone runs. Never overwrites vars already set.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 MONGO_URL = os.environ.get("MONGO_URL")
 if not MONGO_URL:
