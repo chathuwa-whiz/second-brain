@@ -16,13 +16,17 @@ A two-node LangGraph graph: `plan` → `act`.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env   # edit as needed
-export $(cat .env | xargs)   # or use python-dotenv / direnv
+cp .env.example .env   # then edit .env with your real values
 
 python agent.py "Add a task: renew VPS domain, high priority"
 python agent.py "Log an application to Acme Corp for Backend Engineer"
 python agent.py "Do I have any job applications that need a follow-up?"
 ```
+
+`agent.py` loads `.env` itself (via `python-dotenv`) — no need to `export`
+anything manually, and this works identically on Windows/PowerShell,
+macOS, and Linux. Just make sure `.env` sits next to `agent.py` in this
+folder with real values filled in.
 
 Requires:
 - Postgres with the trust_layer schema applied (see `../trust_layer/`)
@@ -30,11 +34,11 @@ Requires:
 - Your LLM gateway reachable (defaults to the same 9router endpoint your
   n8n workflows use)
 
-The orchestrator launches each MCP server as a subprocess and inherits your
-shell's environment, so as long as `MONGO_URL`, `LLM_BASE_URL`, etc. are
-exported before you run `agent.py`, both `task-mcp` and `job-tracker-mcp`
-pick them up automatically — no separate `.env` needed per server unless
-you want different databases per module.
+The orchestrator launches each MCP server as a subprocess and passes its own
+process environment through to it explicitly (see `mcp_client.py`), so once
+`.env` is loaded here, both `task-mcp` and `job-tracker-mcp` get `MONGO_URL`,
+`LLM_BASE_URL`, etc. automatically — no separate `.env` needed per server
+unless you want different databases per module.
 
 ## What "done" looks like
 

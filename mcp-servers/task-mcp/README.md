@@ -16,9 +16,12 @@ your deploy target's secret manager.
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # then edit .env with your real Atlas connection string
-export $(grep -v '^#' .env | xargs)       # exports MONGO_URL, MONGO_DB
 python server.py
 ```
+
+`server.py` loads `.env` itself (via `python-dotenv`) — no manual
+`export`/`$env:` step needed, and this works the same on Windows, macOS,
+and Linux.
 
 `server.py` raises a clear error if `MONGO_URL` isn't set, rather than
 silently falling back to a local instance — that's intentional, so nothing

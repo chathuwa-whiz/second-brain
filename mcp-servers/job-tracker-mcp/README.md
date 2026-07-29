@@ -16,9 +16,12 @@ Tools exposed:
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # then edit with your real Atlas connection string
-export $(grep -v '^#' .env | xargs)
 python server.py
 ```
+
+`server.py` loads `.env` itself (via `python-dotenv`) — no manual
+`export`/`$env:` step needed, and this works the same on Windows, macOS,
+and Linux.
 
 Same as task-mcp: raises a clear error if `MONGO_URL` is missing, runs over
 stdio for local dev, switch to `sse`/`streamable-http` transport when this
