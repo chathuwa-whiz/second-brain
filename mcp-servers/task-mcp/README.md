@@ -9,11 +9,20 @@ than raised.
 
 ## Setup
 
+This project uses MongoDB Atlas. Never put your real connection string in
+code or commit it — it only ever lives in a local `.env` (gitignored) or
+your deploy target's secret manager.
+
 ```bash
 pip install -r requirements.txt
-export MONGO_URL="mongodb://localhost:27017"   # or your VPS Mongo instance
+cp ../../orchestrator/.env.example .env   # or write your own
+export $(grep -v '^#' .env | xargs)       # exports MONGO_URL, MONGO_DB, etc.
 python server.py
 ```
+
+`server.py` raises a clear error if `MONGO_URL` isn't set, rather than
+silently falling back to a local instance — that's intentional, so nothing
+here tempts you to hardcode a real string as a "default".
 
 This runs the server over stdio, which is what the orchestrator's MCP client
 expects for local dev. When you're ready to run this on your VPS alongside

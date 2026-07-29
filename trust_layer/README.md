@@ -5,36 +5,39 @@ approval — gets a row in `agent_actions`.
 
 ## Setup
 
-1. Postgres running (locally, Docker, or on your VPS — same host you'd eventually
-   put next to n8n is fine).
+This project uses [Neon](https://neon.tech) for Postgres. Never put your real
+connection string in code or commit it — it only ever lives in a local `.env`
+(gitignored) or your deploy target's secret manager.
+
+1. In the Neon dashboard, grab the **pooled connection** string from
+   Connection Details. It already includes `?sslmode=require`, which
+   psycopg2 picks up automatically.
+
+2. Apply the schema (run once):
 
    ```bash
-   docker run -d --name second-brain-pg \
-     -e POSTGRES_PASSWORD=postgres \
-     -e POSTGRES_DB=second_brain \
-     -p 5432:5432 postgres:16
-   ```
-
-2. Apply the schema:
-
-   ```bash
-   psql postgresql://postgres:postgres@localhost:5432/second_brain -f schema.sql
+   psql "$LOG_DATABASE_URL" -f schema.sql
    ```
 
 3. Install deps and smoke-test:
 
    ```bash
    pip install psycopg2-binary
-   export LOG_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/second_brain"
+   cp ../.env.example .env   # if you haven't already, then edit it
+   export $(grep -v '^#' .env | xargs)
    python logger.py
    ```
 
    You should see `Logged action id=1` and a list containing that row.
 
+`logger.py` raises a clear error if `LOG_DATABASE_URL` isn't set — this is
+intentional, so there's never a tempting "just hardcode it for now" default
+sitting in committed code.
+
 ## Usage from other modules
 
 ```python
-from logging.logger import log_action, ActionLogEntry
+from trust_layer.logger import log_action, ActionLogEntry
 
 log_action(ActionLogEntry(
     module="tasks",

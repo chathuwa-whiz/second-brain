@@ -14,7 +14,7 @@ should copy this file's shape:
 
 Run:
     pip install -r requirements.txt
-    export MONGO_URL="mongodb://localhost:27017"
+    export MONGO_URL="mongodb+srv://user:pass@cluster.mongodb.net/?retryWrites=true&w=majority"
     python server.py
 """
 
@@ -26,7 +26,13 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
 from mcp.server.fastmcp import FastMCP
 
-MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+MONGO_URL = os.environ.get("MONGO_URL")
+if not MONGO_URL:
+    raise RuntimeError(
+        "MONGO_URL is not set. Put your MongoDB connection string "
+        "(e.g. a MongoDB Atlas mongodb+srv:// string) in a local .env file — "
+        "never hardcode it here or commit it. See ../../.env.example / README."
+    )
 DB_NAME = os.environ.get("MONGO_DB", "second_brain")
 
 client = AsyncIOMotorClient(MONGO_URL)

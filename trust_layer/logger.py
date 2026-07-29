@@ -18,10 +18,13 @@ from typing import Any, Optional
 import psycopg2
 import psycopg2.extras
 
-DATABASE_URL = os.environ.get(
-    "LOG_DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/second_brain",
-)
+DATABASE_URL = os.environ.get("LOG_DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "LOG_DATABASE_URL is not set. Put your Postgres connection string "
+        "(e.g. a Neon connection string) in a local .env file — never hardcode "
+        "it here or commit it. See .env.example."
+    )
 
 
 @dataclass
