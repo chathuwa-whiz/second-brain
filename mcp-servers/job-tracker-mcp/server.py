@@ -13,6 +13,14 @@ of several resumes). Those are different LLM calls for different
 purposes — keeping them separate keeps the planner prompt small and keeps
 this logic testable independent of the orchestrator.
 
+get_job_matches / update_job_match_status read and write the "job_matches"
+collection — jobs n8n's Job Search Matcher v3 workflow found and scored,
+posted here via webhook_server.py's plain HTTP endpoint (n8n can't speak
+MCP directly). Those are separate from job_applications: a "match" is
+something the automated search found and thinks is a good fit; it only
+becomes an "application" when you actually apply and log it yourself via
+add_application. Nothing auto-applies to anything.
+
 IMPORTANT: draft_cover_letter only ever returns a draft. There is no
 send_email tool here on purpose — sending anything is a separate, future
 action that must go through the trust-layer approval flow. Nothing in this
@@ -39,6 +47,11 @@ from dotenv import load_dotenv
 from local_resumes import (
     list_resume_files as list_local_resume_files,
     get_resume_text as get_local_resume_text,
+)
+from job_matches_store import (
+    list_matches as _list_job_matches,
+    set_match_status as _set_job_match_status,
+    VALID_MATCH_STATUSES,
 )
 
 # The Drive backend is optional — only import it (and require its extra
@@ -226,6 +239,46 @@ async def get_pending_followups(days_since_applied: int = 7) -> dict:
     ).sort("date_applied", 1)
     results = [_serialize(doc) async for doc in cursor]
     return {"pending_followups": results, "count": len(results)}
+
+
+@mcp.tool()
+async def get_job_matches(status: Optional[str] = None, limit: int = 50) -> dict:
+    """List job matches found by the automated job search (n8n's Job Search
+    Matcher v3 workflow scores postings and posts the good ones — score
+    >= 7 — here via webhook). These are candidate postings, not
+    applications: nothing here means you've applied to anything.
+
+    Args:
+        status: One of "new", "applied", "dismissed". Omit for all.
+                "new" = not yet acted on. "applied" = you logged an
+                application for it (via add_application +
+                update_job_match_status). "dismissed" = not interested.
+        limit: Max number of matches to return (default 50).
+    """
+    if status and status not in VALID_MATCH_STATUSES:
+        return {"error": f"status must be one of {VALID_MATCH_STATUSES}, got {status!r}"}
+    results = await _list_job_matches(status=status, limit=limit)
+    return {"matches": results, "count": len(results)}
+
+
+@mcp.tool()
+async def update_job_match_status(match_id: str, status: str) -> dict:
+    """Mark a job match as applied (after you've separately logged the real
+    application with add_application) or dismissed (not interested).
+    Purely a status label on the match — does not create, modify, or
+    delete anything in job_applications.
+
+    Args:
+        match_id: The match's id, as returned by get_job_matches.
+        status: One of "new", "applied", "dismissed".
+    """
+    try:
+        result = await _set_job_match_status(match_id, status)
+    except ValueError as e:
+        return {"error": str(e)}
+    except LookupError as e:
+        return {"error": str(e)}
+    return {"match": result}
 
 
 @mcp.tool()

@@ -6,7 +6,13 @@ python-dotenv>=1.0.0
 python-docx>=1.1.0
 pypdf>=4.3.0
 
-# Optional — only needed if using the Google Drive backend for
+# webhook_server.py -- plain HTTP endpoint n8n's Job Search Matcher v3
+# workflow posts scored job matches to (MCP itself isn't reachable from
+# an n8n HTTP Request node without a lot of extra plumbing).
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+
+# Optional -- only needed if using the Google Drive backend for
 # select_best_resume (RESUME_DRIVE_FOLDER_ID in .env). Not required for
 # the primary local/VPS storage path (RESUME_DIR). Safe to skip these two
 # if you're not using Drive.
