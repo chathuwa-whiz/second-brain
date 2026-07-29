@@ -12,6 +12,12 @@ Run from orchestrator/:
 
 Requires the same env as agent.py (orchestrator/.env with MONGO_URL,
 LLM_BASE_URL, etc. — loaded automatically below, same as agent.py does).
+
+select_best_resume (step 6) additionally requires RESUME_DIR to be set in
+job-tracker-mcp/.env, pointing at a folder containing at least one .docx
+or .pdf resume. If it's not configured, that step will show an error from
+the tool itself (not a Python crash) and the rest of the script falls
+back to the hardcoded RESUME_TEXT below so steps 7-8 still run.
 """
 
 import asyncio
@@ -25,8 +31,9 @@ load_dotenv(Path(__file__).resolve().parent / ".env")
 from mcp_client import list_tools, call_tool, find_server_for_tool
 
 # Real resume text (your web/full-stack version) and a realistic job
-# description, used to actually exercise match_resume_to_posting and
-# draft_cover_letter with real content instead of placeholder text.
+# description, used as a fallback for match_resume_to_posting/
+# draft_cover_letter if select_best_resume isn't configured/available, and
+# as the reference text for the job description throughout.
 RESUME_TEXT = """
 CHATHUSHKA NAVOD — Undergraduate, BSc (Hons) Information Technology, SLIIT.
 
@@ -91,6 +98,7 @@ async def main():
     expected = {
         "add_application", "get_applications", "update_application_status",
         "get_pending_followups", "match_resume_to_posting", "draft_cover_letter",
+        "select_best_resume",
     }
     missing = expected - set(job_tools)
     if missing:
@@ -127,15 +135,42 @@ async def main():
     result = await call_tool(server, "get_pending_followups", {"days_since_applied": 0})
     _print_result(result)
 
-    _print_step("6. match_resume_to_posting — real resume vs real job description")
-    result = await call_tool(server, "match_resume_to_posting", {
-        "resume_text": RESUME_TEXT, "job_description": JOB_DESCRIPTION,
+    _print_step("6. select_best_resume — pick the best-matching resume from"
+                 " RESUME_DIR (local/VPS storage) against the job description")
+    result = await call_tool(server, "select_best_resume", {
+        "job_description": JOB_DESCRIPTION,
     })
     _print_result(result)
 
-    _print_step("7. draft_cover_letter — real resume vs real job description")
+    # Feed whatever select_best_resume actually returned into steps 7-8, so
+    # this test exercises the real intended chain (select -> match -> draft)
+    # rather than always using the hardcoded fallback text. Falls back
+    # gracefully if RESUME_DIR isn't configured yet or the folder is empty.
+    selected_resume_text = RESUME_TEXT
+    try:
+        parsed = json.loads(result["raw"][0])
+        if "resume_text" in parsed:
+            selected_resume_text = parsed["resume_text"]
+            print(f"\n-> using resume selected from {parsed.get('source')} storage: "
+                  f"{parsed.get('file_name')} (score {parsed.get('score')})")
+        else:
+            print(f"\n-> select_best_resume returned no resume_text "
+                  f"(see error above) — falling back to hardcoded RESUME_TEXT "
+                  f"for steps 7-8. Check RESUME_DIR is set and the folder has "
+                  f"at least one .docx/.pdf file.")
+    except (json.JSONDecodeError, KeyError, IndexError):
+        print("\n-> could not parse select_best_resume output — falling back "
+              "to hardcoded RESUME_TEXT for steps 7-8")
+
+    _print_step("7. match_resume_to_posting — selected resume vs real job description")
+    result = await call_tool(server, "match_resume_to_posting", {
+        "resume_text": selected_resume_text, "job_description": JOB_DESCRIPTION,
+    })
+    _print_result(result)
+
+    _print_step("8. draft_cover_letter — selected resume vs real job description")
     result = await call_tool(server, "draft_cover_letter", {
-        "resume_text": RESUME_TEXT,
+        "resume_text": selected_resume_text,
         "job_description": JOB_DESCRIPTION,
         "company": "Acme Corp",
         "role": "Junior Full Stack Developer",
