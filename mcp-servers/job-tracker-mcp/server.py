@@ -53,6 +53,10 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://62.171.163.6:20128/v1")
 LLM_MODEL = os.environ.get("LLM_MODEL", "GeminiALL")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 
+# Optional: your name, used to sign cover letter drafts. Falls back to a
+# generic sign-off (no fabricated name) if not set.
+CANDIDATE_NAME = os.environ.get("CANDIDATE_NAME", "")
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 applications_collection = db["job_applications"]
@@ -221,6 +225,7 @@ async def draft_cover_letter(
     job_description: str,
     company: str = "",
     role: str = "",
+    candidate_name: str = "",
 ) -> dict:
     """Draft a cover letter from a resume and job posting. Returns a DRAFT
     only — this tool never sends anything anywhere. The draft is meant to be
@@ -231,16 +236,43 @@ async def draft_cover_letter(
         job_description: The full text of the job posting.
         company: Company name, for personalization.
         role: Role title, for personalization.
+        candidate_name: Your name, to sign the letter. Falls back to the
+            CANDIDATE_NAME env var, then to a generic sign-off if neither
+            is set — never fabricated.
     """
     if not resume_text.strip() or not job_description.strip():
         return {"error": "both resume_text and job_description are required"}
 
+    name = (candidate_name or CANDIDATE_NAME).strip()
+    signoff_instruction = (
+        f'End with "Sincerely," on its own line, then "{name}" on the next line.'
+        if name
+        else 'End with "Sincerely," on its own line and nothing after it — '
+        "do not invent or guess a name."
+    )
+
     prompt = (
-        "Write a concise, specific cover letter (under 300 words) for the "
-        f"role of {role or 'this role'} at {company or 'this company'}, "
-        "based on the resume and job posting below. Ground every claim in "
-        "the resume — do not invent experience. Plain text, no markdown, "
-        "no placeholder brackets.\n\n"
+        "Write a real cover letter — the kind a person actually sends, not "
+        "a categorized summary of a resume. It must read as connected "
+        "prose: full sentences, natural transitions between ideas, no "
+        "section headers, no labels like 'Experience:' or 'Skills:', and "
+        "no bullet points or lists of any kind.\n\n"
+        "Structure it as exactly four parts, each 2-4 sentences, written "
+        "as flowing paragraphs (not labeled):\n"
+        f"1. Opening: state the role ({role or 'the role'}) and company "
+        f"({company or 'the company'}) being applied to, and one honest, "
+        "specific reason this role is a good fit — not generic enthusiasm.\n"
+        "2. Body: pick the 2-3 most relevant pieces of experience from the "
+        "resume and connect them explicitly to what the job posting is "
+        "asking for. Weave them into a narrative, don't list them.\n"
+        "3. Body: one more concrete example (a project or achievement) "
+        "that demonstrates fit, again in prose.\n"
+        "4. Closing: a brief, confident closing line inviting next steps.\n\n"
+        f"Start with 'Dear Hiring Manager,' on its own line. {signoff_instruction}\n\n"
+        "Ground every single claim in the resume text below — never invent "
+        "experience, skills, or achievements that aren't there. Keep the "
+        "whole letter under 300 words. Plain text only: no markdown, no "
+        "asterisks, no placeholder brackets like [Company Name].\n\n"
         f"RESUME:\n{resume_text}\n\nJOB POSTING:\n{job_description}"
     )
 
