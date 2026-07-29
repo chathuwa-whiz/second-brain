@@ -4,13 +4,14 @@ job-tracker-mcp — Phase 1's MCP server, built on the task-mcp template.
 Same shape as task-mcp: one Motor client, @mcp.tool() functions, JSON-safe
 returns, errors returned as {"error": ...} instead of raised.
 
-Two of these tools (match_resume_to_posting, draft_cover_letter) also call
-the LLM gateway. That's a deliberate choice to keep here rather than in the
-orchestrator: the orchestrator's planner LLM call decides *which* tool to
-invoke, but the tool itself may need its own LLM call to do its job (score
-a resume, write a draft). Those are two different LLM calls for two
-different purposes — keeping them separate keeps the planner prompt small
-and keeps this logic testable independent of the orchestrator.
+Three of these tools (match_resume_to_posting, draft_cover_letter,
+select_best_resume) also call the LLM gateway. That's a deliberate choice
+to keep here rather than in the orchestrator: the orchestrator's planner
+LLM call decides *which* tool to invoke, but the tool itself may need its
+own LLM call to do its job (score a resume, write a draft, pick the best
+of several resumes). Those are different LLM calls for different
+purposes — keeping them separate keeps the planner prompt small and keeps
+this logic testable independent of the orchestrator.
 
 IMPORTANT: draft_cover_letter only ever returns a draft. There is no
 send_email tool here on purpose — sending anything is a separate, future
@@ -35,6 +36,8 @@ from mcp.server.fastmcp import FastMCP
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from drive_resumes import list_resume_files, get_resume_text
+
 # Loads job-tracker-mcp/.env if present. No-op when launched by the
 # orchestrator (which passes MONGO_URL etc. through explicitly already) —
 # only matters for standalone runs. Never overwrites vars already set.
@@ -56,6 +59,10 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 # Optional: your name, used to sign cover letter drafts. Falls back to a
 # generic sign-off (no fabricated name) if not set.
 CANDIDATE_NAME = os.environ.get("CANDIDATE_NAME", "")
+
+# Optional: default Drive folder ID for select_best_resume, so callers
+# don't have to pass folder_id every time. Can still be overridden per-call.
+RESUME_DRIVE_FOLDER_ID = os.environ.get("RESUME_DRIVE_FOLDER_ID", "")
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -217,6 +224,103 @@ async def match_resume_to_posting(resume_text: str, job_description: str) -> dic
         return json.loads(raw)
     except Exception as e:
         return {"error": f"LLM matching failed: {e}"}
+
+
+@mcp.tool()
+async def select_best_resume(job_description: str, folder_id: str = "") -> dict:
+    """Look through your resumes stored in Google Drive and pick the one
+    that best matches a job posting. Reads .docx/.pdf/Google Docs from a
+    Drive folder (shared with the service account — see drive_resumes.py
+    for one-time setup), scores each against the posting with the LLM in a
+    single comparison call, and returns the winning resume's full text —
+    ready to feed straight into match_resume_to_posting or
+    draft_cover_letter.
+
+    Args:
+        job_description: The full text of the job posting to match against.
+        folder_id: Google Drive folder ID to search. If omitted, uses
+            RESUME_DRIVE_FOLDER_ID from .env.
+    """
+    target_folder = folder_id.strip() or RESUME_DRIVE_FOLDER_ID
+    if not target_folder:
+        return {"error": "No folder_id given and RESUME_DRIVE_FOLDER_ID is not set in .env"}
+    if not job_description.strip():
+        return {"error": "job_description is required"}
+
+    try:
+        files = list_resume_files(target_folder)
+    except Exception as e:
+        return {"error": f"Could not list Drive folder {target_folder}: {e}"}
+
+    if not files:
+        return {
+            "error": f"No supported resume files (.docx/.pdf/Google Doc) "
+            f"found in Drive folder {target_folder}"
+        }
+
+    candidates = []
+    for f in files:
+        try:
+            text = get_resume_text(f["id"], f["mimeType"])
+        except Exception as e:
+            candidates.append({"file_name": f["name"], "file_id": f["id"], "extract_error": str(e)})
+            continue
+        if text.strip():
+            candidates.append({"file_name": f["name"], "file_id": f["id"], "text": text})
+        else:
+            candidates.append({"file_name": f["name"], "file_id": f["id"], "extract_error": "empty after extraction"})
+
+    usable = [c for c in candidates if "text" in c]
+    if not usable:
+        return {
+            "error": "Found resume files in Drive but couldn't extract text from any of them",
+            "details": candidates,
+        }
+
+    # One LLM call comparing all candidates at once, rather than N separate
+    # match_resume_to_posting calls — a single round trip, and lets the
+    # model weigh candidates directly against each other rather than
+    # against independently-generated scores that may not be comparable.
+    listing = "\n\n".join(
+        f"--- RESUME {i + 1}: {c['file_name']} ---\n{c['text']}"
+        for i, c in enumerate(usable)
+    )
+    prompt = (
+        "You are choosing which of several resumes best matches a job posting.\n\n"
+        f"JOB POSTING:\n{job_description}\n\n{listing}\n\n"
+        "Respond with ONLY a JSON object, no markdown fences:\n"
+        "{\n"
+        '  "best_match_index": <integer, 1-based index of the best resume above>,\n'
+        '  "score": <integer 0-100, how well that resume matches the posting>,\n'
+        '  "reasoning": "<why this resume beats the others for this specific posting>"\n'
+        "}"
+    )
+
+    try:
+        completion = llm_client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+        )
+        raw = completion.choices[0].message.content.strip()
+        raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        decision = json.loads(raw)
+    except Exception as e:
+        return {"error": f"LLM selection failed: {e}"}
+
+    idx = decision.get("best_match_index", 1) - 1
+    if not isinstance(idx, int) or not (0 <= idx < len(usable)):
+        return {"error": f"LLM returned an out-of-range index: {decision.get('best_match_index')!r}"}
+
+    chosen = usable[idx]
+    return {
+        "file_name": chosen["file_name"],
+        "file_id": chosen["file_id"],
+        "resume_text": chosen["text"],
+        "score": decision.get("score"),
+        "reasoning": decision.get("reasoning"),
+        "candidates_considered": [c["file_name"] for c in usable],
+    }
 
 
 @mcp.tool()
