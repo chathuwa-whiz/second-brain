@@ -11,6 +11,10 @@ Target layout on disk: everything under `/opt/second-brain`, owned by
 `www-data` (the user each systemd service runs as) so it can write to
 `RESUME_DIR` and read its own `.env` files without running as root.
 
+Steps 1-9 are the one-time manual setup. Once they're done and confirmed
+working, **step 10 (CI/CD)** replaces manual `git pull` + restart cycles —
+a plain `git push` deploys automatically from then on.
+
 ## 0. What's changing
 
 - **n8n moves from `/` to `/n8n/`.** It's been living at the domain root;
@@ -35,9 +39,11 @@ git clone https://github.com/chathuwa-whiz/second-brain.git /opt/second-brain
 cd /opt/second-brain
 ```
 
-For updates later, it's just `git pull` in this directory followed by
-re-running whichever of steps 2-4 changed, then restarting the relevant
-service(s) (step 6).
+For updates during this initial manual setup, it's just `git pull` in this
+directory followed by re-running whichever of steps 2-4 changed, then
+restarting the relevant service(s) (step 6). Once step 10 is set up, this
+manual cycle isn't needed for routine code changes anymore — only for
+things CI deliberately doesn't touch (Nginx config, `.env` files).
 
 ## 2. Python services: job-tracker-mcp + orchestrator
 
@@ -241,6 +247,103 @@ URLs it calls out to).
 step is an n8n workflow with a Telegram trigger (or a scheduled one) that
 POSTs to it — but that's a separate, deliberate piece of work, not something
 to bolt on as an afterthought here.
+
+## 10. CI/CD — deploy automatically on push
+
+Once the manual deploy in steps 1-8 has been done once and everything's
+confirmed working, `git push` to `main` deploys automatically from then on.
+`.github/workflows/deploy.yml` builds the dashboard on GitHub's own runners
+(not the VPS — a `next build` alongside n8n on a 1GB box risks OOMing
+everything else running there) and ships the finished output over; the
+Python services (`orchestrator`, `mcp-servers/job-tracker-mcp`) just get a
+`git pull` + `pip install`, no build step needed.
+
+**This workflow file isn't in the repo yet** — GitHub blocks API pushes to
+`.github/workflows/*` from tokens without explicit `workflow` scope, which
+this connector doesn't have. It has to be added by hand, once — see the
+setup steps below.
+
+**Nginx config is deliberately left alone by CI.** It's shared with n8n and
+edited by hand on the VPS — a bad automated edit there could take n8n down
+too, not just second-brain. If a change to `deploy/nginx/*.conf` needs to go
+live, that's still a manual `cp` + `nginx -t` + `systemctl reload nginx`,
+same as every time it's been changed so far in this project.
+
+### One-time setup
+
+**1. Add the workflow file itself.** In the GitHub web UI: repo → Add file
+→ Create new file → path `.github/workflows/deploy.yml` → paste the
+contents shown when this was set up → commit directly to `main`. (Or, from
+a machine with `git` and normal push access: save it to that path locally
+and `git push` — a personal token/SSH key has the scope this connector
+doesn't.)
+
+**2. Generate a dedicated deploy key** (don't reuse your personal SSH key —
+this one lives in a GitHub secret, so it should be revocable on its own if
+it ever leaks):
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/gh_deploy_key -N ""
+```
+
+On the VPS, add the **public** half to whatever user CI will connect as
+(matching how you've been operating this whole deployment, that's `root`):
+
+```bash
+cat ~/gh_deploy_key.pub >> /root/.ssh/authorized_keys
+```
+
+**3. Add four repository secrets** — GitHub repo → Settings → Secrets and
+variables → Actions → New repository secret:
+
+| Secret | Value |
+|---|---|
+| `VPS_HOST` | `chathushka.xubi.org` |
+| `VPS_USER` | `root` |
+| `VPS_SSH_KEY` | the **private** key, full contents of `~/gh_deploy_key` |
+| `VPS_SSH_PORT` | `22` (optional — workflow defaults to 22 if unset) |
+
+Delete `~/gh_deploy_key` and `~/gh_deploy_key.pub` from wherever you
+generated them once they're pasted into GitHub and the VPS — they don't
+need to exist anywhere else.
+
+**4. Confirm `remote-deploy.sh` is on the VPS and executable** (it ships
+with the repo, so a plain `git pull` in `/opt/second-brain` picks it up —
+just confirming it made it there and isn't blocked by a stale permission):
+
+```bash
+cd /opt/second-brain && git pull
+chmod +x deploy/scripts/remote-deploy.sh
+```
+
+**5. Trigger the first automated deploy** — either push any change to
+`main` that touches `dashboard/`, `orchestrator/`, or `mcp-servers/`, or go
+to the repo's **Actions** tab → "Deploy to VPS" → **Run workflow** for a
+manual first run without needing to change any code.
+
+Watch it in the Actions tab — `remote-deploy.sh`'s output (including the
+active/inactive check for all four services and the three health-endpoint
+curls) streams into the "Run remote-deploy.sh on the VPS" step log, so a
+failure there tells you exactly which service didn't come back up, not just
+that "something" went wrong.
+
+### What triggers a deploy
+
+Only pushes to `main` that touch `dashboard/`, `orchestrator/`,
+`mcp-servers/`, `trust_layer/`, `deploy/scripts/`, or the workflow file
+itself — a commit that's only, say, updating `README.md` won't trigger a
+redeploy. Pull the trigger manually any time from the Actions tab
+regardless of what changed, via **Run workflow**.
+
+### Rolling back
+
+There's no automatic rollback — if a bad deploy ships, the fastest fix is
+usually `git revert` the offending commit and push, which triggers a fresh
+deploy of the reverted state. For the dashboard specifically,
+`remote-deploy.sh` keeps the previous build only transiently during the
+swap (`standalone.old`, deleted right after the new one starts
+successfully) — it's not kept around as a rollback target, by design, to
+avoid double the disk/memory footprint sitting idle on a already-tight VPS.
 
 ---
 
