@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { Button, Card, ErrorNote } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,7 +12,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -24,51 +25,92 @@ export default function LoginPage() {
 
     setLoading(false);
     if (res?.error) {
-      setError("Invalid username or password");
+      setError("That username and password don't match. Try again.");
       return;
     }
-    router.push("/actions");
+    router.push("/");
+    router.refresh();
   }
 
+  const field =
+    "w-full rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
+
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm space-y-4 rounded-xl border border-slate-800 bg-slate-900 p-6"
-      >
-        <h1 className="text-xl font-semibold">Second Brain</h1>
-        <p className="text-sm text-slate-400">Sign in to view the agent log.</p>
-
-        <div className="space-y-1">
-          <label className="text-sm text-slate-300">Username</label>
-          <input
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-slate-500"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoFocus
-          />
+    <main className="grid min-h-screen place-items-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-7 flex flex-col items-center text-center">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-xl shadow-accent/30">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-7 w-7"
+              aria-hidden="true"
+            >
+              <path d="M12 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 6 0v-9a3 3 0 0 0-3-3z" />
+              <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
+            </svg>
+          </div>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight text-primary">
+            Second Brain
+          </h1>
+          <p className="mt-1 text-sm text-secondary">
+            Sign in to the control panel.
+          </p>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-sm text-slate-300">Password</label>
-          <input
-            type="password"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 outline-none focus:border-slate-500"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
+        <Card className="p-6">
+          <form onSubmit={submit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="username"
+                className="text-xs font-medium text-secondary"
+              >
+                Username
+              </label>
+              <input
+                id="username"
+                className={field}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="password"
+                className="text-xs font-medium text-secondary"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                className={field}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-slate-100 px-3 py-2 font-medium text-slate-900 hover:bg-white disabled:opacity-50"
-        >
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
-      </form>
+            {error && <ErrorNote>{error}</ErrorNote>}
+
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
+        </Card>
+      </div>
     </main>
   );
 }

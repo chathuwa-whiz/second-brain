@@ -1,26 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, Card, EmptyState, ErrorNote } from "@/components/ui";
+import { formatBytes, relativeTime } from "@/lib/format";
 
-type ResumeFile = {
-  name: string;
-  size: number;
-  modifiedAt: string;
-};
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+type ResumeFile = { name: string; size: number; modifiedAt: string };
 
 export default function ResumesManager() {
   const [files, setFiles] = useState<ResumeFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [deletingName, setDeletingName] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
     setLoading(true);
@@ -28,10 +21,10 @@ export default function ResumesManager() {
     try {
       const res = await fetch("/api/resumes");
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "failed to load resumes");
+      if (!res.ok) throw new Error(data.error ?? "Couldn't load resumes.");
       setFiles(data.files);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to load resumes");
+      setError(err instanceof Error ? err.message : "Couldn't load resumes.");
     } finally {
       setLoading(false);
     }
@@ -41,106 +34,143 @@ export default function ResumesManager() {
     refresh();
   }, []);
 
-  async function handleUpload(fileList: FileList | null) {
-    if (!fileList || fileList.length === 0) return;
+  async function upload(list: FileList | null) {
+    if (!list || list.length === 0) return;
     setUploading(true);
     setError(null);
     try {
-      for (const file of Array.from(fileList)) {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/resumes", { method: "POST", body: formData });
+      for (const file of Array.from(list)) {
+        const body = new FormData();
+        body.append("file", file);
+        const res = await fetch("/api/resumes", { method: "POST", body });
         const data = await res.json();
-        if (!res.ok) throw new Error(`${file.name}: ${data.error ?? "upload failed"}`);
+        if (!res.ok)
+          throw new Error(`${file.name}: ${data.error ?? "upload failed"}`);
       }
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "upload failed");
+      setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (inputRef.current) inputRef.current.value = "";
     }
   }
 
-  async function handleDelete(name: string) {
-    setDeletingName(name);
+  async function remove(name: string) {
+    setDeleting(name);
     setError(null);
     try {
-      const res = await fetch(`/api/resumes/${encodeURIComponent(name)}`, { method: "DELETE" });
+      const res = await fetch(`/api/resumes/${encodeURIComponent(name)}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "delete failed");
+      if (!res.ok) throw new Error(data.error ?? "Couldn't delete that file.");
       setFiles((prev) => prev.filter((f) => f.name !== name));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "delete failed");
+      setError(
+        err instanceof Error ? err.message : "Couldn't delete that file."
+      );
     } finally {
-      setDeletingName(null);
+      setDeleting(null);
     }
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div
-        onDragOver={(e) => e.preventDefault()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
         onDrop={(e) => {
           e.preventDefault();
-          handleUpload(e.dataTransfer.files);
+          setDragging(false);
+          upload(e.dataTransfer.files);
         }}
-        className="rounded-lg border-2 border-dashed border-slate-700 bg-slate-900 p-8 text-center"
+        className={`glass glass-sheen rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+          dragging ? "border-accent bg-accent/[0.06]" : "border-hairline/20"
+        }`}
       >
-        <p className="mb-3 text-sm text-slate-400">
-          Drag & drop a resume here, or
+        <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-5 w-5"
+            aria-hidden="true"
+          >
+            <path d="M12 16V4M12 4 8 8M12 4l4 4" />
+            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+          </svg>
+        </div>
+        <p className="text-sm font-medium text-primary">
+          Drop a resume here to add it
         </p>
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-500 disabled:opacity-50"
-        >
-          {uploading ? "Uploading…" : "Choose file"}
-        </button>
+        <p className="mt-1 text-xs text-muted">Word or PDF, up to 10 MB each</p>
+        <div className="mt-4">
+          <Button
+            variant="primary"
+            disabled={uploading}
+            onClick={() => inputRef.current?.click()}
+          >
+            {uploading ? "Adding…" : "Choose a file"}
+          </Button>
+        </div>
         <input
-          ref={fileInputRef}
+          ref={inputRef}
           type="file"
           accept=".docx,.pdf"
           multiple
           className="hidden"
-          onChange={(e) => handleUpload(e.target.files)}
+          onChange={(e) => upload(e.target.files)}
         />
-        <p className="mt-3 text-xs text-slate-500">.docx or .pdf, up to 10MB each</p>
       </div>
 
-      {error && (
-        <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
-          {error}
-        </p>
-      )}
+      {error && <ErrorNote>{error}</ErrorNote>}
 
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <div className="space-y-2">
+          {[0, 1].map((i) => (
+            <div
+              key={i}
+              className="glass h-[68px] animate-pulse rounded-2xl opacity-60"
+            />
+          ))}
+        </div>
       ) : files.length === 0 ? (
-        <p className="rounded-lg border border-slate-800 bg-slate-900 p-6 text-slate-400">
-          No resumes uploaded yet.
-        </p>
+        <EmptyState
+          title="No resumes yet"
+          body="Add at least two tailored versions and the agent will pick whichever fits a given posting best, instead of always sending the same one."
+        />
       ) : (
         <div className="space-y-2">
           {files.map((f) => (
-            <div
+            <Card
               key={f.name}
-              className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900 p-3"
+              className="flex items-center justify-between gap-4 p-4"
             >
-              <div>
-                <p className="text-sm font-medium text-slate-200">{f.name}</p>
-                <p className="text-xs text-slate-500">
-                  {formatSize(f.size)} · updated {new Date(f.modifiedAt).toLocaleString()}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-primary">
+                  {f.name}
+                </p>
+                <p className="text-xs text-muted">
+                  {formatBytes(f.size)} · updated {relativeTime(f.modifiedAt)}
                 </p>
               </div>
-              <button
-                onClick={() => handleDelete(f.name)}
-                disabled={deletingName === f.name}
-                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={deleting === f.name}
+                onClick={() => remove(f.name)}
+                className="text-danger hover:bg-danger/10"
               >
-                {deletingName === f.name ? "Deleting…" : "Delete"}
-              </button>
-            </div>
+                {deleting === f.name ? "Removing…" : "Remove"}
+              </Button>
+            </Card>
           ))}
         </div>
       )}

@@ -1,0 +1,113 @@
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "@/lib/auth";
+import { mongoConfigured } from "@/lib/mongo";
+import PageHeader from "@/components/PageHeader";
+import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
+import AppearancePicker from "./AppearancePicker";
+
+export const dynamic = "force-dynamic";
+
+const THRESHOLD = Number(
+  process.env.NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD ?? "0.75"
+);
+
+function ConnectionRow({
+  name,
+  detail,
+  connected,
+}: {
+  name: string;
+  detail: string;
+  connected: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-primary">{name}</p>
+        <p className="truncate text-xs text-muted">{detail}</p>
+      </div>
+      <Badge tone={connected ? "ok" : "warn"}>
+        {connected ? "Configured" : "Not set"}
+      </Badge>
+    </div>
+  );
+}
+
+export default async function SettingsPage() {
+  const session = await getServerSession(authOptions);
+  if (!session) redirect("/login");
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="System"
+        title="Settings"
+        description="How the control panel looks, and what it's currently wired up to."
+      />
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section>
+          <SectionHeader eyebrow="Display" title="Appearance" />
+          <AppearancePicker />
+        </section>
+
+        <section>
+          <SectionHeader eyebrow="Safety" title="When the agent asks first" />
+          <Card className="p-5">
+            <p className="text-sm leading-relaxed text-secondary">
+              The planner scores its own confidence in every action. At or above{" "}
+              <span className="tnum font-semibold text-primary">
+                {THRESHOLD.toFixed(2)}
+              </span>{" "}
+              the action runs immediately. Below it, the action waits in
+              Approvals for your decision.
+            </p>
+
+            <div className="mt-4 rounded-xl bg-primary/[0.04] p-4">
+              <p className="mb-2.5 text-2xs font-semibold uppercase tracking-widest text-muted">
+                The bar
+              </p>
+              <ConfidenceMeter value={THRESHOLD} threshold={THRESHOLD} />
+            </div>
+
+            <p className="mt-4 text-sm leading-relaxed text-secondary">
+              Anything that deletes, removes, sends, or pays is capped below the
+              bar in code, so it always waits for you no matter how confident
+              the model claims to be. Change the threshold with{" "}
+              <code className="rounded bg-primary/[0.06] px-1.5 py-0.5 text-xs">
+                AUTO_EXECUTE_CONFIDENCE_THRESHOLD
+              </code>{" "}
+              in the orchestrator&apos;s environment.
+            </p>
+          </Card>
+        </section>
+
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Infrastructure" title="Connections" />
+          <Card className="divide-y overflow-hidden">
+            <ConnectionRow
+              name="Action log"
+              detail="Postgres — every decision, approval, and execution result"
+              connected={Boolean(process.env.LOG_DATABASE_URL)}
+            />
+            <ConnectionRow
+              name="Job database"
+              detail="MongoDB — job matches and applications"
+              connected={mongoConfigured()}
+            />
+            <ConnectionRow
+              name="Resume storage"
+              detail="Shared directory the agent reads resumes from"
+              connected={Boolean(process.env.RESUME_DIR)}
+            />
+          </Card>
+          <p className="mt-3 text-xs text-muted">
+            Signed in as {session.user?.name}. Connection values live in
+            environment variables and are never shown here.
+          </p>
+        </section>
+      </div>
+    </>
+  );
+}
