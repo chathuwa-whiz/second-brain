@@ -1,0 +1,116 @@
+# Deploy to the VPS on every push to main (or manually via the Actions tab).
+#
+# Two jobs:
+#   build-dashboard - builds the Next.js app on GitHub's runner, not the VPS.
+#     The VPS is a shared 1GB box already running n8n; a `next build` there
+#     risks OOMing everything else on it. Only the finished standalone
+#     output gets shipped over, as a tarball.
+#   deploy - copies that tarball to the VPS and runs deploy/scripts/
+#     remote-deploy.sh, which does the rest: git pull for the Python
+#     services (no build needed, just pip install), atomically swaps in
+#     the new dashboard build, and restarts the four systemd services.
+#
+# Nginx's site config is deliberately NOT touched here. It's shared with
+# n8n and edited by hand on the VPS - see DEPLOY.md. If a deploy/nginx/*.conf
+# change needs to go live, that's still a manual `cp` + `nginx -t` + reload,
+# same as every other time it's been changed so far.
+
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dashboard/**"
+      - "orchestrator/**"
+      - "mcp-servers/**"
+      - "trust_layer/**"
+      - "deploy/scripts/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch: {}
+
+# Only one deploy in flight at a time - a second push landing mid-deploy
+# should wait its turn, not race the first one on the same VPS.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  build-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        working-directory: dashboard
+        run: npm ci
+
+      - name: Build
+        working-directory: dashboard
+        env:
+          # Baked into the build - must match the Nginx location block and
+          # the NEXTAUTH_URL already set in .env.production on the VPS.
+          NEXT_BASE_PATH: /secondbrain
+          NEXT_PUBLIC_BASE_PATH: /secondbrain
+          NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD: "0.75"
+          # next build doesn't call out to Postgres/Mongo/NextAuth at build
+          # time (every page is `dynamic = "force-dynamic"`, resolved per
+          # request) - this is just a placeholder so the build step has
+          # something non-empty, not a real secret. The actual value lives
+          # only in .env.production on the VPS and is never touched by CI.
+          NEXTAUTH_SECRET: unused-at-build-time
+        run: npx next build
+
+      - name: Assemble standalone output
+        working-directory: dashboard
+        run: |
+          # Next's standalone output doesn't include static assets or
+          # public/ automatically - copy them in by hand, same as the
+          # manual DEPLOY.md steps.
+          cp -r .next/static .next/standalone/.next/static
+          if [ -d public ]; then cp -r public .next/standalone/public; fi
+          tar -czf ../standalone.tar.gz -C .next standalone
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dashboard-standalone
+          path: standalone.tar.gz
+          retention-days: 1
+
+  deploy:
+    needs: build-dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dashboard-standalone
+
+      - name: Copy dashboard build to the VPS
+        uses: appleboy/scp-action@v0.1.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          source: "standalone.tar.gz"
+          target: "/opt/second-brain/dashboard"
+          strip_components: 0
+
+      - name: Run remote-deploy.sh on the VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          # remote-deploy.sh itself lives in the repo, so `git pull` is the
+          # first thing it does - this always runs whatever version of the
+          # script main currently has, not a stale copy.
+          script: bash /opt/second-brain/deploy/scripts/remote-deploy.sh
+          command_timeout: 5m
