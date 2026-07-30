@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ActionCard from "@/components/ActionCard";
 import { EmptyState, ErrorNote } from "@/components/ui";
 import type { AgentAction } from "@/lib/db";
+import { withBasePath } from "@/lib/basePath";
 
 export default function ApprovalQueue({
   initial,
@@ -25,7 +26,7 @@ export default function ApprovalQueue({
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/actions/${id}`, {
+      const res = await fetch(withBasePath(`/api/actions/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -56,7 +57,7 @@ export default function ApprovalQueue({
         return;
       }
       try {
-        const res = await fetch(`/api/actions?ids=${ids.join(",")}`);
+        const res = await fetch(withBasePath(`/api/actions?ids=${ids.join(",")}`));
         if (!res.ok) return;
         const { actions: updated } = await res.json();
         setActions((prev) =>
