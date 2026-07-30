@@ -8,11 +8,12 @@
 #      plain Python, no build step, so a pull is the whole update)
 #   2. pip install -r requirements.txt for both Python services (idempotent
 #      and fast when nothing changed - pip skips already-satisfied packages)
-#   3. atomically swap in the dashboard build that scp-action already
-#      dropped at dashboard/standalone.tar.gz
+#   3. atomically swap in the dashboard build that scp already dropped at
+#      dashboard/standalone.tar.gz
 #   4. restart all four systemd services
-#   5. is-active + a couple of health-endpoint checks, so a broken deploy
-#      shows up as a failed GitHub Actions run instead of a shrug
+#   5. wait for each to actually respond (not just systemctl is-active,
+#      which is true even mid-startup - see wait_for_http below) and fail
+#      loudly with real journalctl output if one doesn't come up in time
 #
 # Deliberately does NOT touch Nginx config or .env files - those are edited
 # by hand, on purpose. See DEPLOY.md.
@@ -38,7 +39,7 @@ orchestrator/.venv/bin/pip install -q -r orchestrator/requirements.txt
 echo "==> dashboard: swapping in the new build"
 cd "$REPO_DIR/dashboard"
 if [ ! -f standalone.tar.gz ]; then
-  echo "!! standalone.tar.gz missing - scp-action step must have failed" >&2
+  echo "!! standalone.tar.gz missing - the copy step must have failed" >&2
   exit 1
 fi
 
@@ -49,8 +50,7 @@ rm -f standalone.tar.gz
 
 # Stop first, then swap, then start - the alternative (swap while running)
 # risks serving a half-written directory to whoever hits the dashboard
-# mid-deploy. Downtime here is the restart itself, roughly a second or two,
-# not the transfer time.
+# mid-deploy. Downtime here is the restart itself, not the transfer time.
 systemctl stop second-brain-dashboard
 rm -rf .next/standalone.old
 mv .next/standalone .next/standalone.old 2>/dev/null || true
@@ -67,7 +67,26 @@ echo "==> Reloading nginx (picks up nothing new - just re-applies whatever's alr
 nginx -t && systemctl reload nginx
 
 echo "==> Verifying"
-sleep 2
+
+# systemctl is-active alone isn't enough here - it's true the instant the
+# process starts, well before uvicorn finishes importing dependencies
+# (motor/pymongo/openai/mcp, langgraph for the orchestrator) and actually
+# binds its port. On this VPS that import lag has measured 6-7 seconds.
+# Polling instead of a fixed sleep means fast startups don't wait
+# needlessly and slow ones (e.g. under memory pressure, swapping) still
+# get a fair chance before being called a failure.
+wait_for_http() {
+  local name="$1" url="$2" tries=0 max_tries=20
+  until curl -sf -o /dev/null "$url"; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge "$max_tries" ]; then
+      echo "!! $name: still not responding after ${max_tries}s" >&2
+      return 1
+    fi
+    sleep 1
+  done
+  echo "   $name: responding (after ${tries}s)"
+}
 
 FAILED=0
 for svc in second-brain-dashboard second-brain-job-tracker-webhook second-brain-orchestrator-webhook second-brain-approval-executor; do
@@ -79,17 +98,9 @@ for svc in second-brain-dashboard second-brain-job-tracker-webhook second-brain-
   fi
 done
 
-curl -sf -o /dev/null http://127.0.0.1:3001/secondbrain/login \
-  && echo "   dashboard: responding" \
-  || { echo "!! dashboard: did not respond on /secondbrain/login" >&2; FAILED=1; }
-
-curl -sf -o /dev/null http://127.0.0.1:8090/health \
-  && echo "   job-tracker webhook: responding" \
-  || { echo "!! job-tracker webhook: did not respond on /health" >&2; FAILED=1; }
-
-curl -sf -o /dev/null http://127.0.0.1:8092/health \
-  && echo "   orchestrator webhook: responding" \
-  || { echo "!! orchestrator webhook: did not respond on /health" >&2; FAILED=1; }
+wait_for_http "dashboard" "http://127.0.0.1:3001/secondbrain/login" || FAILED=1
+wait_for_http "job-tracker webhook" "http://127.0.0.1:8090/health" || FAILED=1
+wait_for_http "orchestrator webhook" "http://127.0.0.1:8092/health" || FAILED=1
 
 if [ "$FAILED" -ne 0 ]; then
   echo "==> Deploy finished with failures - check the output above and \`journalctl -u <service>\` on the VPS" >&2
