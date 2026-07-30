@@ -7,6 +7,7 @@ import {
   MODULE_STATE_LABEL,
   MODULE_STATE_TONE,
 } from "@/lib/modules";
+import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import { Badge, Card } from "@/components/ui";
 
@@ -73,12 +74,12 @@ export default async function ModulesPage() {
                     : "not logging yet"}
                 </span>
                 {m.href && (
-                  <a
+                  <Link
                     href={m.href}
                     className="text-xs font-medium text-accent hover:underline"
                   >
                     Open {m.name}
-                  </a>
+                  </Link>
                 )}
               </div>
             </Card>

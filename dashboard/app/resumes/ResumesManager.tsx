@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, EmptyState, ErrorNote } from "@/components/ui";
 import { formatBytes, relativeTime } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 type ResumeFile = { name: string; size: number; modifiedAt: string };
 
@@ -19,7 +20,7 @@ export default function ResumesManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/resumes");
+      const res = await fetch(withBasePath("/api/resumes"));
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Couldn't load resumes.");
       setFiles(data.files);
@@ -42,7 +43,7 @@ export default function ResumesManager() {
       for (const file of Array.from(list)) {
         const body = new FormData();
         body.append("file", file);
-        const res = await fetch("/api/resumes", { method: "POST", body });
+        const res = await fetch(withBasePath("/api/resumes"), { method: "POST", body });
         const data = await res.json();
         if (!res.ok)
           throw new Error(`${file.name}: ${data.error ?? "upload failed"}`);
@@ -60,7 +61,7 @@ export default function ResumesManager() {
     setDeleting(name);
     setError(null);
     try {
-      const res = await fetch(`/api/resumes/${encodeURIComponent(name)}`, {
+      const res = await fetch(withBasePath(`/api/resumes/${encodeURIComponent(name)}`), {
         method: "DELETE",
       });
       const data = await res.json();

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { fetchActions, fetchStats } from "@/lib/db";
 import { MODULES, MODULE_STATE_LABEL, MODULE_STATE_TONE } from "@/lib/modules";
+import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
 import ActionCard from "@/components/ActionCard";
 import {
@@ -83,12 +84,12 @@ export default async function OverviewPage() {
             eyebrow="Latest"
             title="Recent activity"
             action={
-              <a
+              <Link
                 href="/activity"
                 className="text-sm font-medium text-accent hover:underline"
               >
                 See all
-              </a>
+              </Link>
             }
           />
           {actions.length === 0 ? (
@@ -121,12 +122,12 @@ export default async function OverviewPage() {
                 >
                   <div className="min-w-0">
                     {m.href ? (
-                      <a
+                      <Link
                         href={m.href}
                         className="text-sm font-medium text-primary hover:text-accent"
                       >
                         {m.name}
-                      </a>
+                      </Link>
                     ) : (
                       <p className="text-sm font-medium text-primary">
                         {m.name}

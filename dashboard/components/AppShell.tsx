@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, type ReactNode } from "react";
 import { useTheme } from "./theme";
+import { withBasePath } from "@/lib/basePath";
 import {
   IconOverview,
   IconApprovals,
@@ -201,7 +202,7 @@ export default function AppShell({
         <div className="mt-4 space-y-3 border-t px-3 pt-4">
           <ThemeToggle />
           <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
+            onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
             className="press flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:bg-primary/[0.05] hover:text-primary"
           >
             <IconSignOut className="h-[18px] w-[18px]" />
@@ -245,7 +246,7 @@ export default function AppShell({
               ))}
             </div>
             <button
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
               className="press mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:text-primary"
             >
               <IconSignOut className="h-[18px] w-[18px]" />

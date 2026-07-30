@@ -12,6 +12,7 @@ import {
 import { IconExternal } from "@/components/icons";
 import { relativeTime } from "@/lib/format";
 import type { JobApplication, JobMatch } from "@/lib/mongo";
+import { withBasePath } from "@/lib/basePath";
 
 const APP_STATUS_TONE: Record<string, Tone> = {
   applied: "accent",
@@ -149,7 +150,7 @@ export default function JobsBoard({
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/jobs/${id}`, {
+      const res = await fetch(withBasePath(`/api/jobs/${id}`), {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

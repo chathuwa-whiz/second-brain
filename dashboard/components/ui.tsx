@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /* Shared primitives. Everything visual in the control panel is built from
@@ -156,9 +157,9 @@ export function StatTile({
   );
 
   return href ? (
-    <a href={href} className="block transition-transform hover:-translate-y-0.5">
+    <Link href={href} className="block transition-transform hover:-translate-y-0.5">
       {body}
-    </a>
+    </Link>
   ) : (
     body
   );
