@@ -1,3 +1,218 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+  Design tokens live here as CSS custom properties rather than in the Tailwind
+  config, because both themes need to swap the *same* token at runtime. Tailwind
+  reads them via the config's color functions, so `bg-surface` works in both
+  themes without a single `dark:` variant in the markup.
+
+  Light theme is deliberately NOT #FFFFFF. A pure-white panel next to a
+  saturated accent is the main source of eye strain in long sessions, and this
+  is a control panel someone stares at while working. #F4F7FC paper with
+  #EAEFF7 chrome keeps contrast comfortable while still reading as "the light
+  one".
+*/
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-base: 244 247 252; /* #F4F7FC - cool paper, the canvas behind the glass */
+  --bg-chrome: 234 239 247; /* #EAEFF7 - sidebar / topbar wash */
+
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.72;
+  --glass-border: 255 255 255;
+  --glass-border-alpha: 0.9;
+  --glass-shadow: 16 24 40;
+  --glass-shadow-alpha: 0.08;
+
+  --text-primary: 22 28 40; /* #161C28 - near-black, softened off pure #000 */
+  --text-secondary: 78 90 112; /* #4E5A70 */
+  --text-muted: 133 145 166; /* #8591A6 */
+
+  --hairline: 16 24 40;
+  --hairline-alpha: 0.1;
+
+  /* Ambient mesh orbs - the light theme keeps them faint so the canvas stays calm */
+  --mesh-1: 91 141 239;
+  --mesh-2: 124 107 245;
+  --mesh-3: 48 200 143;
+  --mesh-alpha: 0.16;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-base: 11 16 32; /* #0B1020 - deep navy, not pure black: glass needs something to refract */
+  --bg-chrome: 15 21 40; /* #0F1528 */
+
+  --glass-bg: 255 255 255;
+  --glass-alpha: 0.06;
+  --glass-border: 255 255 255;
+  --glass-border-alpha: 0.12;
+  --glass-shadow: 0 0 0;
+  --glass-shadow-alpha: 0.4;
+
+  --text-primary: 237 241 249; /* #EDF1F9 - off-white, never #FFF */
+  --text-secondary: 160 172 194; /* #A0ACC2 */
+  --text-muted: 111 124 148; /* #6F7C94 */
+
+  --hairline: 255 255 255;
+  --hairline-alpha: 0.1;
+
+  --mesh-1: 91 141 239;
+  --mesh-2: 124 107 245;
+  --mesh-3: 48 200 143;
+  --mesh-alpha: 0.28;
+}
+
+@layer base {
+  * {
+    border-color: rgb(var(--hairline) / var(--hairline-alpha));
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: rgb(var(--bg-base));
+    color: rgb(var(--text-primary));
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter,
+      system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+  }
+
+  /* Numerals in stats/meters are tabular so they don't jitter on refresh */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  ::selection {
+    background: rgb(91 141 239 / 0.28);
+  }
+
+  /* Quality floor: keyboard focus must always be visible, in both themes. */
+  :focus-visible {
+    outline: 2px solid rgb(91 141 239);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--text-muted) / 0.3);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--text-muted) / 0.5);
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  /*
+    The glass primitive. backdrop-filter is what actually makes this iOS-like
+    rather than "a translucent div" - the saturate() boost is what gives
+    frosted panels that faint color pickup from whatever is behind them.
+  */
+  .glass {
+    background-color: rgb(var(--glass-bg) / var(--glass-alpha));
+    border: 1px solid rgb(var(--glass-border) / var(--glass-border-alpha));
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      0 1px 2px rgb(var(--glass-shadow) / var(--glass-shadow-alpha)),
+      0 8px 32px rgb(var(--glass-shadow) / calc(var(--glass-shadow-alpha) * 0.6));
+  }
+
+  /* Heavier blur for chrome that stays fixed while content scrolls under it */
+  .glass-chrome {
+    background-color: rgb(var(--bg-chrome) / 0.72);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    backdrop-filter: blur(32px) saturate(180%);
+    border-color: rgb(var(--hairline) / var(--hairline-alpha));
+  }
+
+  /* Specular top edge - the detail that sells "pane of glass" over "grey box" */
+  .glass-sheen {
+    position: relative;
+  }
+  .glass-sheen::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(255 255 255 / 0.5),
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  .press {
+    transition:
+      transform 0.16s cubic-bezier(0.34, 1.4, 0.64, 1),
+      background-color 0.16s ease,
+      opacity 0.16s ease;
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* Respect the OS setting - no exceptions, including the ambient mesh drift. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes mesh-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(4%, -6%, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-5%, 4%, 0) scale(0.95);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
