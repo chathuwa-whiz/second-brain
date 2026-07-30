@@ -40,6 +40,41 @@ process environment through to it explicitly (see `mcp_client.py`), so once
 `LLM_BASE_URL`, etc. automatically — no separate `.env` needed per server
 unless you want different databases per module.
 
+## Running as an always-on service (webhook_server.py)
+
+`agent.py` on its own is a one-shot CLI (`python agent.py "..."`) — useful
+for testing, but nothing external can reach it. `webhook_server.py` wraps
+`handle_request()` in a FastAPI app so the orchestrator can run continuously
+and accept requests over HTTP: from n8n, a Telegram bot, curl, or a future
+chat UI, without needing to SSH in and run a command each time.
+
+```bash
+pip install -r requirements.txt   # now includes fastapi + uvicorn
+cp .env.example .env              # add ORCHESTRATOR_WEBHOOK_SECRET
+uvicorn webhook_server:app --host 127.0.0.1 --port 8092
+```
+
+```bash
+curl -X POST http://127.0.0.1:8092/webhook/request \
+  -H "Content-Type: application/json" \
+  -H "X-Webhook-Secret: <ORCHESTRATOR_WEBHOOK_SECRET>" \
+  -d '{"request": "Add a task: renew VPS domain, high priority"}'
+```
+
+Returns the same shape as the CLI: `tool_name`, `reasoning`, `confidence`,
+`status` (`auto_executed` / `pending` / `failed`), and `result` if it ran.
+A `"pending"` response is expected behavior, not an error — it means the
+action is sitting in the dashboard's Approvals queue rather than having
+executed, exactly as it would from the CLI.
+
+The webhook is secured with a shared secret (`X-Webhook-Secret` header)
+because, unlike the dashboard's approval queue, a request that clears the
+confidence threshold here executes immediately with no human in the loop
+at all — this is the one network-reachable way to skip straight to
+`auto_executed`. Treat `ORCHESTRATOR_WEBHOOK_SECRET` accordingly.
+
+See `DEPLOY.md` at the repo root for systemd + Nginx setup on the VPS.
+
 ## What "done" looks like
 
 Run a few requests through each module and confirm:
