@@ -1,0 +1,24 @@
+# approval_executor.py — polls Postgres for approved-but-unexecuted actions
+# and actually runs them via MCP. Without this running, approving something
+# from the dashboard updates a row in Postgres and nothing else ever happens.
+#
+# Install:
+#   sudo cp second-brain-approval-executor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now second-brain-approval-executor
+[Unit]
+Description=second-brain approval executor
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/second-brain/orchestrator
+EnvironmentFile=/opt/second-brain/orchestrator/.env
+ExecStart=/opt/second-brain/orchestrator/.venv/bin/python approval_executor.py
+Restart=on-failure
+RestartSec=5
+MemoryMax=200M
+User=www-data
+
+[Install]
+WantedBy=multi-user.target

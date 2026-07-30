@@ -1,0 +1,28 @@
+# The orchestrator's always-on webhook front door. Anything that hands it a
+# natural-language request (n8n, a bot, curl) goes through here — see
+# orchestrator/webhook_server.py.
+#
+# Spawns task-mcp and job-tracker-mcp as stdio subprocesses per request (see
+# orchestrator/config.py) — WorkingDirectory matters, since their paths in
+# config.py are relative to it.
+#
+# Install:
+#   sudo cp second-brain-orchestrator-webhook.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now second-brain-orchestrator-webhook
+[Unit]
+Description=second-brain orchestrator webhook
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/second-brain/orchestrator
+EnvironmentFile=/opt/second-brain/orchestrator/.env
+ExecStart=/opt/second-brain/orchestrator/.venv/bin/uvicorn webhook_server:app --host 127.0.0.1 --port 8092
+Restart=on-failure
+RestartSec=5
+MemoryMax=280M
+User=www-data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,30 @@
+# Second-brain dashboard (Next.js standalone server)
+#
+# Runs the standalone build's server.js directly with plain `node`, not
+# `next start` — that avoids loading the full Next.js CLI/toolchain into the
+# running process, which matters on a 1GB box already running n8n, Nginx,
+# and Xray alongside this.
+#
+# Install:
+#   sudo cp second-brain-dashboard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now second-brain-dashboard
+[Unit]
+Description=second-brain dashboard (Next.js)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/second-brain/dashboard/.next/standalone
+EnvironmentFile=/opt/second-brain/dashboard/.env.production
+Environment=PORT=3001
+Environment=HOSTNAME=127.0.0.1
+Environment=NODE_OPTIONS=--max-old-space-size=192
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5
+MemoryMax=320M
+User=www-data
+
+[Install]
+WantedBy=multi-user.target
