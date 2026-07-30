@@ -5,15 +5,17 @@
 #     The VPS is a shared 1GB box already running n8n; a `next build` there
 #     risks OOMing everything else on it. Only the finished standalone
 #     output gets shipped over, as a tarball.
-#   deploy - copies that tarball to the VPS and runs deploy/scripts/
-#     remote-deploy.sh, which does the rest: git pull for the Python
-#     services (no build needed, just pip install), atomically swaps in
-#     the new dashboard build, and restarts the four systemd services.
-#
-# Nginx's site config is deliberately NOT touched here. It's shared with
-# n8n and edited by hand on the VPS - see DEPLOY.md. If a deploy/nginx/*.conf
-# change needs to go live, that's still a manual `cp` + `nginx -t` + reload,
-# same as every other time it's been changed so far.
+#   deploy - copies that tarball to the VPS with plain `scp`, then runs
+#     deploy/scripts/remote-deploy.sh over plain `ssh`. Deliberately NOT
+#     using a third-party "scp action" here: an earlier version of this
+#     workflow used appleboy/scp-action, which reported success while
+#     silently failing to actually place the file - its own internal
+#     tar/untar transport step swallowed the file with no visible error.
+#     Native OpenSSH scp/ssh are the same tools already used by hand
+#     throughout this project's setup - if something breaks, the failure
+#     is exactly as legible as everything debugged manually so far.
+#   Nginx's site config is deliberately NOT touched here. It's shared with
+#   n8n and edited by hand on the VPS - see DEPLOY.md.
 
 name: Deploy to VPS
 
@@ -91,26 +93,27 @@ jobs:
         with:
           name: dashboard-standalone
 
-      - name: Copy dashboard build to the VPS
-        uses: appleboy/scp-action@v0.1.5
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.10.0
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          source: "standalone.tar.gz"
-          target: "/opt/second-brain/dashboard"
-          strip_components: 0
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Trust the VPS host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Copy dashboard build to the VPS
+        run: |
+          scp -P "${{ secrets.VPS_SSH_PORT || 22 }}" standalone.tar.gz \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/second-brain/dashboard/standalone.tar.gz"
+
+      - name: Verify the file actually landed
+        run: |
+          ssh -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'test -f /opt/second-brain/dashboard/standalone.tar.gz && ls -la /opt/second-brain/dashboard/standalone.tar.gz'
 
       - name: Run remote-deploy.sh on the VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT || 22 }}
-          # remote-deploy.sh itself lives in the repo, so `git pull` is the
-          # first thing it does - this always runs whatever version of the
-          # script main currently has, not a stale copy.
-          script: bash /opt/second-brain/deploy/scripts/remote-deploy.sh
-          command_timeout: 5m
+        run: |
+          ssh -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            'bash /opt/second-brain/deploy/scripts/remote-deploy.sh'
