@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { pool } from "@/lib/db";
+import { getPool } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -15,8 +15,8 @@ export async function GET(req: NextRequest) {
 
   let query;
   if (idsParam) {
-    // Used by ActionsTable's post-approve polling: fetch just the specific
-    // rows it's waiting on for execution results, instead of the whole list.
+    // Used by the approval queue's post-approve polling: fetch just the
+    // specific rows it's waiting on for execution results, not the whole list.
     const ids = idsParam
       .split(",")
       .map((s) => Number(s.trim()))
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { rows } = await pool.query(query);
+    const { rows } = await getPool().query(query);
     return NextResponse.json({ actions: rows });
   } catch (err) {
     console.error(err);

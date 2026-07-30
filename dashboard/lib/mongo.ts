@@ -1,0 +1,179 @@
+import { MongoClient, type Db, ObjectId } from "mongodb";
+
+/*
+  Read access to the same MongoDB database job-tracker-mcp writes to, so the
+  Jobs page can show matches and applications without going through MCP. The
+  MCP tools remain the agent's path in; this is the human's path in. Both read
+  the same collections, so there's no second source of truth.
+*/
+
+declare global {
+  // eslint-disable-next-line no-var
+  var _mongoClient: MongoClient | undefined;
+}
+
+let _db: Db | null = null;
+
+export function mongoConfigured(): boolean {
+  return Boolean(process.env.MONGO_URL);
+}
+
+async function getDb(): Promise<Db> {
+  if (_db) return _db;
+
+  const url = process.env.MONGO_URL;
+  if (!url) {
+    throw new Error(
+      "MONGO_URL is not set. Add it to dashboard/.env.local — use the same " +
+        "connection string as mcp-servers/job-tracker-mcp/.env so both read " +
+        "the same database. See .env.example."
+    );
+  }
+
+  const client = global._mongoClient ?? new MongoClient(url);
+  if (!global._mongoClient) {
+    await client.connect();
+    if (process.env.NODE_ENV !== "production") global._mongoClient = client;
+  }
+
+  _db = client.db(process.env.MONGO_DB ?? "second_brain");
+  return _db;
+}
+
+export type JobMatch = {
+  id: string;
+  title: string;
+  company: string;
+  url: string;
+  location: string;
+  remote: boolean | null;
+  source: string;
+  score: number | null;
+  reason: string;
+  status: "new" | "applied" | "dismissed";
+  found_at: string;
+};
+
+export type JobApplication = {
+  id: string;
+  company: string;
+  role: string;
+  job_url: string;
+  resume_version: string;
+  notes: string;
+  status: string;
+  date_applied: string;
+};
+
+function iso(v: unknown): string {
+  return v instanceof Date ? v.toISOString() : String(v ?? "");
+}
+
+export async function fetchJobMatches(
+  status?: string,
+  limit = 100
+): Promise<{ matches: JobMatch[]; error: string | null }> {
+  try {
+    const db = await getDb();
+    const query = status ? { status } : {};
+    const docs = await db
+      .collection("job_matches")
+      .find(query)
+      .sort({ found_at: -1 })
+      .limit(limit)
+      .toArray();
+
+    return {
+      matches: docs.map((d) => ({
+        id: String(d._id),
+        title: d.title ?? "",
+        company: d.company ?? "",
+        url: d.url ?? "",
+        location: d.location ?? "",
+        remote: d.remote ?? null,
+        source: d.source ?? "",
+        score: typeof d.score === "number" ? d.score : null,
+        reason: d.reason ?? "",
+        status: d.status ?? "new",
+        found_at: iso(d.found_at),
+      })),
+      error: null,
+    };
+  } catch (err) {
+    console.error("fetchJobMatches failed:", err);
+    return {
+      matches: [],
+      error: err instanceof Error ? err.message : "Could not reach MongoDB.",
+    };
+  }
+}
+
+export async function fetchApplications(
+  limit = 100
+): Promise<{ applications: JobApplication[]; error: string | null }> {
+  try {
+    const db = await getDb();
+    const docs = await db
+      .collection("job_applications")
+      .find({})
+      .sort({ date_applied: -1 })
+      .limit(limit)
+      .toArray();
+
+    return {
+      applications: docs.map((d) => ({
+        id: String(d._id),
+        company: d.company ?? "",
+        role: d.role ?? "",
+        job_url: d.job_url ?? "",
+        resume_version: d.resume_version ?? "",
+        notes: d.notes ?? "",
+        status: d.status ?? "applied",
+        date_applied: iso(d.date_applied),
+      })),
+      error: null,
+    };
+  } catch (err) {
+    console.error("fetchApplications failed:", err);
+    return {
+      applications: [],
+      error: err instanceof Error ? err.message : "Could not reach MongoDB.",
+    };
+  }
+}
+
+/*
+  Only ever writes the `status` label on a match. It deliberately cannot create
+  a job_applications row - marking a match "applied" here is a bookkeeping
+  label, and logging a real application stays an explicit, separate step. Same
+  boundary the webhook respects on the ingestion side.
+*/
+export async function setMatchStatus(
+  id: string,
+  status: "new" | "applied" | "dismissed"
+): Promise<JobMatch | null> {
+  const db = await getDb();
+  const result = await db
+    .collection("job_matches")
+    .findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { status, updated_at: new Date() } },
+      { returnDocument: "after" }
+    );
+
+  const d = result && "value" in result ? result.value : result;
+  if (!d) return null;
+  return {
+    id: String(d._id),
+    title: d.title ?? "",
+    company: d.company ?? "",
+    url: d.url ?? "",
+    location: d.location ?? "",
+    remote: d.remote ?? null,
+    source: d.source ?? "",
+    score: typeof d.score === "number" ? d.score : null,
+    reason: d.reason ?? "",
+    status: d.status ?? "new",
+    found_at: iso(d.found_at),
+  };
+}
