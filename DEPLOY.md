@@ -161,12 +161,29 @@ environment is configured (docker-compose.yml, or an env file it reads) and
 restart the container:
 
 ```bash
-N8N_PATH=/n8n/
-WEBHOOK_URL=https://chathushka.xubi.org/n8n/
-```
+docker stop n8n
+docker rm n8n
 
-```bash
-docker compose restart n8n   # or however you currently restart it
+docker run -d \
+  --name n8n \
+  --restart unless-stopped \
+  -p 127.0.0.1:5678:5678 \
+  --memory="700m" \
+  --memory-swap="1400m" \
+  -e NODE_OPTIONS="--max-old-space-size=550" \
+  -v ~/n8n-data:/home/node/.n8n \
+  -e N8N_HOST="chathushka.xubi.org" \
+  -e N8N_PROTOCOL="https" \
+  -e N8N_PATH="/n8n/" \
+  -e N8N_EDITOR_BASE_URL="https://chathushka.xubi.org/n8n/" \
+  -e WEBHOOK_URL="https://chathushka.xubi.org/n8n/" \
+  -e N8N_PROXY_HOPS="1" \
+  -e GENERIC_TIMEZONE="Asia/Colombo" \
+  -e EXECUTIONS_DATA_SAVE_ON_SUCCESS="none" \
+  -e EXECUTIONS_DATA_SAVE_ON_ERROR="all" \
+  -e EXECUTIONS_DATA_PRUNE="true" \
+  -e EXECUTIONS_DATA_MAX_AGE="168" \
+  n8nio/n8n
 ```
 
 Confirm n8n loads at `https://chathushka.xubi.org/n8n/` before moving on —
