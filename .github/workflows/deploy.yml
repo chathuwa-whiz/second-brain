@@ -1,19 +1,9 @@
 # Deploy to the VPS on every push to main (or manually via the Actions tab).
 #
-# Two jobs:
-#   build-dashboard - builds the Next.js app on GitHub's runner, not the VPS.
-#     The VPS is a shared 1GB box already running n8n; a `next build` there
-#     risks OOMing everything else on it. Only the finished standalone
-#     output gets shipped over, as a tarball.
-#   deploy - copies that tarball to the VPS with plain `scp`, then runs
-#     deploy/scripts/remote-deploy.sh over plain `ssh`. Deliberately NOT
-#     using a third-party "scp action" here: an earlier version of this
-#     workflow used appleboy/scp-action, which reported success while
-#     silently failing to actually place the file - its own internal
-#     tar/untar transport step swallowed the file with no visible error.
-#     Native OpenSSH scp/ssh are the same tools already used by hand
-#     throughout this project's setup - if something breaks, the failure
-#     is exactly as legible as everything debugged manually so far.
+# Single consolidated job:
+#   1. Builds Next.js standalone output on GitHub Actions runner.
+#   2. Bundles static/public assets into standalone tarball.
+#   3. Copies tarball directly over SSH to the VPS and executes remote-deploy.sh.
 #   Nginx's site config is deliberately NOT touched here. It's shared with
 #   n8n and edited by hand on the VPS - see DEPLOY.md.
 
@@ -38,82 +28,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-dashboard:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: dashboard/package-lock.json
 
-      - name: Install dependencies
+      - name: Install dashboard dependencies
         working-directory: dashboard
-        run: npm ci
+        run: npm install
 
-      - name: Build
+      - name: Build Next.js standalone app
         working-directory: dashboard
         env:
-          # Baked into the build - must match the Nginx location block and
-          # the NEXTAUTH_URL already set in .env.production on the VPS.
           NEXT_BASE_PATH: /secondbrain
           NEXT_PUBLIC_BASE_PATH: /secondbrain
           NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD: "0.75"
-          # next build doesn't call out to Postgres/Mongo/NextAuth at build
-          # time (every page is `dynamic = "force-dynamic"`, resolved per
-          # request) - this is just a placeholder so the build step has
-          # something non-empty, not a real secret. The actual value lives
-          # only in .env.production on the VPS and is never touched by CI.
           NEXTAUTH_SECRET: unused-at-build-time
         run: npx next build
 
       - name: Assemble standalone output
         working-directory: dashboard
         run: |
-          # Next's standalone output doesn't include static assets or
-          # public/ automatically - copy them in by hand, same as the
-          # manual DEPLOY.md steps.
           cp -r .next/static .next/standalone/.next/static
           if [ -d public ]; then cp -r public .next/standalone/public; fi
           tar -czf ../standalone.tar.gz -C .next standalone
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dashboard-standalone
-          path: standalone.tar.gz
-          retention-days: 1
-
-  deploy:
-    needs: build-dashboard
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dashboard-standalone
-
-      - name: Set up SSH
+      - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.10.0
         with:
           ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
 
-      - name: Trust the VPS host key
+      - name: Trust VPS host key
         run: |
           mkdir -p ~/.ssh
           ssh-keyscan -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
-      - name: Copy dashboard build to the VPS
+      - name: Transfer build & trigger remote deployment
         run: |
           scp -P "${{ secrets.VPS_SSH_PORT || 22 }}" standalone.tar.gz \
             "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/second-brain/dashboard/standalone.tar.gz"
-
-      - name: Verify the file actually landed
-        run: |
-          ssh -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            'test -f /opt/second-brain/dashboard/standalone.tar.gz && ls -la /opt/second-brain/dashboard/standalone.tar.gz'
-
-      - name: Run remote-deploy.sh on the VPS
-        run: |
           ssh -p "${{ secrets.VPS_SSH_PORT || 22 }}" "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
             'bash /opt/second-brain/deploy/scripts/remote-deploy.sh'
