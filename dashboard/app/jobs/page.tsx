@@ -2,8 +2,8 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { fetchApplications, fetchJobMatches, mongoConfigured } from "@/lib/mongo";
+import { fetchActions } from "@/lib/db";
 import PageHeader from "@/components/PageHeader";
-import { EmptyState } from "@/components/ui";
 import JobsBoard from "./JobsBoard";
 
 export const dynamic = "force-dynamic";
@@ -12,37 +12,34 @@ export default async function JobsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  if (!mongoConfigured()) {
-    return (
-      <>
-        <PageHeader
-          eyebrow="Job finding"
-          title="Jobs"
-          description="Matches from the daily search, and the applications you've logged."
-        />
-        <EmptyState
-          title="Not connected to the job database yet"
-          body="Add MONGO_URL to dashboard/.env.local, using the same connection string as mcp-servers/job-tracker-mcp/.env so both read the same data."
-        />
-      </>
-    );
-  }
-
-  const [{ matches, error: matchesError }, { applications, error: appsError }] =
-    await Promise.all([fetchJobMatches(undefined, 150), fetchApplications(150)]);
+  const [
+    { actions: jobActions, error: actionsError },
+    mongoMatchesResult,
+    mongoAppsResult,
+  ] = await Promise.all([
+    fetchActions({ module: "job_finding", limit: 150 }),
+    mongoConfigured()
+      ? fetchJobMatches(undefined, 150)
+      : Promise.resolve({ matches: [], error: null }),
+    mongoConfigured()
+      ? fetchApplications(150)
+      : Promise.resolve({ applications: [], error: null }),
+  ]);
 
   return (
     <>
       <PageHeader
-        eyebrow="Job finding"
+        eyebrow="Job finding & Matching"
         title="Jobs"
-        description="Matches the daily search found, and the applications you've logged. A match becomes an application only when you say so."
+        description="Autonomous daily search matches, AI resume recommendations, and applications sent through Second Brain."
       />
       <JobsBoard
-        initialMatches={matches}
-        applications={applications}
-        matchesError={matchesError}
-        applicationsError={appsError}
+        jobActions={jobActions}
+        initialMatches={mongoMatchesResult.matches}
+        applications={mongoAppsResult.applications}
+        matchesError={mongoMatchesResult.error}
+        applicationsError={mongoAppsResult.error}
+        actionsError={actionsError}
       />
     </>
   );
