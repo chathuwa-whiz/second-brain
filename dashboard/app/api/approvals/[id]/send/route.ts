@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchActionById, getEmailSettings, getPool, updateActionMetadata } from "@/lib/db";
+import { fetchActionById, getEmailSettings, getDb } from "@/lib/db";
 import { recordJobApplication } from "@/lib/mongo";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -103,7 +103,6 @@ export async function POST(
         resume_attached: resume_filename || null,
       };
     } else {
-      // In development or if API key not yet configured, record simulated delivery
       messageId = "simulated-" + Date.now();
       executionDetails = {
         provider: "simulated",
@@ -115,7 +114,7 @@ export async function POST(
       };
     }
 
-    // 2. Mark action as approved & executed in Postgres
+    // 2. Mark action as approved & executed in Oracle Database
     const meta: Record<string, any> = {
       ...((action.metadata as Record<string, any>) || {}),
       recipient_email,
@@ -125,24 +124,28 @@ export async function POST(
       suggested_resume: resume_filename,
     };
 
-    const pool = getPool();
-    const updateRes = await pool.query(
-      `UPDATE agent_actions
-       SET status = 'approved',
-           reviewed_at = now(),
-           reviewed_by = $1,
-           executed_at = now(),
-           execution_result = $2::jsonb,
-           metadata = $3::jsonb
-       WHERE id = $4
-       RETURNING *`,
-      [
-        session.user?.name || "operator",
-        JSON.stringify(executionDetails),
-        JSON.stringify(meta),
-        actionId,
-      ]
-    );
+    let conn;
+    try {
+      conn = await getDb();
+      await conn.execute(
+        `UPDATE agent_actions
+         SET status = 'approved',
+             reviewed_at = CURRENT_TIMESTAMP,
+             reviewed_by = :reviewed_by,
+             executed_at = CURRENT_TIMESTAMP,
+             execution_result = :execution_result,
+             metadata = :metadata
+         WHERE id = :id`,
+        {
+          reviewed_by: session.user?.name || "operator",
+          execution_result: JSON.stringify(executionDetails),
+          metadata: JSON.stringify(meta),
+          id: actionId,
+        }
+      );
+    } finally {
+      if (conn) await conn.close();
+    }
 
     // 3. Record application in MongoDB
     try {
@@ -158,9 +161,11 @@ export async function POST(
       console.warn("Could not log to MongoDB job_applications:", mongoErr);
     }
 
+    const { action: updatedAction } = await fetchActionById(actionId);
+
     return NextResponse.json({
       success: true,
-      action: updateRes.rows[0],
+      action: updatedAction,
       messageId,
     });
   } catch (err) {

@@ -1,43 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPool } from "@/lib/db";
+import { fetchActionById, getDb } from "@/lib/db";
 
-// Approve/reject a pending action. Approval only marks the row - it doesn't
-// execute anything here. approval_executor.py polls for approved-but-unexecuted
-// rows and calls the underlying MCP tool, which is why executed_at is tracked
-// separately from reviewed_at and shown separately in the UI.
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const { id } = await params;
+  const actionId = Number(id);
+  if (!Number.isInteger(actionId)) {
+    return NextResponse.json({ error: "invalid action id" }, { status: 400 });
+  }
+
   const { status } = await req.json();
-  if (!["approved", "rejected"].includes(status)) {
+  if (!["approved", "rejected", "pending"].includes(status)) {
     return NextResponse.json(
-      { error: "status must be 'approved' or 'rejected'" },
+      { error: "status must be 'approved', 'rejected', or 'pending'" },
       { status: 400 }
     );
   }
 
+  let conn;
   try {
-    const { rows } = await getPool().query(
+    conn = await getDb();
+    await conn.execute(
       `UPDATE agent_actions
-       SET status = $1, reviewed_at = now(), reviewed_by = $2
-       WHERE id = $3
-       RETURNING *`,
-      [status, session.user?.name ?? "dashboard", params.id]
+       SET status = :status,
+           reviewed_at = CURRENT_TIMESTAMP,
+           reviewed_by = :reviewed_by
+       WHERE id = :id`,
+      {
+        status,
+        reviewed_by: session.user?.name ?? "dashboard",
+        id: actionId,
+      }
     );
-    if (rows.length === 0) {
-      return NextResponse.json({ error: "not found" }, { status: 404 });
+
+    const { action, error } = await fetchActionById(actionId);
+    if (!action) {
+      return NextResponse.json({ error: error || "not found" }, { status: 404 });
     }
-    return NextResponse.json({ action: rows[0] });
+    return NextResponse.json({ action });
   } catch (err) {
-    console.error(err);
+    console.error("PATCH /api/actions/[id] error on Oracle DB:", err);
     return NextResponse.json({ error: "database error" }, { status: 500 });
+  } finally {
+    if (conn) await conn.close();
   }
 }

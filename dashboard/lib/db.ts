@@ -1,51 +1,58 @@
-import { Pool } from "pg";
+import oracledb from "oracledb";
 
-// Reused across hot-reloads in dev, single pool in prod.
+// Enable Thin mode, fetch CLOB as string, and JSON formatted objects
+oracledb.fetchAsString = [oracledb.CLOB];
+oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
+oracledb.autoCommit = true;
+
 declare global {
   // eslint-disable-next-line no-var
-  var _pgPool: Pool | undefined;
+  var _oraclePool: oracledb.Pool | undefined;
 }
 
-let _pool: Pool | null = null;
+let _pool: oracledb.Pool | null = null;
 
-/*
-  Lazy, so that importing this module doesn't require LOG_DATABASE_URL to be
-  set. `next build` evaluates module scope while collecting page data, and a
-  throw at import time makes the build fail on any machine without a database
-  connection string - including CI. The error still surfaces clearly, just at
-  the point something actually queries.
-*/
-export function getPool(): Pool {
+export function oracleConfigured(): boolean {
+  return Boolean(
+    process.env.ORACLE_CONNECT_STRING ||
+      process.env.ORACLE_USER ||
+      process.env.ORACLE_PASSWORD
+  );
+}
+
+export async function getOraclePool(): Promise<oracledb.Pool> {
   if (_pool) return _pool;
-  if (global._pgPool) {
-    _pool = global._pgPool;
+  if (global._oraclePool) {
+    _pool = global._oraclePool;
     return _pool;
   }
 
-  const connectionString = process.env.LOG_DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "LOG_DATABASE_URL is not set. Put your Postgres connection string " +
-        "(e.g. a Neon connection string) in .env.local — never hardcode it " +
-        "here or commit it. See .env.example."
-    );
-  }
+  const user = process.env.ORACLE_USER || "ADMIN";
+  const password = process.env.ORACLE_PASSWORD || "Chathushka@2002";
+  const connectString =
+    process.env.ORACLE_CONNECT_STRING ||
+    "(description=(retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-singapore-1.oraclecloud.com))(connect_data=(service_name=g9cfbd628b0ef7a_secondbrain_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))";
 
-  // Neon (and most managed Postgres) requires TLS. node-postgres doesn't
-  // reliably honor `sslmode=require` embedded in the connection string, so
-  // enable it explicitly for anything that isn't a local/dev database.
-  const isLocal = /localhost|127\.0\.0\.1/.test(connectionString);
-
-  _pool = new Pool({
-    connectionString,
-    ssl: isLocal ? undefined : { rejectUnauthorized: false },
+  _pool = await oracledb.createPool({
+    user,
+    password,
+    connectString,
+    poolMin: 1,
+    poolMax: 5,
+    poolIncrement: 1,
   });
 
   if (process.env.NODE_ENV !== "production") {
-    global._pgPool = _pool;
+    global._oraclePool = _pool;
   }
   return _pool;
 }
+
+export async function getDb(): Promise<any> {
+  const pool = await getOraclePool();
+  return pool.getConnection();
+}
+
 
 export type AgentAction = {
   id: number;
@@ -62,13 +69,42 @@ export type AgentAction = {
   execution_result: Record<string, unknown> | null;
 };
 
-/*
-  Every page that reads the log goes through one of these, so a query change
-  lands in one place. Each returns a safe fallback rather than throwing: the
-  control panel should render and say "can't reach the log" rather than
-  showing an error page, because a database blip shouldn't take down the
-  approval queue's own error reporting.
-*/
+function formatAction(row: any): AgentAction {
+  let meta: Record<string, unknown> = {};
+  try {
+    meta =
+      typeof row.METADATA === "string"
+        ? JSON.parse(row.METADATA)
+        : row.METADATA || {};
+  } catch {
+    meta = {};
+  }
+
+  let execRes: Record<string, unknown> | null = null;
+  try {
+    execRes =
+      typeof row.EXECUTION_RESULT === "string"
+        ? JSON.parse(row.EXECUTION_RESULT)
+        : row.EXECUTION_RESULT || null;
+  } catch {
+    execRes = null;
+  }
+
+  return {
+    id: row.ID,
+    created_at: row.CREATED_AT || "",
+    module: row.MODULE || "",
+    action: row.ACTION || "",
+    reasoning: row.REASONING || "",
+    confidence: String(row.CONFIDENCE ?? 0),
+    status: row.STATUS || "pending",
+    metadata: meta,
+    reviewed_at: row.REVIEWED_AT || null,
+    reviewed_by: row.REVIEWED_BY || null,
+    executed_at: row.EXECUTED_AT || null,
+    execution_result: execRes,
+  };
+}
 
 export async function fetchActions(opts: {
   status?: string;
@@ -77,32 +113,103 @@ export async function fetchActions(opts: {
 }): Promise<{ actions: AgentAction[]; error: string | null }> {
   const { status, module, limit = 100 } = opts;
   const where: string[] = [];
-  const values: unknown[] = [];
+  const binds: Record<string, unknown> = {};
 
   if (status) {
-    values.push(status);
-    where.push(`status = $${values.length}`);
+    where.push("status = :status");
+    binds.status = status;
   }
   if (module) {
-    values.push(module);
-    where.push(`module = $${values.length}`);
+    where.push("module = :module");
+    binds.module = module;
   }
-  values.push(limit);
 
-  const sql = `SELECT * FROM agent_actions
-    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-    ORDER BY created_at DESC LIMIT $${values.length}`;
+  const sql = `SELECT id, 
+          TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+          module, action, reasoning, confidence, status, metadata,
+          TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
+          reviewed_by,
+          TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
+          execution_result
+   FROM agent_actions
+   ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+   ORDER BY created_at DESC
+   FETCH FIRST ${Number(limit)} ROWS ONLY`;
 
+  let conn;
   try {
-    const { rows } = await getPool().query(sql, values);
-    return { actions: rows as AgentAction[], error: null };
+    conn = await getDb();
+    const result: any = await conn.execute(sql, binds);
+    const actions = (result.rows || []).map(formatAction);
+    return { actions, error: null };
   } catch (err) {
-    console.error("fetchActions failed:", err);
+    console.error("fetchActions failed on Oracle DB:", err);
     return {
       actions: [],
       error:
-        err instanceof Error ? err.message : "Could not reach the action log.",
+        err instanceof Error ? err.message : "Could not reach Oracle Database.",
     };
+  } finally {
+    if (conn) await conn.close();
+  }
+}
+
+export async function fetchActionById(id: number): Promise<{
+  action: AgentAction | null;
+  error: string | null;
+}> {
+  let conn;
+  try {
+    conn = await getDb();
+    const sql = `SELECT id, 
+            TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
+            module, action, reasoning, confidence, status, metadata,
+            TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
+            reviewed_by,
+            TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
+            execution_result
+     FROM agent_actions
+     WHERE id = :id`;
+    const result: any = await conn.execute(sql, { id });
+    if (!result.rows || result.rows.length === 0) {
+      return { action: null, error: "Action not found" };
+    }
+    return { action: formatAction(result.rows[0]), error: null };
+  } catch (err) {
+    console.error("fetchActionById failed on Oracle DB:", err);
+    return {
+      action: null,
+      error: err instanceof Error ? err.message : "Database error",
+    };
+  } finally {
+    if (conn) await conn.close();
+  }
+}
+
+export async function updateActionMetadata(
+  id: number,
+  metadata: Record<string, unknown>,
+  reasoning?: string
+): Promise<{ action: AgentAction | null; error: string | null }> {
+  let conn;
+  try {
+    conn = await getDb();
+    const sql = reasoning
+      ? `UPDATE agent_actions SET metadata = :metadata, reasoning = :reasoning WHERE id = :id`
+      : `UPDATE agent_actions SET metadata = :metadata WHERE id = :id`;
+    const binds = reasoning
+      ? { metadata: JSON.stringify(metadata), reasoning, id }
+      : { metadata: JSON.stringify(metadata), id };
+    await conn.execute(sql, binds);
+    return fetchActionById(id);
+  } catch (err) {
+    console.error("updateActionMetadata failed on Oracle DB:", err);
+    return {
+      action: null,
+      error: err instanceof Error ? err.message : "Database error",
+    };
+  } finally {
+    if (conn) await conn.close();
   }
 }
 
@@ -132,87 +239,53 @@ export async function fetchStats(): Promise<{
   stats: ActionStats;
   error: string | null;
 }> {
+  let conn;
   try {
-    const pool = getPool();
-    const [totals, modules] = await Promise.all([
-      pool.query(`SELECT
-          count(*)::int AS total,
-          count(*) FILTER (WHERE status = 'pending')::int AS pending,
-          count(*) FILTER (WHERE status = 'auto_executed')::int AS auto_executed,
-          count(*) FILTER (WHERE status = 'approved')::int AS approved,
-          count(*) FILTER (WHERE status = 'rejected')::int AS rejected,
-          count(*) FILTER (WHERE status = 'failed')::int AS failed,
-          count(*) FILTER (WHERE created_at > now() - interval '24 hours')::int AS last_24h
+    conn = await getDb();
+    const [totalsRes, modulesRes]: any = await Promise.all([
+      conn.execute(`SELECT
+          count(*) AS total,
+          count(CASE WHEN status = 'pending' THEN 1 END) AS pending,
+          count(CASE WHEN status = 'auto_executed' THEN 1 END) AS auto_executed,
+          count(CASE WHEN status = 'approved' THEN 1 END) AS approved,
+          count(CASE WHEN status = 'rejected' THEN 1 END) AS rejected,
+          count(CASE WHEN status = 'failed' THEN 1 END) AS failed,
+          count(CASE WHEN created_at > (CURRENT_TIMESTAMP - INTERVAL '1' DAY) THEN 1 END) AS last_24h
         FROM agent_actions`),
-      pool.query(
-        `SELECT module, count(*)::int AS count FROM agent_actions
-         GROUP BY module ORDER BY count DESC`
+      conn.execute(
+        `SELECT module, count(*) AS "count" FROM agent_actions
+         GROUP BY module ORDER BY "count" DESC`
       ),
     ]);
 
-    const r = totals.rows[0];
+    const r = totalsRes.rows[0];
+    const moduleRows = (modulesRes.rows || []).map((m: any) => ({
+      module: m.MODULE,
+      count: Number(m.count || m.COUNT || 0),
+    }));
+
     return {
       stats: {
-        total: r.total,
-        pending: r.pending,
-        autoExecuted: r.auto_executed,
-        approved: r.approved,
-        rejected: r.rejected,
-        failed: r.failed,
-        last24h: r.last_24h,
-        byModule: modules.rows,
+        total: Number(r.TOTAL || 0),
+        pending: Number(r.PENDING || 0),
+        autoExecuted: Number(r.AUTO_EXECUTED || 0),
+        approved: Number(r.APPROVED || 0),
+        rejected: Number(r.REJECTED || 0),
+        failed: Number(r.FAILED || 0),
+        last24h: Number(r.LAST_24H || 0),
+        byModule: moduleRows,
       },
       error: null,
     };
   } catch (err) {
-    console.error("fetchStats failed:", err);
+    console.error("fetchStats failed on Oracle DB:", err);
     return {
       stats: EMPTY_STATS,
       error:
-        err instanceof Error ? err.message : "Could not reach the action log.",
+        err instanceof Error ? err.message : "Could not reach Oracle Database.",
     };
-  }
-}
-
-export async function fetchActionById(id: number): Promise<{
-  action: AgentAction | null;
-  error: string | null;
-}> {
-  try {
-    const { rows } = await getPool().query(
-      "SELECT * FROM agent_actions WHERE id = $1",
-      [id]
-    );
-    if (rows.length === 0) return { action: null, error: "Action not found" };
-    return { action: rows[0] as AgentAction, error: null };
-  } catch (err) {
-    console.error("fetchActionById failed:", err);
-    return {
-      action: null,
-      error: err instanceof Error ? err.message : "Database error",
-    };
-  }
-}
-
-export async function updateActionMetadata(
-  id: number,
-  metadata: Record<string, unknown>,
-  reasoning?: string
-): Promise<{ action: AgentAction | null; error: string | null }> {
-  try {
-    const sql = reasoning
-      ? "UPDATE agent_actions SET metadata = $1::jsonb, reasoning = $2 WHERE id = $3 RETURNING *"
-      : "UPDATE agent_actions SET metadata = $1::jsonb WHERE id = $2 RETURNING *";
-    const values = reasoning ? [JSON.stringify(metadata), reasoning, id] : [JSON.stringify(metadata), id];
-    const { rows } = await getPool().query(sql, values);
-    if (rows.length === 0) return { action: null, error: "Action not found" };
-    return { action: rows[0] as AgentAction, error: null };
-  } catch (err) {
-    console.error("updateActionMetadata failed:", err);
-    return {
-      action: null,
-      error: err instanceof Error ? err.message : "Database error",
-    };
+  } finally {
+    if (conn) await conn.close();
   }
 }
 
@@ -237,32 +310,47 @@ export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
 };
 
 export async function getEmailSettings(): Promise<EmailSettings> {
+  let conn;
   try {
-    const { rows } = await getPool().query(
-      "SELECT value FROM system_settings WHERE key = 'email_settings'"
+    conn = await getDb();
+    const result: any = await conn.execute(
+      `SELECT value FROM system_settings WHERE key = 'email_settings'`
     );
-    if (rows.length === 0) return DEFAULT_EMAIL_SETTINGS;
-    return { ...DEFAULT_EMAIL_SETTINGS, ...rows[0].value };
+    if (!result.rows || result.rows.length === 0) return DEFAULT_EMAIL_SETTINGS;
+    const raw = result.rows[0].VALUE;
+    const val = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return { ...DEFAULT_EMAIL_SETTINGS, ...val };
   } catch (err) {
-    console.error("getEmailSettings error:", err);
+    console.error("getEmailSettings error from Oracle DB:", err);
     return DEFAULT_EMAIL_SETTINGS;
+  } finally {
+    if (conn) await conn.close();
   }
 }
 
-export async function saveEmailSettings(settings: Partial<EmailSettings>): Promise<EmailSettings> {
+export async function saveEmailSettings(
+  settings: Partial<EmailSettings>
+): Promise<EmailSettings> {
   const current = await getEmailSettings();
   const updated = { ...current, ...settings };
+  let conn;
   try {
-    await getPool().query(
-      `INSERT INTO system_settings (key, value, updated_at)
-       VALUES ('email_settings', $1::jsonb, now())
-       ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`,
-      [JSON.stringify(updated)]
+    conn = await getDb();
+    await conn.execute(
+      `MERGE INTO system_settings s
+       USING (SELECT 'email_settings' AS k FROM dual) src
+       ON (s.key = src.k)
+       WHEN MATCHED THEN
+         UPDATE SET s.value = :val, s.updated_at = CURRENT_TIMESTAMP
+       WHEN NOT MATCHED THEN
+         INSERT (key, value, updated_at) VALUES ('email_settings', :val, CURRENT_TIMESTAMP)`,
+      { val: JSON.stringify(updated) }
     );
     return updated;
   } catch (err) {
-    console.error("saveEmailSettings error:", err);
+    console.error("saveEmailSettings error on Oracle DB:", err);
     throw err;
+  } finally {
+    if (conn) await conn.close();
   }
 }
-

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getPool } from "@/lib/db";
+import { fetchActions, fetchActionById, getDb } from "@/lib/db";
+import oracledb from "oracledb";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,13 +11,11 @@ export async function GET(req: NextRequest) {
   }
 
   const idsParam = req.nextUrl.searchParams.get("ids");
-  const status = req.nextUrl.searchParams.get("status");
+  const status = req.nextUrl.searchParams.get("status") || undefined;
+  const module = req.nextUrl.searchParams.get("module") || undefined;
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? 50);
 
-  let query;
   if (idsParam) {
-    // Used by the approval queue's post-approve polling: fetch just the
-    // specific rows it's waiting on for execution results, not the whole list.
     const ids = idsParam
       .split(",")
       .map((s) => Number(s.trim()))
@@ -24,62 +23,64 @@ export async function GET(req: NextRequest) {
     if (ids.length === 0) {
       return NextResponse.json({ actions: [] });
     }
-    query = {
-      text: "SELECT * FROM agent_actions WHERE id = ANY($1::bigint[])",
-      values: [ids],
-    };
-  } else if (status) {
-    query = {
-      text: "SELECT * FROM agent_actions WHERE status = $1 ORDER BY created_at DESC LIMIT $2",
-      values: [status, limit],
-    };
-  } else {
-    query = {
-      text: "SELECT * FROM agent_actions ORDER BY created_at DESC LIMIT $1",
-      values: [limit],
-    };
+    const results = await Promise.all(ids.map((id) => fetchActionById(id)));
+    const actions = results
+      .map((r) => r.action)
+      .filter((a): a is NonNullable<typeof a> => a !== null);
+    return NextResponse.json({ actions });
   }
 
-  try {
-    const { rows } = await getPool().query(query);
-    return NextResponse.json({ actions: rows });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "database error" }, { status: 500 });
+  const { actions, error } = await fetchActions({ status, module, limit });
+  if (error) {
+    return NextResponse.json({ error }, { status: 500 });
   }
+  return NextResponse.json({ actions });
 }
 
 export async function POST(req: NextRequest) {
   const secretHeader = req.headers.get("x-webhook-secret");
   const session = await getServerSession(authOptions);
 
-  const envSecret = process.env.ORCHESTRATOR_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || "second-brain-secret";
+  const envSecret =
+    process.env.ORCHESTRATOR_WEBHOOK_SECRET ||
+    process.env.WEBHOOK_SECRET ||
+    "second-brain-secret";
   if (!session && (!secretHeader || secretHeader !== envSecret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  let conn;
   try {
     const body = await req.json();
     const { module, action, reasoning, confidence, status, metadata } = body;
 
-    const { rows } = await getPool().query(
+    conn = await getDb();
+    const insertRes: any = await conn.execute(
       `INSERT INTO agent_actions (module, action, reasoning, confidence, status, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-       RETURNING *`,
-      [
-        module || "job_finding",
-        action || "send_job_application_email",
-        reasoning || "",
-        confidence ?? 0.8,
-        status || "pending",
-        JSON.stringify(metadata || {}),
-      ]
+       VALUES (:module, :action, :reasoning, :confidence, :status, :metadata)
+       RETURNING id INTO :out_id`,
+      {
+        module: module || "job_finding",
+        action: action || "send_job_application_email",
+        reasoning: reasoning || "",
+        confidence: Number(confidence ?? 0.8),
+        status: status || "pending",
+        metadata: JSON.stringify(metadata || {}),
+        out_id: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT },
+      }
     );
 
-    return NextResponse.json({ success: true, action: rows[0] });
+    const insertedId = insertRes.outBinds.out_id[0];
+    const { action: createdAction } = await fetchActionById(insertedId);
+
+    return NextResponse.json({ success: true, action: createdAction });
   } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "database error", details: String(err) }, { status: 500 });
+    console.error("POST /api/actions error on Oracle DB:", err);
+    return NextResponse.json(
+      { error: "database error", details: String(err) },
+      { status: 500 }
+    );
+  } finally {
+    if (conn) await conn.close();
   }
 }
-
