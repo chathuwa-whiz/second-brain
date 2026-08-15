@@ -44,38 +44,41 @@ function PendingApprovalRow({ action }: { action: AgentAction }) {
   const score = meta.match_score || Math.round(Number(action.confidence) * 100);
 
   return (
-    <Card className="p-4 sm:p-5">
-      <div className="flex flex-col gap-3.5 xs:flex-row xs:items-start xs:gap-4">
-        <div className="flex items-center justify-between xs:flex-col xs:justify-start">
+    <Card className="min-w-0 p-3.5 sm:p-5">
+      <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-4">
+        {/* Score Pip + Meta Header on Mobile */}
+        <div className="flex items-center justify-between gap-2 min-w-0 sm:flex-col sm:items-center sm:justify-start sm:gap-1">
           <ScorePip score={score} />
-          <div className="xs:hidden">
-            {meta.suggested_resume && (
-              <Badge tone="accent">{meta.suggested_resume}</Badge>
-            )}
-          </div>
+          {meta.suggested_resume && (
+            <div className="flex min-w-0 max-w-[220px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent sm:hidden">
+              <span className="shrink-0">📄</span>
+              <span className="truncate">{meta.suggested_resume}</span>
+            </div>
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-semibold text-primary sm:text-base">
+              <p className="break-words text-sm font-semibold tracking-tight text-primary sm:text-base">
                 {meta.job_title || action.action.replace(/_/g, " ")}
               </p>
-              <p className="truncate text-xs text-muted">
+              <p className="mt-0.5 truncate text-xs text-muted">
                 {meta.company || "TopJobs Employer"}
                 {action.created_at && ` · ${relativeTime(action.created_at)}`}
               </p>
             </div>
 
-            <div className="hidden xs:block">
-              {meta.suggested_resume && (
-                <Badge tone="accent">{meta.suggested_resume}</Badge>
-              )}
-            </div>
+            {meta.suggested_resume && (
+              <div className="hidden min-w-0 max-w-[240px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent sm:flex">
+                <span className="shrink-0">📄</span>
+                <span className="truncate">{meta.suggested_resume}</span>
+              </div>
+            )}
           </div>
 
           {action.reasoning && (
-            <p className="mt-2 text-xs leading-relaxed text-secondary sm:text-sm">
+            <p className="mt-2 break-words text-xs leading-relaxed text-secondary sm:text-sm">
               {action.reasoning}
             </p>
           )}
@@ -192,7 +195,7 @@ export default function JobsBoard({
           <div className="space-y-3">
             {/* MongoDB logged applications */}
             {applications.map((a) => (
-              <Card key={a.id} className="p-3.5 sm:p-4">
+              <Card key={a.id} className="min-w-0 p-3.5 sm:p-4">
                 <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <Badge tone={APP_STATUS_TONE[a.status] ?? "neutral"}>
@@ -215,7 +218,7 @@ export default function JobsBoard({
                   )}
                 </div>
                 {a.notes && (
-                  <p className="mt-2.5 text-xs leading-relaxed text-secondary">{a.notes}</p>
+                  <p className="mt-2.5 break-words text-xs leading-relaxed text-secondary">{a.notes}</p>
                 )}
                 {a.job_url && (
                   <a
@@ -235,7 +238,7 @@ export default function JobsBoard({
             {approvedActions.map((action) => {
               const meta = (action.metadata || {}) as Record<string, any>;
               return (
-                <Card key={`act-${action.id}`} className="p-3.5 sm:p-4">
+                <Card key={`act-${action.id}`} className="min-w-0 p-3.5 sm:p-4">
                   <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <Badge tone="ok">Approved & Sent</Badge>
@@ -256,7 +259,7 @@ export default function JobsBoard({
                     )}
                   </div>
                   {action.reasoning && (
-                    <p className="mt-2 text-xs leading-relaxed text-secondary">{action.reasoning}</p>
+                    <p className="mt-2 break-words text-xs leading-relaxed text-secondary">{action.reasoning}</p>
                   )}
                 </Card>
               );

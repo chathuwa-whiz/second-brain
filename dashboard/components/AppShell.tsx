@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { useTheme } from "./theme";
 import { withBasePath } from "@/lib/basePath";
 import {
@@ -178,6 +178,29 @@ export default function AppShell({
   const pathname = usePathname();
   const current = ALL_ITEMS.find((i) => isActive(pathname, i.href));
 
+  // Close menu on Escape key
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
+    if (menuOpen) {
+      window.addEventListener("keydown", onKeyDown);
+      return () => window.removeEventListener("keydown", onKeyDown);
+    }
+  }, [menuOpen]);
+
+  // Lock body scroll when mobile dropdown menu is open
+  useEffect(() => {
+    if (menuOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
+
   return (
     <div className="flex min-h-screen w-full max-w-full overflow-x-hidden">
       {/* ---------- Desktop rail ---------- */}
@@ -216,46 +239,78 @@ export default function AppShell({
 
       {/* ---------- Main column ---------- */}
       <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
-        {/* Mobile top bar */}
-        <header className="glass-chrome sticky top-0 z-30 flex items-center gap-3 border-b px-3.5 py-2.5 sm:px-4 sm:py-3 lg:hidden">
-          <button
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-expanded={menuOpen}
-            aria-label="More sections"
-            className="press flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-primary focus:outline-none"
-          >
-            <IconMenu />
-          </button>
-          <p className="truncate text-sm font-semibold tracking-tight text-primary">
-            {current?.label ?? "Second Brain"}
-          </p>
-          <div className="ml-auto shrink-0">
+        {/* Sticky Mobile Top Bar */}
+        <header className="glass-chrome sticky top-0 z-40 flex items-center justify-between gap-3 border-b px-3.5 py-2.5 backdrop-blur-2xl sm:px-4 sm:py-3 lg:hidden">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+              aria-label="Toggle navigation menu"
+              className={`press flex h-9 w-9 items-center justify-center rounded-xl transition-colors focus:outline-none ${
+                menuOpen
+                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                  : "text-secondary hover:bg-primary/[0.06] hover:text-primary"
+              }`}
+            >
+              <IconMenu />
+            </button>
+            <p className="truncate text-sm font-semibold tracking-tight text-primary">
+              {current?.label ?? "Second Brain"}
+            </p>
+          </div>
+          <div className="shrink-0">
             <ThemeToggle />
           </div>
         </header>
 
+        {/* Overlaying Glassmorphism Dropdown Menu */}
         {menuOpen && (
-          <div className="glass-chrome animate-rise border-b px-3.5 py-3 lg:hidden">
-            <div className="grid grid-cols-1 gap-1 xs:grid-cols-2">
-              {ALL_ITEMS.map((item) => (
-                <NavLink
-                  key={item.href}
-                  item={item}
-                  onNavigate={() => setMenuOpen(false)}
-                />
-              ))}
+          <>
+            {/* Backdrop Scrim */}
+            <div
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
+              onClick={() => setMenuOpen(false)}
+              aria-hidden="true"
+            />
+
+            {/* Floating Glassmorphism Menu Panel */}
+            <div className="fixed inset-x-3.5 top-[58px] z-50 rounded-2xl glass-chrome border border-hairline/20 p-4 shadow-2xl backdrop-blur-2xl animate-rise lg:hidden">
+              <div className="flex items-center justify-between border-b pb-2.5">
+                <p className="text-2xs font-bold uppercase tracking-wider text-muted">
+                  Navigation Menu
+                </p>
+                <button
+                  onClick={() => setMenuOpen(false)}
+                  className="press rounded-lg px-2 py-0.5 text-xs font-medium text-muted hover:text-primary"
+                >
+                  ✕ Close
+                </button>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-1 xs:grid-cols-2">
+                {ALL_ITEMS.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    onNavigate={() => setMenuOpen(false)}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-3.5 border-t pt-3">
+                <button
+                  onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
+                  className="press flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-hairline/15 bg-primary/[0.04] px-3.5 py-2.5 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger"
+                >
+                  <IconSignOut className="h-[18px] w-[18px]" />
+                  Sign out
+                  {user && (
+                    <span className="ml-auto truncate text-xs text-muted">{user}</span>
+                  )}
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-              className="press mt-2 flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:bg-primary/[0.05] hover:text-primary"
-            >
-              <IconSignOut className="h-[18px] w-[18px]" />
-              Sign out
-              {user && (
-                <span className="ml-auto truncate text-xs text-muted">{user}</span>
-              )}
-            </button>
-          </div>
+          </>
         )}
 
         <main className="flex-1 min-w-0 max-w-full px-3.5 pb-44 pt-4 sm:px-6 sm:pb-32 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
