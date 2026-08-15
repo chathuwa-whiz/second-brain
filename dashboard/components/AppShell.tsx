@@ -217,26 +217,26 @@ export default function AppShell({
       {/* ---------- Main column ---------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile top bar */}
-        <header className="glass-chrome sticky top-0 z-30 flex items-center gap-3 border-b px-4 py-3 lg:hidden">
+        <header className="glass-chrome sticky top-0 z-30 flex items-center gap-3 border-b px-3.5 py-2.5 sm:px-4 sm:py-3 lg:hidden">
           <button
             onClick={() => setMenuOpen((v) => !v)}
             aria-expanded={menuOpen}
             aria-label="More sections"
-            className="press rounded-xl p-2 text-secondary hover:text-primary"
+            className="press flex h-9 w-9 items-center justify-center rounded-xl text-secondary hover:text-primary focus:outline-none"
           >
             <IconMenu />
           </button>
-          <p className="text-sm font-semibold tracking-tight text-primary">
+          <p className="truncate text-sm font-semibold tracking-tight text-primary">
             {current?.label ?? "Second Brain"}
           </p>
-          <div className="ml-auto">
+          <div className="ml-auto shrink-0">
             <ThemeToggle />
           </div>
         </header>
 
         {menuOpen && (
-          <div className="glass-chrome border-b px-4 py-3 lg:hidden">
-            <div className="grid grid-cols-2 gap-1">
+          <div className="glass-chrome animate-rise border-b px-3.5 py-3 lg:hidden">
+            <div className="grid grid-cols-1 gap-1 xs:grid-cols-2">
               {ALL_ITEMS.map((item) => (
                 <NavLink
                   key={item.href}
@@ -247,20 +247,26 @@ export default function AppShell({
             </div>
             <button
               onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-              className="press mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:text-primary"
+              className="press mt-2 flex min-h-[44px] w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:bg-primary/[0.05] hover:text-primary"
             >
               <IconSignOut className="h-[18px] w-[18px]" />
               Sign out
+              {user && (
+                <span className="ml-auto truncate text-xs text-muted">{user}</span>
+              )}
             </button>
           </div>
         )}
 
-        <main className="flex-1 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-12 lg:pt-9">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        <main className="flex-1 px-3.5 pb-32 pt-4 sm:px-6 sm:pb-28 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
+          <div className="mx-auto w-full max-w-6xl min-w-0">{children}</div>
         </main>
 
-        {/* Mobile tab bar - floats over content, iOS-style */}
-        <nav className="glass fixed inset-x-3 bottom-3 z-30 flex items-center justify-around rounded-2xl px-1 py-1.5 lg:hidden">
+        {/* Mobile tab bar - floats over content, iOS-style with safe area support */}
+        <nav
+          aria-label="Mobile navigation"
+          className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl px-1 py-1.5 shadow-xl lg:hidden"
+        >
           {ALL_ITEMS.filter((i) => i.primary).map((item) => {
             const active = isActive(pathname, item.href);
             const { Icon } = item;
@@ -269,12 +275,14 @@ export default function AppShell({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`press flex flex-1 flex-col items-center gap-1 rounded-xl py-1.5 text-2xs font-medium ${
-                  active ? "text-accent" : "text-muted"
+                className={`press flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-2xs font-medium ${
+                  active ? "text-accent font-semibold" : "text-muted hover:text-primary"
                 }`}
               >
-                <Icon className="h-5 w-5" />
-                {item.label}
+                <Icon className="h-5 w-5 shrink-0" />
+                <span className="truncate max-w-full text-center tracking-tight">
+                  {item.label}
+                </span>
               </Link>
             );
           })}

@@ -32,13 +32,13 @@ export default async function ModulesPage() {
         {MODULES.map((m) => {
           const count = m.logKey ? (counts.get(m.logKey) ?? 0) : 0;
           return (
-            <Card key={m.id} className="flex flex-col p-5">
+            <Card key={m.id} className="flex flex-col p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold tracking-tight text-primary">
+                <div className="min-w-0 flex-1">
+                  <h2 className="break-words text-base font-semibold tracking-tight text-primary">
                     {m.name}
                   </h2>
-                  <p className="mt-0.5 text-xs text-muted">
+                  <p className="mt-0.5 truncate text-xs text-muted">
                     {m.server ?? "no server yet"}
                   </p>
                 </div>
@@ -47,11 +47,11 @@ export default async function ModulesPage() {
                 </Badge>
               </div>
 
-              <p className="mt-3 text-sm leading-relaxed text-secondary">
+              <p className="mt-3 text-xs leading-relaxed text-secondary sm:text-sm">
                 {m.summary}
               </p>
 
-              <ul className="mt-4 space-y-1.5">
+              <ul className="mt-3.5 space-y-1.5 sm:mt-4">
                 {m.capabilities.map((c) => (
                   <li
                     key={c}
@@ -62,12 +62,12 @@ export default async function ModulesPage() {
                         m.state === "live" ? "bg-ok" : "bg-muted"
                       }`}
                     />
-                    {c}
+                    <span className="break-words">{c}</span>
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-auto flex items-center justify-between gap-3 border-t pt-4">
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t pt-3.5 sm:pt-4">
                 <span className="tnum text-xs text-muted">
                   {m.state === "live"
                     ? `${count} action${count === 1 ? "" : "s"} logged`
@@ -76,7 +76,7 @@ export default async function ModulesPage() {
                 {m.href && (
                   <Link
                     href={m.href}
-                    className="text-xs font-medium text-accent hover:underline"
+                    className="press inline-flex items-center text-xs font-medium text-accent hover:underline"
                   >
                     Open {m.name}
                   </Link>

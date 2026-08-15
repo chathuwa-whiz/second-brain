@@ -80,14 +80,14 @@ export default function EmailSettingsCard() {
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="p-4 sm:p-6">
         <p className="text-xs text-muted">Loading email settings...</p>
       </Card>
     );
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-4 sm:p-6">
       <form onSubmit={handleSave} className="space-y-4">
         {message && (
           <div
@@ -105,8 +105,8 @@ export default function EmailSettingsCard() {
           <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
             Email Provider
           </label>
-          <div className="mt-1.5 flex gap-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-primary">
+          <div className="mt-1.5 flex flex-col gap-2 xs:flex-row xs:gap-4">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-primary sm:text-sm">
               <input
                 type="radio"
                 name="provider"
@@ -117,7 +117,7 @@ export default function EmailSettingsCard() {
               />
               Resend (Recommended API)
             </label>
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-primary">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-primary sm:text-sm">
               <input
                 type="radio"
                 name="provider"
@@ -141,7 +141,7 @@ export default function EmailSettingsCard() {
             value={defaultSender}
             onChange={(e) => setDefaultSender(e.target.value)}
             placeholder="chathushkanavod11@gmail.com"
-            className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
           />
           <p className="mt-1 text-2xs text-muted">
             The email address you want to appear as the sender of job applications.
@@ -158,7 +158,7 @@ export default function EmailSettingsCard() {
               value={resendApiKey}
               onChange={(e) => setResendApiKey(e.target.value)}
               placeholder="re_xxxxxxxxxxxxxx"
-              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
             />
             <p className="mt-1 text-2xs text-muted">
               Get your API Key from resend.com to send emails with attachments directly.
@@ -175,7 +175,7 @@ export default function EmailSettingsCard() {
                 value={smtpHost}
                 onChange={(e) => setSmtpHost(e.target.value)}
                 placeholder="smtp.resend.com"
-                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
               />
             </div>
             <div>
@@ -187,7 +187,7 @@ export default function EmailSettingsCard() {
                 value={smtpPort}
                 onChange={(e) => setSmtpPort(Number(e.target.value))}
                 placeholder="465"
-                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
               />
             </div>
             <div>
@@ -199,7 +199,7 @@ export default function EmailSettingsCard() {
                 value={smtpUser}
                 onChange={(e) => setSmtpUser(e.target.value)}
                 placeholder="resend"
-                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
               />
             </div>
             <div>
@@ -211,14 +211,14 @@ export default function EmailSettingsCard() {
                 value={smtpPassword}
                 onChange={(e) => setSmtpPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
+                className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
               />
             </div>
           </div>
         )}
 
         <div className="pt-2">
-          <Button type="submit" variant="primary" disabled={saving}>
+          <Button type="submit" variant="primary" disabled={saving} className="w-full xs:w-auto">
             {saving ? "Saving..." : "Save Email Settings"}
           </Button>
         </div>

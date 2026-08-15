@@ -89,11 +89,11 @@ export default function ResumesManager() {
           setDragging(false);
           upload(e.dataTransfer.files);
         }}
-        className={`glass glass-sheen rounded-2xl border-2 border-dashed p-10 text-center transition-colors ${
+        className={`glass glass-sheen rounded-2xl border-2 border-dashed p-6 text-center transition-colors sm:p-10 ${
           dragging ? "border-accent bg-accent/[0.06]" : "border-hairline/20"
         }`}
       >
-        <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25">
+        <div className="mx-auto mb-3.5 grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25 sm:mb-4 sm:h-12 sm:w-12">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -111,12 +111,13 @@ export default function ResumesManager() {
         <p className="text-sm font-medium text-primary">
           Drop a resume here to add it
         </p>
-        <p className="mt-1 text-xs text-muted">Word or PDF, up to 10 MB each</p>
+        <p className="mt-1 text-2xs text-muted sm:text-xs">Word or PDF, up to 10 MB each</p>
         <div className="mt-4">
           <Button
             variant="primary"
             disabled={uploading}
             onClick={() => inputRef.current?.click()}
+            className="w-full xs:w-auto"
           >
             {uploading ? "Adding…" : "Choose a file"}
           </Button>
@@ -152,13 +153,13 @@ export default function ResumesManager() {
           {files.map((f) => (
             <Card
               key={f.name}
-              className="flex items-center justify-between gap-4 p-4"
+              className="flex flex-col justify-between gap-3 p-3.5 xs:flex-row xs:items-center sm:p-4"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-primary">
+              <div className="min-w-0 flex-1">
+                <p className="break-all text-xs font-medium text-primary xs:truncate sm:text-sm">
                   {f.name}
                 </p>
-                <p className="text-xs text-muted">
+                <p className="mt-0.5 text-2xs text-muted sm:text-xs">
                   {formatBytes(f.size)} · updated {relativeTime(f.modifiedAt)}
                 </p>
               </div>
@@ -167,7 +168,7 @@ export default function ResumesManager() {
                 size="sm"
                 disabled={deleting === f.name}
                 onClick={() => remove(f.name)}
-                className="text-danger hover:bg-danger/10"
+                className="w-full shrink-0 text-danger hover:bg-danger/10 xs:w-auto"
               >
                 {deleting === f.name ? "Removing…" : "Remove"}
               </Button>

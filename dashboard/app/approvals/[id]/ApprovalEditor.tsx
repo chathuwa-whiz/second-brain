@@ -132,11 +132,11 @@ export default function ApprovalEditor({
   const confidence = Number(action.confidence);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 sm:space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
         <Link
           href="/approvals"
-          className="text-xs font-medium text-muted hover:text-primary"
+          className="press inline-flex items-center text-xs font-medium text-muted hover:text-primary"
         >
           ← Back to Approvals Queue
         </Link>
@@ -147,19 +147,19 @@ export default function ApprovalEditor({
 
       {error && <ErrorNote>{error}</ErrorNote>}
       {successMsg && (
-        <div className="rounded-2xl bg-ok/10 p-4 text-sm font-medium text-ok ring-1 ring-ok/25">
+        <div className="rounded-2xl bg-ok/10 p-4 text-xs font-medium text-ok ring-1 ring-ok/25 sm:text-sm">
           {successMsg}
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-5 sm:gap-6 lg:grid-cols-3">
         {/* Left Column: Job Details & AI Match Breakdown */}
-        <div className="space-y-6 lg:col-span-1">
-          <Card className="p-5">
-            <h3 className="text-base font-semibold text-primary">
+        <div className="space-y-5 sm:space-y-6 lg:col-span-1">
+          <Card className="p-4 sm:p-5">
+            <h3 className="break-words text-base font-semibold text-primary">
               {meta.job_title || "Job Title"}
             </h3>
-            <p className="text-sm font-medium text-secondary">
+            <p className="mt-0.5 break-words text-sm font-medium text-secondary">
               {meta.company || "TopJobs Employer"}
             </p>
 
@@ -183,7 +183,7 @@ export default function ApprovalEditor({
               <a
                 href={meta.job_url}
                 target="_blank"
-                rel="noreferrer"
+                rel="noreferrer noopener"
                 className="press mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-accent hover:bg-primary/[0.08]"
               >
                 Open TopJobs Posting
@@ -199,7 +199,8 @@ export default function ApprovalEditor({
                 <ul className="mt-2 space-y-1.5 text-xs text-secondary">
                   {meta.match_reasons.map((r: string, i: number) => (
                     <li key={i} className="flex items-start gap-1.5">
-                      <span className="text-ok">✓</span> {r}
+                      <span className="shrink-0 text-ok">✓</span>
+                      <span className="break-words">{r}</span>
                     </li>
                   ))}
                 </ul>
@@ -208,7 +209,7 @@ export default function ApprovalEditor({
           </Card>
 
           {meta.poster_image_url && (
-            <Card className="overflow-hidden p-4">
+            <Card className="overflow-hidden p-3.5 sm:p-4">
               <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted">
                 Job Poster Artwork
               </p>
@@ -216,7 +217,7 @@ export default function ApprovalEditor({
                 <img
                   src={meta.poster_image_url}
                   alt="Job Poster"
-                  className="w-full object-contain"
+                  className="max-h-[360px] w-full object-contain sm:max-h-[460px]"
                 />
               </div>
             </Card>
@@ -225,23 +226,23 @@ export default function ApprovalEditor({
 
         {/* Right Column: Application Customizer & Email / Website Action */}
         <div className="lg:col-span-2">
-          <Card className="p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+          <Card className="p-4 sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-primary">
                   Application Method & Review
                 </h3>
-                <p className="text-xs text-muted">
+                <p className="mt-0.5 text-xs text-muted">
                   Choose whether to dispatch an email application or record a direct website submission.
                 </p>
               </div>
 
               {/* Mode Selector */}
-              <div className="glass inline-flex rounded-xl p-0.5">
+              <div className="glass flex w-full rounded-xl p-0.5 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setMode("email")}
-                  className={`press rounded-lg px-3 py-1 text-xs font-medium ${
+                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-medium sm:flex-initial ${
                     mode === "email"
                       ? "bg-accent text-white shadow-sm"
                       : "text-secondary hover:text-primary"
@@ -252,7 +253,7 @@ export default function ApprovalEditor({
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
-                  className={`press rounded-lg px-3 py-1 text-xs font-medium ${
+                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-medium sm:flex-initial ${
                     mode === "manual"
                       ? "bg-accent text-white shadow-sm"
                       : "text-secondary hover:text-primary"
@@ -272,16 +273,16 @@ export default function ApprovalEditor({
                 <select
                   value={selectedResume}
                   onChange={(e) => setSelectedResume(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2.5 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent [&>option]:bg-chrome [&>option]:text-primary"
+                  className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2.5 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm [&>option]:bg-chrome [&>option]:text-primary"
                 >
                   {resumes.map((r) => (
-                    <option key={r} value={r} className="bg-chrome text-primary py-1.5">
+                    <option key={r} value={r} className="bg-chrome py-1.5 text-primary">
                       {r} {r === meta.suggested_resume ? "(AI Recommended)" : ""}
                     </option>
                   ))}
                 </select>
                 {meta.suggested_resume_reason && (
-                  <p className="mt-1 text-2xs text-accent">
+                  <p className="mt-1 break-words text-2xs text-accent">
                     💡 AI recommendation: {meta.suggested_resume_reason}
                   </p>
                 )}
@@ -289,13 +290,13 @@ export default function ApprovalEditor({
 
               {mode === "manual" ? (
                 /* Manual Website Apply Mode */
-                <div className="space-y-4 rounded-xl bg-primary/[0.02] p-4 ring-1 ring-inset ring-primary/10">
-                  <div className="flex items-center justify-between">
-                    <div>
+                <div className="space-y-3.5 rounded-xl bg-primary/[0.02] p-3.5 ring-1 ring-inset ring-primary/10 sm:space-y-4 sm:p-4">
+                  <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-primary">
                         Apply via Company Website / Careers Portal
                       </p>
-                      <p className="text-xs text-muted">
+                      <p className="mt-0.5 text-xs text-muted">
                         Use this option when the employer requires applying through their website or portal rather than email.
                       </p>
                     </div>
@@ -303,8 +304,8 @@ export default function ApprovalEditor({
                       <a
                         href={meta.job_url}
                         target="_blank"
-                        rel="noreferrer"
-                        className="press inline-flex items-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent-deep"
+                        rel="noreferrer noopener"
+                        className="press inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent-deep"
                       >
                         Open Portal
                         <IconExternal className="h-3.5 w-3.5" />
@@ -321,14 +322,14 @@ export default function ApprovalEditor({
                       value={manualNotes}
                       onChange={(e) => setManualNotes(e.target.value)}
                       placeholder="e.g. Submitted on company careers portal with CHATHUSHKA_W.pdf"
-                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
                     />
                   </div>
                 </div>
               ) : (
                 /* Email Dispatch Mode */
                 <div className="space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-4">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
                         Sender Email
@@ -338,7 +339,7 @@ export default function ApprovalEditor({
                         required
                         value={senderEmail}
                         onChange={(e) => setSenderEmail(e.target.value)}
-                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
                       />
                     </div>
 
@@ -352,7 +353,7 @@ export default function ApprovalEditor({
                         value={recipientEmail}
                         onChange={(e) => setRecipientEmail(e.target.value)}
                         placeholder="careers@company.com"
-                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
                       />
                     </div>
                   </div>
@@ -366,7 +367,7 @@ export default function ApprovalEditor({
                       required
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
                     />
                   </div>
 
@@ -379,18 +380,18 @@ export default function ApprovalEditor({
                       required
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl bg-chrome p-3.5 font-mono text-xs leading-relaxed text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                      className="mt-1.5 w-full rounded-xl bg-chrome p-3 font-mono text-2xs leading-relaxed text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:p-3.5 sm:text-xs"
                     />
                   </div>
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+              <div className="flex flex-col gap-2.5 border-t pt-4 sm:flex-row sm:items-center sm:gap-3">
                 <Button
                   type="submit"
                   variant="approve"
                   disabled={busy}
-                  className="px-6 py-2 text-sm"
+                  className="w-full px-6 py-2 text-xs sm:w-auto sm:text-sm"
                 >
                   {busy
                     ? "Processing..."
@@ -404,7 +405,7 @@ export default function ApprovalEditor({
                   variant="reject"
                   disabled={busy}
                   onClick={handleReject}
-                  className="text-xs"
+                  className="w-full text-xs sm:w-auto"
                 >
                   Reject & Dismiss
                 </Button>

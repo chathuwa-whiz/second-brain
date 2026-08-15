@@ -33,13 +33,13 @@ export default function LoginPage() {
   }
 
   const field =
-    "w-full rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
+    "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-10">
+    <main className="grid min-h-screen place-items-center px-4 py-8 pb-safe pt-safe sm:py-10">
       <div className="w-full max-w-sm">
-        <div className="mb-7 flex flex-col items-center text-center">
-          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-xl shadow-accent/30">
+        <div className="mb-6 flex flex-col items-center text-center sm:mb-7">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-xl shadow-accent/30 sm:h-14 sm:w-14">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -47,22 +47,22 @@ export default function LoginPage() {
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
-              className="h-7 w-7"
+              className="h-6 w-6 sm:h-7 sm:w-7"
               aria-hidden="true"
             >
               <path d="M12 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 6 0v-9a3 3 0 0 0-3-3z" />
               <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
             </svg>
           </div>
-          <h1 className="mt-4 text-xl font-semibold tracking-tight text-primary">
+          <h1 className="mt-3.5 text-lg font-semibold tracking-tight text-primary sm:mt-4 sm:text-xl">
             Second Brain
           </h1>
-          <p className="mt-1 text-sm text-secondary">
+          <p className="mt-1 text-xs text-secondary sm:text-sm">
             Sign in to the control panel.
           </p>
         </div>
 
-        <Card className="p-6">
+        <Card className="p-5 sm:p-6">
           <form onSubmit={submit} className="space-y-4">
             <div className="space-y-1.5">
               <label
@@ -104,7 +104,7 @@ export default function LoginPage() {
               type="submit"
               variant="primary"
               disabled={loading}
-              className="w-full"
+              className="min-h-[44px] w-full text-sm font-semibold"
             >
               {loading ? "Signing in…" : "Sign in"}
             </Button>

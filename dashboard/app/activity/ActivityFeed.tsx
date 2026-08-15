@@ -64,8 +64,8 @@ export default function ActivityFeed({
 
   return (
     <div className="space-y-5">
-      <div className="space-y-3">
-        <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="space-y-2.5 sm:space-y-3">
+        <div className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1 sm:gap-2">
           {STATUS_FILTERS.map((f) => (
             <Chip
               key={f.key}
@@ -78,7 +78,7 @@ export default function ActivityFeed({
         </div>
 
         {presentModules.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="no-scrollbar -mx-1 flex max-w-full gap-1.5 overflow-x-auto px-1 pb-1 sm:gap-2">
             <Chip active={module === "all"} onClick={() => setModule("all")}>
               All modules
             </Chip>

@@ -47,7 +47,7 @@ export default async function OverviewPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <StatTile
           label="Waiting on you"
           value={stats.pending}
@@ -58,7 +58,7 @@ export default async function OverviewPage() {
         <StatTile
           label="Ran on its own"
           value={stats.autoExecuted}
-          hint="cleared the confidence bar"
+          hint="cleared confidence bar"
           tone="accent"
           href="/activity"
         />
@@ -72,13 +72,13 @@ export default async function OverviewPage() {
         <StatTile
           label="Modules live"
           value={`${liveCount}/${MODULES.length}`}
-          hint="the rest are on the roadmap"
+          hint="the rest are on roadmap"
           tone="ok"
           href="/modules"
         />
       </div>
 
-      <div className="mt-9 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-6 grid gap-6 sm:mt-9 lg:grid-cols-[1.6fr_1fr]">
         <section>
           <SectionHeader
             eyebrow="Latest"

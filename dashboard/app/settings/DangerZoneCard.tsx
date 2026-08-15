@@ -36,9 +36,9 @@ export default function DangerZoneCard() {
   }
 
   return (
-    <Card className="border-danger/30 p-5 ring-1 ring-danger/20">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+    <Card className="border-danger/30 p-4 ring-1 ring-danger/20 sm:p-5">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="min-w-0 flex-1">
           <h4 className="text-sm font-semibold text-danger">
             Full Database & State Reset
           </h4>
@@ -52,18 +52,18 @@ export default function DangerZoneCard() {
             type="button"
             variant="reject"
             onClick={() => setConfirmOpen(true)}
-            className="text-xs font-semibold"
+            className="w-full shrink-0 text-xs font-semibold sm:w-auto"
           >
             Reset All Databases
           </Button>
         ) : (
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-col gap-2 shrink-0 xs:w-auto xs:flex-row xs:items-center">
             <Button
               type="button"
               variant="reject"
               disabled={busy}
               onClick={handleFullReset}
-              className="bg-danger text-xs font-semibold text-white hover:bg-danger/90"
+              className="w-full bg-danger text-xs font-semibold text-white hover:bg-danger/90 xs:w-auto"
             >
               {busy ? "Resetting..." : "Yes, Confirm Full Reset"}
             </Button>
@@ -72,7 +72,7 @@ export default function DangerZoneCard() {
               variant="ghost"
               disabled={busy}
               onClick={() => setConfirmOpen(false)}
-              className="text-xs"
+              className="w-full text-xs xs:w-auto"
             >
               Cancel
             </Button>

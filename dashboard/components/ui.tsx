@@ -32,18 +32,18 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-4 flex items-end justify-between gap-4">
-      <div>
+    <div className="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-4">
+      <div className="min-w-0">
         {eyebrow && (
           <p className="text-2xs font-semibold uppercase tracking-widest text-muted">
             {eyebrow}
           </p>
         )}
-        <h2 className="text-lg font-semibold tracking-tight text-primary">
+        <h2 className="text-base font-semibold tracking-tight text-primary sm:text-lg">
           {title}
         </h2>
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   );
 }
@@ -68,7 +68,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wide ring-1 ring-inset ${TONES[tone]}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wide ring-1 ring-inset ${TONES[tone]}`}
     >
       {children}
     </span>
@@ -84,7 +84,7 @@ export function Dot({ tone = "neutral" }: { tone?: Tone }) {
     danger: "bg-danger",
     violet: "bg-violet",
   }[tone];
-  return <span className={`h-1.5 w-1.5 rounded-full ${color}`} />;
+  return <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />;
 }
 
 const BUTTON_VARIANTS = {
@@ -108,11 +108,14 @@ export function Button({
   variant?: keyof typeof BUTTON_VARIANTS;
   size?: "sm" | "md";
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  const sizing = size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm";
+  const sizing =
+    size === "sm"
+      ? "min-h-[34px] px-3 py-1.5 text-xs"
+      : "min-h-[38px] px-3.5 sm:px-4 py-2 text-xs sm:text-sm";
   return (
     <button
       {...props}
-      className={`press inline-flex items-center justify-center gap-2 rounded-xl font-medium disabled:cursor-not-allowed disabled:opacity-50 ${sizing} ${BUTTON_VARIANTS[variant]} ${className}`}
+      className={`press inline-flex items-center justify-center gap-2 rounded-xl font-medium touch-manipulation disabled:cursor-not-allowed disabled:opacity-50 ${sizing} ${BUTTON_VARIANTS[variant]} ${className}`}
     >
       {children}
     </button>
@@ -142,17 +145,17 @@ export function StatTile({
   }[tone];
 
   const body = (
-    <Card className="relative overflow-hidden p-5">
+    <Card className="relative overflow-hidden p-3.5 xs:p-4 sm:p-5">
       <div
         className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${accentBar} to-transparent`}
       />
-      <p className="text-2xs font-semibold uppercase tracking-widest text-muted">
+      <p className="truncate text-2xs font-semibold uppercase tracking-widest text-muted">
         {label}
       </p>
-      <p className="tnum mt-2 text-3xl font-semibold tracking-tight text-primary">
+      <p className="tnum mt-1.5 break-words text-2xl font-semibold tracking-tight text-primary xs:mt-2 xs:text-3xl">
         {value}
       </p>
-      {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+      {hint && <p className="mt-1 truncate text-2xs text-muted sm:text-xs">{hint}</p>}
     </Card>
   );
 
@@ -193,9 +196,9 @@ export function ConfidenceMeter({
       : "from-danger/70 to-danger";
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex shrink-0 items-center gap-2">
       <div
-        className="relative h-1.5 w-24 overflow-hidden rounded-full bg-primary/10"
+        className="relative h-1.5 w-16 overflow-hidden rounded-full bg-primary/10 xs:w-20 sm:w-24"
         role="meter"
         aria-valuenow={Number(value.toFixed(2))}
         aria-valuemin={0}
@@ -229,10 +232,10 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card className="p-10 text-center">
+    <Card className="p-6 text-center sm:p-10">
       <p className="text-base font-medium text-primary">{title}</p>
-      <p className="mx-auto mt-1.5 max-w-md text-sm text-secondary">{body}</p>
-      {action && <div className="mt-5 flex justify-center">{action}</div>}
+      <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-secondary sm:text-sm">{body}</p>
+      {action && <div className="mt-4 flex justify-center sm:mt-5">{action}</div>}
     </Card>
   );
 }

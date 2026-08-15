@@ -187,6 +187,23 @@
   .press:active:not(:disabled) {
     transform: scale(0.97);
   }
+
+  /* Utility for hiding scrollbars on swipeable tabs/chips on mobile */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Safe area helpers for notch & navigation bars */
+  .pb-safe {
+    padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  }
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
 }
 
 /* Respect the OS setting - no exceptions, including the ambient mesh drift. */

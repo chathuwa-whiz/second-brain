@@ -25,14 +25,16 @@ function ConnectionRow({
   connected: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3.5">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-primary">{name}</p>
-        <p className="truncate text-xs text-muted">{detail}</p>
+    <div className="flex flex-col justify-between gap-2.5 p-3.5 xs:flex-row xs:items-center xs:gap-4 sm:p-4">
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-medium text-primary">{name}</p>
+        <p className="mt-0.5 break-words text-xs text-muted">{detail}</p>
       </div>
-      <Badge tone={connected ? "ok" : "warn"}>
-        {connected ? "Configured" : "Not set"}
-      </Badge>
+      <div className="shrink-0 self-start xs:self-center">
+        <Badge tone={connected ? "ok" : "warn"}>
+          {connected ? "Configured" : "Not set"}
+        </Badge>
+      </div>
     </div>
   );
 }
@@ -49,7 +51,7 @@ export default async function SettingsPage() {
         description="How the control panel looks, email delivery credentials, and what it's currently wired up to."
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
         <section>
           <SectionHeader eyebrow="Display" title="Appearance" />
           <AppearancePicker />
@@ -62,8 +64,8 @@ export default async function SettingsPage() {
 
         <section>
           <SectionHeader eyebrow="Safety" title="When the agent asks first" />
-          <Card className="p-5">
-            <p className="text-sm leading-relaxed text-secondary">
+          <Card className="p-4 sm:p-5">
+            <p className="text-xs leading-relaxed text-secondary sm:text-sm">
               The planner scores its own confidence in every action. At or above{" "}
               <span className="tnum font-semibold text-primary">
                 {THRESHOLD.toFixed(2)}
@@ -72,18 +74,18 @@ export default async function SettingsPage() {
               Approvals for your decision.
             </p>
 
-            <div className="mt-4 rounded-xl bg-primary/[0.04] p-4">
+            <div className="mt-4 rounded-xl bg-primary/[0.04] p-3.5 sm:p-4">
               <p className="mb-2.5 text-2xs font-semibold uppercase tracking-widest text-muted">
                 The bar
               </p>
               <ConfidenceMeter value={THRESHOLD} threshold={THRESHOLD} />
             </div>
 
-            <p className="mt-4 text-sm leading-relaxed text-secondary">
+            <p className="mt-4 text-xs leading-relaxed text-secondary sm:text-sm">
               Anything that deletes, removes, sends, or pays is capped below the
               bar in code, so it always waits for you no matter how confident
               the model claims to be. Change the threshold with{" "}
-              <code className="rounded bg-primary/[0.06] px-1.5 py-0.5 text-xs">
+              <code className="break-all rounded bg-primary/[0.06] px-1.5 py-0.5 text-2xs sm:text-xs">
                 AUTO_EXECUTE_CONFIDENCE_THRESHOLD
               </code>{" "}
               in the orchestrator&apos;s environment.
