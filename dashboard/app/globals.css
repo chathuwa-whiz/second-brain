@@ -76,6 +76,7 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
   }
 
   body {
@@ -87,6 +88,8 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
   }
 
   /* Numerals in stats/meters are tabular so they don't jitter on refresh */

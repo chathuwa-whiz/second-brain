@@ -179,7 +179,7 @@ export default function AppShell({
   const current = ALL_ITEMS.find((i) => isActive(pathname, i.href));
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden">
       {/* ---------- Desktop rail ---------- */}
       <aside className="glass-chrome sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r py-5 lg:flex">
         <Brand />
@@ -215,7 +215,7 @@ export default function AppShell({
       </aside>
 
       {/* ---------- Main column ---------- */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
         {/* Mobile top bar */}
         <header className="glass-chrome sticky top-0 z-30 flex items-center gap-3 border-b px-3.5 py-2.5 sm:px-4 sm:py-3 lg:hidden">
           <button
@@ -258,7 +258,7 @@ export default function AppShell({
           </div>
         )}
 
-        <main className="flex-1 px-3.5 pb-44 pt-4 sm:px-6 sm:pb-32 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
+        <main className="flex-1 min-w-0 max-w-full px-3.5 pb-44 pt-4 sm:px-6 sm:pb-32 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
           <div className="mx-auto w-full max-w-6xl min-w-0">{children}</div>
         </main>
 

@@ -212,9 +212,9 @@ export function ConfidenceMeter({
       : "from-danger/70 to-danger";
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 items-center gap-1.5 xs:gap-2">
       <div
-        className="relative h-1.5 w-16 overflow-hidden rounded-full bg-primary/10 xs:w-20 sm:w-24"
+        className="relative h-1.5 w-12 overflow-hidden rounded-full bg-primary/10 xs:w-16 sm:w-20"
         role="meter"
         aria-valuenow={Number(value.toFixed(2))}
         aria-valuemin={0}
@@ -232,7 +232,7 @@ export function ConfidenceMeter({
         />
       </div>
       {showLabel && (
-        <span className="tnum text-xs text-muted">{value.toFixed(2)}</span>
+        <span className="tnum text-2xs text-muted sm:text-xs">{value.toFixed(2)}</span>
       )}
     </div>
   );

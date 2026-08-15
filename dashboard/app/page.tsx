@@ -47,7 +47,7 @@ export default async function OverviewPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+      <div className="grid min-w-0 grid-cols-1 gap-2.5 xs:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         <StatTile
           label="Waiting on you"
           value={stats.pending}
@@ -78,15 +78,15 @@ export default async function OverviewPage() {
         />
       </div>
 
-      <div className="mt-6 grid gap-6 sm:mt-9 lg:grid-cols-[1.6fr_1fr]">
-        <section>
+      <div className="mt-6 grid min-w-0 gap-6 sm:mt-9 lg:grid-cols-[1.6fr_1fr]">
+        <section className="min-w-0">
           <SectionHeader
             eyebrow="Latest"
             title="Recent activity"
             action={
               <Link
                 href="/activity"
-                className="text-sm font-medium text-accent hover:underline"
+                className="text-xs font-medium text-accent hover:underline sm:text-sm"
               >
                 See all
               </Link>
@@ -98,7 +98,7 @@ export default async function OverviewPage() {
               body="Run a request through the orchestrator and every decision it makes will land here, with the reasoning behind it."
             />
           ) : (
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               {actions.map((a, i) => (
                 <ActionCard
                   key={a.id}
@@ -111,25 +111,25 @@ export default async function OverviewPage() {
           )}
         </section>
 
-        <aside className="space-y-6">
-          <section>
+        <aside className="min-w-0 space-y-6">
+          <section className="min-w-0">
             <SectionHeader eyebrow="System" title="Modules" />
             <Card className="divide-y overflow-hidden">
               {MODULES.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center justify-between gap-3 px-4 py-3"
+                  className="flex items-center justify-between gap-3 px-3.5 py-3 sm:px-4"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     {m.href ? (
                       <Link
                         href={m.href}
-                        className="text-sm font-medium text-primary hover:text-accent"
+                        className="block truncate text-sm font-medium text-primary hover:text-accent"
                       >
                         {m.name}
                       </Link>
                     ) : (
-                      <p className="text-sm font-medium text-primary">
+                      <p className="truncate text-sm font-medium text-primary">
                         {m.name}
                       </p>
                     )}
@@ -146,20 +146,20 @@ export default async function OverviewPage() {
           </section>
 
           {stats.byModule.length > 0 && (
-            <section>
+            <section className="min-w-0">
               <SectionHeader eyebrow="Distribution" title="Actions by module" />
-              <Card className="space-y-3 p-4">
+              <Card className="space-y-3 p-3.5 sm:p-4">
                 {stats.byModule.map((row) => {
                   const pct = stats.total
                     ? Math.round((row.count / stats.total) * 100)
                     : 0;
                   return (
-                    <div key={row.module}>
+                    <div key={row.module} className="min-w-0">
                       <div className="mb-1.5 flex items-baseline justify-between text-xs">
-                        <span className="font-medium capitalize text-secondary">
+                        <span className="truncate font-medium capitalize text-secondary">
                           {row.module.replace(/_/g, " ")}
                         </span>
-                        <span className="tnum text-muted">{row.count}</span>
+                        <span className="tnum ml-2 shrink-0 text-muted">{row.count}</span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
                         <div

@@ -46,7 +46,7 @@ export default function ActionCard({
           all at once. Suppressed under prefers-reduced-motion by globals.css. */}
       <div style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
         {/* Meta Bar: Status Pill + Module + Confidence + Time */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <Badge tone={status.tone}>{status.label}</Badge>
             <span className="truncate text-2xs font-semibold uppercase tracking-wider text-muted">
@@ -54,7 +54,7 @@ export default function ActionCard({
             </span>
           </div>
 
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-1.5 xs:gap-2 sm:gap-3">
             <ConfidenceMeter value={confidence} threshold={threshold} />
             <time
               className="shrink-0 text-2xs text-muted"
@@ -67,13 +67,13 @@ export default function ActionCard({
         </div>
 
         {/* Action Title */}
-        <div className="mt-2">
+        <div className="mt-2 min-w-0">
           <p className="break-words text-sm font-semibold tracking-tight text-primary capitalize sm:text-base">
             {action.action.replace(/_/g, " ")}
           </p>
         </div>
 
-        <p className="mt-2 text-xs leading-relaxed text-secondary sm:text-sm">
+        <p className="mt-2 break-words text-xs leading-relaxed text-secondary sm:text-sm">
           {action.reasoning}
         </p>
 
@@ -111,15 +111,16 @@ export default function ActionCard({
         )}
 
         {action.action === "send_job_application_email" && action.metadata && (
-          <div className="mt-3 space-y-1.5 rounded-xl bg-primary/[0.03] p-3 sm:p-3.5 ring-1 ring-inset ring-primary/10">
-            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-3 min-w-0 space-y-1.5 rounded-xl bg-primary/[0.03] p-3 ring-1 ring-inset ring-primary/10 sm:p-3.5">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
               <span className="break-words text-xs font-semibold text-primary sm:text-sm">
                 {String(action.metadata.company || "")} · {String(action.metadata.job_title || "")}
               </span>
               {action.metadata.suggested_resume ? (
-                <span className="inline-flex max-w-full items-center gap-1 truncate rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent">
-                  📄 <span className="truncate">{String(action.metadata.suggested_resume)}</span>
-                </span>
+                <div className="flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent">
+                  <span className="shrink-0">📄</span>
+                  <span className="truncate">{String(action.metadata.suggested_resume)}</span>
+                </div>
               ) : null}
             </div>
             {action.metadata.recipient_email ? (
@@ -128,7 +129,7 @@ export default function ActionCard({
               </p>
             ) : null}
             {action.metadata.email_subject ? (
-              <p className="truncate text-2xs text-secondary sm:text-xs">
+              <p className="break-words text-2xs text-secondary sm:text-xs">
                 Subject: <span className="text-secondary/90">{String(action.metadata.email_subject)}</span>
               </p>
             ) : null}
