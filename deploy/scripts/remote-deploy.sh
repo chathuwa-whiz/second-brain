@@ -76,11 +76,15 @@ echo "==> Verifying"
 # needlessly and slow ones (e.g. under memory pressure, swapping) still
 # get a fair chance before being called a failure.
 wait_for_http() {
-  local name="$1" url="$2" tries=0 max_tries=20
+  local name="$1" url="$2" svc_name="$3" tries=0 max_tries=40
   until curl -sf -o /dev/null "$url"; do
     tries=$((tries + 1))
     if [ "$tries" -ge "$max_tries" ]; then
       echo "!! $name: still not responding after ${max_tries}s" >&2
+      if [ -n "$svc_name" ]; then
+        echo "=== Logs for $svc_name ===" >&2
+        journalctl -u "$svc_name" --no-pager -n 25 >&2 || true
+      fi
       return 1
     fi
     sleep 1
@@ -94,13 +98,14 @@ for svc in second-brain-dashboard second-brain-job-tracker-webhook second-brain-
     echo "   $svc: active"
   else
     echo "!! $svc: NOT active" >&2
+    journalctl -u "$svc" --no-pager -n 25 >&2 || true
     FAILED=1
   fi
 done
 
-wait_for_http "dashboard" "http://127.0.0.1:3001/secondbrain/login" || FAILED=1
-wait_for_http "job-tracker webhook" "http://127.0.0.1:8090/health" || FAILED=1
-wait_for_http "orchestrator webhook" "http://127.0.0.1:8092/health" || FAILED=1
+wait_for_http "dashboard" "http://127.0.0.1:3001/secondbrain/login" "second-brain-dashboard" || FAILED=1
+wait_for_http "job-tracker webhook" "http://127.0.0.1:8090/health" "second-brain-job-tracker-webhook" || FAILED=1
+wait_for_http "orchestrator webhook" "http://127.0.0.1:8092/health" "second-brain-orchestrator-webhook" || FAILED=1
 
 if [ "$FAILED" -ne 0 ]; then
   echo "==> Deploy finished with failures - check the output above and \`journalctl -u <service>\` on the VPS" >&2
@@ -108,3 +113,4 @@ if [ "$FAILED" -ne 0 ]; then
 fi
 
 echo "==> Deploy complete"
+
