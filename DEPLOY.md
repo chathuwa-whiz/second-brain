@@ -62,7 +62,7 @@ cd /opt/second-brain/orchestrator
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt fastapi "uvicorn[standard]"
 cp .env.example .env
-nano .env   # fill in LOG_DATABASE_URL (Neon), LLM_*, and a new
+nano .env   # fill in ORACLE_* (Oracle Autonomous DB), LLM_*, and a new
             # ORCHESTRATOR_WEBHOOK_SECRET (openssl rand -hex 32, different
             # from job-tracker's — these gate different things)
 ```
@@ -93,14 +93,17 @@ Fill in `.env.production` with real values — critically:
 NEXTAUTH_URL=https://chathushka.xubi.org/secondbrain
 NEXT_BASE_PATH=/secondbrain
 NEXT_PUBLIC_BASE_PATH=/secondbrain
-LOG_DATABASE_URL=<same Neon string as orchestrator/.env>
+ORACLE_USER=ADMIN
+ORACLE_PASSWORD=<your Oracle DB password>
+ORACLE_CONNECT_STRING=<your Oracle secondbrain_high connection string>
 MONGO_URL=<same MongoDB string as mcp-servers/job-tracker-mcp/.env>
-RESUME_DIR=<same absolute path as mcp-servers/job-tracker-mcp/.env's RESUME_DIR>
-NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD=0.75   # match orchestrator/config.py
+RESUME_DIR=/opt/second-brain/resumes
+NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD=0.70   # match orchestrator/config.py
 DASHBOARD_USERNAME=<pick one>
 DASHBOARD_PASSWORD=<pick one>
 NEXTAUTH_SECRET=<openssl rand -base64 32>
 ```
+
 
 `NEXT_BASE_PATH` and `NEXT_PUBLIC_BASE_PATH` get **baked into the build** —
 they have to be set in the environment `next build` actually runs in, not

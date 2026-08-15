@@ -70,10 +70,8 @@ rather than being hidden or looking broken.
 
 ## Where the data comes from
 
-- **Postgres** (`LOG_DATABASE_URL`, Neon) — `agent_actions`, written by the
-  orchestrator's trust layer. Read via `lib/db.ts`, which returns empty results
-  and an error string rather than throwing, so a database blip renders a message
-  instead of an error page.
+- **Oracle Autonomous AI Database (23ai Serverless)** (`ORACLE_*`) — `agent_actions` and `system_settings`, written by the
+  orchestrator's trust layer. Read via `lib/db.ts` with connection pooling in Thin mode.
 - **MongoDB** (`MONGO_URL`) — `job_matches` and `job_applications`, the same
   collections `job-tracker-mcp` uses. `lib/mongo.ts` is the human's read path;
   the MCP tools are the agent's. Same collections, one source of truth. Leave

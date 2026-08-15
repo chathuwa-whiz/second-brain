@@ -5,26 +5,14 @@ approval — gets a row in `agent_actions`.
 
 ## Setup
 
-This project uses [Neon](https://neon.tech) for Postgres. Never put your real
-connection string in code or commit it — it only ever lives in a local `.env`
-(gitignored) or your deploy target's secret manager.
+This project uses **Oracle Autonomous AI Database Serverless (23ai)**. Never put your real
+connection credentials in code or commit them — they only ever live in a local `.env`
+(gitignored) or your deploy target's environment.
 
-1. In the Neon dashboard, grab the **pooled connection** string from
-   Connection Details. It already includes `?sslmode=require`, which
-   psycopg2 picks up automatically.
+1. In your Oracle Cloud console, grab the **Connection String** (e.g. `secondbrain_high`) from
+   **Database connection** -> **Connection strings**.
 
-2. Apply the schema (run once) — paste your actual connection string in
-   place of the placeholder:
-
-   ```bash
-   psql "postgresql://<user>:<password>@<project>.neon.tech/<database>?sslmode=require" -f schema.sql
-   ```
-
-   (On Windows, run this from PowerShell or the psql shell directly — same
-   command, just don't rely on `$LOG_DATABASE_URL` shell expansion, which is
-   Bash-only.)
-
-3. Install deps and smoke-test:
+2. Install deps and smoke-test:
 
    ```bash
    pip install -r requirements.txt
@@ -33,13 +21,8 @@ connection string in code or commit it — it only ever lives in a local `.env`
    ```
 
    You should see `Logged action id=1` and a list containing that row.
-   `logger.py` loads `.env` itself (via `python-dotenv`) — no manual
-   `export`/`$env:` step needed, and this works the same on Windows,
-   macOS, and Linux.
-
-`logger.py` raises a clear error if `LOG_DATABASE_URL` isn't set — this is
-intentional, so there's never a tempting "just hardcode it for now" default
-sitting in committed code.
+   `logger.py` loads `.env` itself (via `python-dotenv`) using `python-oracledb` in Thin mode
+   (no Oracle Instant Client C binaries required).
 
 ## Usage from other modules
 
@@ -56,6 +39,6 @@ log_action(ActionLogEntry(
 ))
 ```
 
-For actions that should wait for your sign-off (e.g. sending a cover letter),
+For actions that should wait for your sign-off (e.g. sending a job application email),
 log with `status="pending"` and call `update_status(id, "approved")` once you
 approve it from the dashboard.
