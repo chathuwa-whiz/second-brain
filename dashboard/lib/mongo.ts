@@ -177,3 +177,30 @@ export async function setMatchStatus(
     found_at: iso(d.found_at),
   };
 }
+
+export async function recordJobApplication(app: {
+  company: string;
+  role: string;
+  job_url?: string;
+  resume_version?: string;
+  notes?: string;
+  status?: string;
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    const db = await getDb();
+    const res = await db.collection("job_applications").insertOne({
+      company: app.company,
+      role: app.role,
+      job_url: app.job_url ?? "",
+      resume_version: app.resume_version ?? "",
+      notes: app.notes ?? "",
+      status: app.status ?? "applied",
+      date_applied: new Date(),
+    });
+    return { success: true, id: String(res.insertedId) };
+  } catch (err) {
+    console.error("recordJobApplication error:", err);
+    return { success: false, error: err instanceof Error ? err.message : "MongoDB error" };
+  }
+}
+

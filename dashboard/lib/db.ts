@@ -173,3 +173,96 @@ export async function fetchStats(): Promise<{
     };
   }
 }
+
+export async function fetchActionById(id: number): Promise<{
+  action: AgentAction | null;
+  error: string | null;
+}> {
+  try {
+    const { rows } = await getPool().query(
+      "SELECT * FROM agent_actions WHERE id = $1",
+      [id]
+    );
+    if (rows.length === 0) return { action: null, error: "Action not found" };
+    return { action: rows[0] as AgentAction, error: null };
+  } catch (err) {
+    console.error("fetchActionById failed:", err);
+    return {
+      action: null,
+      error: err instanceof Error ? err.message : "Database error",
+    };
+  }
+}
+
+export async function updateActionMetadata(
+  id: number,
+  metadata: Record<string, unknown>,
+  reasoning?: string
+): Promise<{ action: AgentAction | null; error: string | null }> {
+  try {
+    const sql = reasoning
+      ? "UPDATE agent_actions SET metadata = $1::jsonb, reasoning = $2 WHERE id = $3 RETURNING *"
+      : "UPDATE agent_actions SET metadata = $1::jsonb WHERE id = $2 RETURNING *";
+    const values = reasoning ? [JSON.stringify(metadata), reasoning, id] : [JSON.stringify(metadata), id];
+    const { rows } = await getPool().query(sql, values);
+    if (rows.length === 0) return { action: null, error: "Action not found" };
+    return { action: rows[0] as AgentAction, error: null };
+  } catch (err) {
+    console.error("updateActionMetadata failed:", err);
+    return {
+      action: null,
+      error: err instanceof Error ? err.message : "Database error",
+    };
+  }
+}
+
+export type EmailSettings = {
+  provider: "resend" | "smtp";
+  default_sender_email: string;
+  resend_api_key: string;
+  smtp_host?: string;
+  smtp_port?: number;
+  smtp_user?: string;
+  smtp_password?: string;
+};
+
+export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
+  provider: "resend",
+  default_sender_email: "chathushkanavod11@gmail.com",
+  resend_api_key: "",
+  smtp_host: "smtp.resend.com",
+  smtp_port: 465,
+  smtp_user: "resend",
+  smtp_password: "",
+};
+
+export async function getEmailSettings(): Promise<EmailSettings> {
+  try {
+    const { rows } = await getPool().query(
+      "SELECT value FROM system_settings WHERE key = 'email_settings'"
+    );
+    if (rows.length === 0) return DEFAULT_EMAIL_SETTINGS;
+    return { ...DEFAULT_EMAIL_SETTINGS, ...rows[0].value };
+  } catch (err) {
+    console.error("getEmailSettings error:", err);
+    return DEFAULT_EMAIL_SETTINGS;
+  }
+}
+
+export async function saveEmailSettings(settings: Partial<EmailSettings>): Promise<EmailSettings> {
+  const current = await getEmailSettings();
+  const updated = { ...current, ...settings };
+  try {
+    await getPool().query(
+      `INSERT INTO system_settings (key, value, updated_at)
+       VALUES ('email_settings', $1::jsonb, now())
+       ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = now()`,
+      [JSON.stringify(updated)]
+    );
+    return updated;
+  } catch (err) {
+    console.error("saveEmailSettings error:", err);
+    throw err;
+  }
+}
+

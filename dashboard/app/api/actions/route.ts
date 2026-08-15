@@ -48,3 +48,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "database error" }, { status: 500 });
   }
 }
+
+export async function POST(req: NextRequest) {
+  const secretHeader = req.headers.get("x-webhook-secret");
+  const session = await getServerSession(authOptions);
+
+  const envSecret = process.env.ORCHESTRATOR_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET || "second-brain-secret";
+  if (!session && (!secretHeader || secretHeader !== envSecret)) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { module, action, reasoning, confidence, status, metadata } = body;
+
+    const { rows } = await getPool().query(
+      `INSERT INTO agent_actions (module, action, reasoning, confidence, status, metadata)
+       VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+       RETURNING *`,
+      [
+        module || "job_finding",
+        action || "send_job_application_email",
+        reasoning || "",
+        confidence ?? 0.8,
+        status || "pending",
+        JSON.stringify(metadata || {}),
+      ]
+    );
+
+    return NextResponse.json({ success: true, action: rows[0] });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "database error", details: String(err) }, { status: 500 });
+  }
+}
+

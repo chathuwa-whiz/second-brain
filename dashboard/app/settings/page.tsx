@@ -5,6 +5,7 @@ import { mongoConfigured } from "@/lib/mongo";
 import PageHeader from "@/components/PageHeader";
 import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
+import EmailSettingsCard from "./EmailSettingsCard";
 
 export const dynamic = "force-dynamic";
 
@@ -43,13 +44,18 @@ export default async function SettingsPage() {
       <PageHeader
         eyebrow="System"
         title="Settings"
-        description="How the control panel looks, and what it's currently wired up to."
+        description="How the control panel looks, email delivery credentials, and what it's currently wired up to."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
           <SectionHeader eyebrow="Display" title="Appearance" />
           <AppearancePicker />
+        </section>
+
+        <section>
+          <SectionHeader eyebrow="Applications" title="Email & Resend Delivery" />
+          <EmailSettingsCard />
         </section>
 
         <section>
@@ -111,3 +117,4 @@ export default async function SettingsPage() {
     </>
   );
 }
+

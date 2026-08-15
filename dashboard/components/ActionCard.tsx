@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Badge, Button, Card, ConfidenceMeter, type Tone } from "./ui";
 import { moduleLabel } from "@/lib/modules";
 import { absoluteTime, relativeTime } from "@/lib/format";
@@ -103,6 +104,29 @@ export default function ActionCard({
           </pre>
         )}
 
+        {action.action === "send_job_application_email" && action.metadata && (
+          <div className="mt-3 rounded-xl bg-primary/[0.03] p-3.5 ring-1 ring-inset ring-primary/10">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-semibold text-primary">
+                {String(action.metadata.company || "")} · {String(action.metadata.job_title || "")}
+              </span>
+              {action.metadata.suggested_resume ? (
+                <Badge tone="accent">{String(action.metadata.suggested_resume)}</Badge>
+              ) : null}
+            </div>
+            {action.metadata.recipient_email ? (
+              <p className="mt-1 text-2xs text-muted">
+                To: <span className="font-medium text-secondary">{String(action.metadata.recipient_email)}</span>
+              </p>
+            ) : null}
+            {action.metadata.email_subject ? (
+              <p className="mt-1 truncate text-xs text-secondary">
+                Subject: {String(action.metadata.email_subject)}
+              </p>
+            ) : null}
+          </div>
+        )}
+
         {action.reviewed_by && action.status !== "pending" && (
           <p className="mt-3 text-xs text-muted">
             Reviewed by {action.reviewed_by}
@@ -110,24 +134,36 @@ export default function ActionCard({
           </p>
         )}
 
-        {action.status === "pending" && onReview && (
-          <div className="mt-4 flex gap-2 border-t pt-4">
-            <Button
-              variant="approve"
-              size="sm"
-              disabled={busy}
-              onClick={() => onReview(action.id, "approved")}
-            >
-              Approve
-            </Button>
-            <Button
-              variant="reject"
-              size="sm"
-              disabled={busy}
-              onClick={() => onReview(action.id, "rejected")}
-            >
-              Reject
-            </Button>
+        {action.status === "pending" && (
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
+            {action.action === "send_job_application_email" ? (
+              <Link
+                href={`/approvals/${action.id}`}
+                className="press inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:bg-accent-deep"
+              >
+                Review & Edit Application
+              </Link>
+            ) : onReview ? (
+              <Button
+                variant="approve"
+                size="sm"
+                disabled={busy}
+                onClick={() => onReview(action.id, "approved")}
+              >
+                Approve
+              </Button>
+            ) : null}
+
+            {onReview && (
+              <Button
+                variant="reject"
+                size="sm"
+                disabled={busy}
+                onClick={() => onReview(action.id, "rejected")}
+              >
+                Reject
+              </Button>
+            )}
             <span className="ml-auto self-center text-xs text-muted">
               Below the {threshold.toFixed(2)} auto-run threshold
             </span>
@@ -137,3 +173,4 @@ export default function ActionCard({
     </Card>
   );
 }
+
