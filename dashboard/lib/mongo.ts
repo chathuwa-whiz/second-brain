@@ -18,7 +18,7 @@ export function mongoConfigured(): boolean {
   return Boolean(process.env.MONGO_URL);
 }
 
-async function getDb(): Promise<Db> {
+export async function getDb(): Promise<Db> {
   if (_db) return _db;
 
   const url = process.env.MONGO_URL;

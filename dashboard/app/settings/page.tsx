@@ -7,6 +7,7 @@ import PageHeader from "@/components/PageHeader";
 import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
 import EmailSettingsCard from "./EmailSettingsCard";
+import DangerZoneCard from "./DangerZoneCard";
 
 export const dynamic = "force-dynamic";
 
@@ -103,20 +104,19 @@ export default async function SettingsPage() {
               detail="MongoDB — job matches and applications"
               connected={mongoConfigured()}
             />
-
             <ConnectionRow
               name="Resume storage"
               detail="Shared directory the agent reads resumes from"
               connected={Boolean(process.env.RESUME_DIR)}
             />
           </Card>
-          <p className="mt-3 text-xs text-muted">
-            Signed in as {session.user?.name}. Connection values live in
-            environment variables and are never shown here.
-          </p>
+        </section>
+
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Danger Zone" title="Reset & Maintenance" />
+          <DangerZoneCard />
         </section>
       </div>
     </>
   );
 }
-
