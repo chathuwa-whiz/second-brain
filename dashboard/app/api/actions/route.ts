@@ -55,6 +55,43 @@ export async function POST(req: NextRequest) {
     const { module, action, reasoning, confidence, status, metadata } = body;
 
     conn = await getDb();
+
+    // Deduplication check for job matches / applications
+    const jobUrl = metadata?.job_url || null;
+    const company = metadata?.company || null;
+    const jobTitle = metadata?.job_title || null;
+
+    if (jobUrl || (company && jobTitle)) {
+      const checkSql = `
+        SELECT id FROM agent_actions
+        WHERE (
+          (:job_url IS NOT NULL AND JSON_VALUE(metadata, '$.job_url') = :job_url)
+          OR
+          (:company IS NOT NULL AND :job_title IS NOT NULL AND
+           LOWER(JSON_VALUE(metadata, '$.company')) = LOWER(:company) AND
+           LOWER(JSON_VALUE(metadata, '$.job_title')) = LOWER(:job_title))
+        )
+        FETCH FIRST 1 ROWS ONLY
+      `;
+
+      const existing: any = await conn.execute(checkSql, {
+        job_url: jobUrl,
+        company: company,
+        job_title: jobTitle,
+      });
+
+      if (existing.rows && existing.rows.length > 0) {
+        const existingId = existing.rows[0].ID;
+        const { action: existingAction } = await fetchActionById(existingId);
+        return NextResponse.json({
+          success: true,
+          duplicated: true,
+          message: "Job application approval already exists. Skipping duplicate.",
+          action: existingAction,
+        });
+      }
+    }
+
     const insertRes: any = await conn.execute(
       `INSERT INTO agent_actions (module, action, reasoning, confidence, status, metadata)
        VALUES (:module, :action, :reasoning, :confidence, :status, :metadata)
