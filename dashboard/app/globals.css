@@ -106,6 +106,17 @@
     border-radius: 8px;
   }
 
+  /* Form dropdown options styling for dark/night mode contrast */
+  select {
+    color-scheme: light dark;
+  }
+
+  select option {
+    background-color: rgb(var(--bg-chrome));
+    color: rgb(var(--text-primary));
+  }
+
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

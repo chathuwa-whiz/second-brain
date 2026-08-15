@@ -255,10 +255,10 @@ export default function ApprovalEditor({
                 <select
                   value={selectedResume}
                   onChange={(e) => setSelectedResume(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent"
+                  className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2.5 text-sm text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent [&>option]:bg-chrome [&>option]:text-primary"
                 >
                   {resumes.map((r) => (
-                    <option key={r} value={r}>
+                    <option key={r} value={r} className="bg-chrome text-primary py-1.5">
                       {r} {r === meta.suggested_resume ? "(AI Recommended)" : ""}
                     </option>
                   ))}
@@ -269,6 +269,7 @@ export default function ApprovalEditor({
                   </p>
                 )}
               </div>
+
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
