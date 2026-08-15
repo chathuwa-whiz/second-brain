@@ -4,28 +4,21 @@ import { authOptions } from "@/lib/auth";
 import { readdir, stat, mkdir, writeFile } from "fs/promises";
 import path from "path";
 
-// Same directory job-tracker-mcp's select_best_resume reads from (RESUME_DIR
-// in its own .env) — this dashboard and job-tracker-mcp must agree on this
-// path. Locally that means the same value in both .env files; once hosted
-// on the VPS, both processes point at the same absolute path on disk.
-const RESUME_DIR = process.env.RESUME_DIR;
+const RESUME_DIR = process.env.RESUME_DIR || "D:\\second-brain\\mcp-servers\\job-tracker-mcp\\resumes";
 
 const ALLOWED_EXTENSIONS = [".docx", ".pdf"];
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB — resumes are small; this is generous headroom, not a real limit
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
 function requireResumeDir(): string {
   if (!RESUME_DIR) {
     throw new Error(
       "RESUME_DIR is not set in the dashboard's environment. Add it to " +
-        "dashboard/.env.local, pointing at the same directory job-tracker-mcp uses."
+        "dashboard/.env.production, pointing at the directory job-tracker-mcp uses (e.g. /opt/second-brain/resumes)."
     );
   }
   return RESUME_DIR;
 }
 
-// Prevents path traversal (e.g. "../../etc/passwd") and rejects anything
-// that isn't a plain filename — every write/delete here derives its target
-// path from a user-controlled filename, so this check runs before every one.
 function sanitizeFilename(name: string): string {
   const base = path.basename(name).trim();
   if (!base || base !== name.trim() || base.includes("..")) {
@@ -34,9 +27,16 @@ function sanitizeFilename(name: string): string {
   return base;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const secretHeader = req.headers.get("x-webhook-secret");
   const session = await getServerSession(authOptions);
-  if (!session) {
+
+  const envSecret =
+    process.env.ORCHESTRATOR_WEBHOOK_SECRET ||
+    process.env.WEBHOOK_SECRET ||
+    "second-brain-secret";
+
+  if (!session && (!secretHeader || secretHeader !== envSecret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -53,9 +53,13 @@ export async function GET() {
         })
     );
     files.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-    return NextResponse.json({ files });
+    return NextResponse.json({
+      files,
+      resumes: files.map((f) => f.name),
+      total: files.length,
+    });
   } catch (err) {
-    console.error(err);
+    console.error("GET /api/resumes error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "failed to list resumes" },
       { status: 500 }
@@ -94,7 +98,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ uploaded: filename, size: bytes.length }, { status: 201 });
   } catch (err) {
-    console.error(err);
+    console.error("POST /api/resumes upload error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "upload failed" },
       { status: 500 }
