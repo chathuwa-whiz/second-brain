@@ -258,14 +258,14 @@ export default function AppShell({
           </div>
         )}
 
-        <main className="flex-1 px-3.5 pb-32 pt-4 sm:px-6 sm:pb-28 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
+        <main className="flex-1 px-3.5 pb-44 pt-4 sm:px-6 sm:pb-32 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
           <div className="mx-auto w-full max-w-6xl min-w-0">{children}</div>
         </main>
 
         {/* Mobile tab bar - floats over content, iOS-style with safe area support */}
         <nav
           aria-label="Mobile navigation"
-          className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl px-1 py-1.5 shadow-xl lg:hidden"
+          className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl border border-hairline/15 bg-chrome/85 px-1.5 py-1.5 shadow-2xl backdrop-blur-2xl lg:hidden"
         >
           {ALL_ITEMS.filter((i) => i.primary).map((item) => {
             const active = isActive(pathname, item.href);
@@ -275,12 +275,15 @@ export default function AppShell({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`press flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 text-2xs font-medium ${
-                  active ? "text-accent font-semibold" : "text-muted hover:text-primary"
+                className={`press relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl py-1 text-2xs font-medium transition-colors ${
+                  active ? "font-semibold text-accent" : "text-secondary hover:text-primary"
                 }`}
               >
-                <Icon className="h-5 w-5 shrink-0" />
-                <span className="truncate max-w-full text-center tracking-tight">
+                {active && (
+                  <span className="absolute inset-0 -z-10 rounded-xl bg-accent/12" />
+                )}
+                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-accent" : "text-secondary"}`} />
+                <span className="mt-0.5 max-w-full truncate text-center text-[10px] tracking-tight">
                   {item.label}
                 </span>
               </Link>

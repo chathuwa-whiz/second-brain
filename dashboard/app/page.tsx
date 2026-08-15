@@ -35,7 +35,7 @@ export default async function OverviewPage() {
     <>
       <PageHeader
         eyebrow="Overview"
-        title={`Good to see you, ${session.user?.name ?? "there"}`}
+        title={`Good to see you, ${session.user?.name ? session.user.name.charAt(0).toUpperCase() + session.user.name.slice(1) : "there"}`}
         description="What the agent has been doing, and anything waiting on your call."
       />
 

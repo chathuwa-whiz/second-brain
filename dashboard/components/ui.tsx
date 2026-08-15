@@ -144,18 +144,34 @@ export function StatTile({
     violet: "from-violet",
   }[tone];
 
+  const dotColor = {
+    neutral: "bg-muted/60",
+    accent: "bg-accent",
+    ok: "bg-ok",
+    warn: "bg-warn",
+    danger: "bg-danger",
+    violet: "bg-violet",
+  }[tone];
+
   const body = (
-    <Card className="relative overflow-hidden p-3.5 xs:p-4 sm:p-5">
+    <Card className="relative overflow-hidden p-3 transition-all xs:p-3.5 sm:p-5">
       <div
-        className={`absolute inset-x-0 top-0 h-px bg-gradient-to-r ${accentBar} to-transparent`}
+        className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentBar} to-transparent`}
       />
-      <p className="truncate text-2xs font-semibold uppercase tracking-widest text-muted">
-        {label}
-      </p>
-      <p className="tnum mt-1.5 break-words text-2xl font-semibold tracking-tight text-primary xs:mt-2 xs:text-3xl">
+      <div className="flex items-center justify-between gap-1">
+        <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted xs:text-2xs">
+          {label}
+        </p>
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
+      </div>
+      <p className="tnum mt-1 text-2xl font-bold tracking-tight text-primary xs:mt-1.5 xs:text-3xl">
         {value}
       </p>
-      {hint && <p className="mt-1 truncate text-2xs text-muted sm:text-xs">{hint}</p>}
+      {hint && (
+        <p className="mt-0.5 truncate text-[11px] text-secondary/80 sm:text-xs">
+          {hint}
+        </p>
+      )}
     </Card>
   );
 

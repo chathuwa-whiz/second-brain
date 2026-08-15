@@ -41,26 +41,23 @@ export default function ActionCard({
   const confidence = Number(action.confidence);
 
   return (
-    <Card className="animate-rise p-4 sm:p-5">
+    <Card className="animate-rise p-3.5 sm:p-5">
       {/* Staggered entrance: the feed assembles top-down instead of popping in
           all at once. Suppressed under prefers-reduced-motion by globals.css. */}
       <div style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <div className="flex min-w-0 items-center gap-2.5">
+        {/* Meta Bar: Status Pill + Module + Confidence + Time */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             <Badge tone={status.tone}>{status.label}</Badge>
-
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold tracking-tight text-primary">
-                {action.action.replace(/_/g, " ")}
-              </p>
-              <p className="truncate text-xs text-muted">{moduleLabel(action.module)}</p>
-            </div>
+            <span className="truncate text-2xs font-semibold uppercase tracking-wider text-muted">
+              {moduleLabel(action.module)}
+            </span>
           </div>
 
-          <div className="flex items-center justify-between gap-3 sm:ml-auto sm:justify-end sm:gap-4">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <ConfidenceMeter value={confidence} threshold={threshold} />
             <time
-              className="shrink-0 text-2xs text-muted sm:text-xs"
+              className="shrink-0 text-2xs text-muted"
               dateTime={action.created_at}
               title={absoluteTime(action.created_at)}
             >
@@ -69,7 +66,14 @@ export default function ActionCard({
           </div>
         </div>
 
-        <p className="mt-2.5 text-xs leading-relaxed text-secondary sm:mt-3 sm:text-sm">
+        {/* Action Title */}
+        <div className="mt-2">
+          <p className="break-words text-sm font-semibold tracking-tight text-primary capitalize sm:text-base">
+            {action.action.replace(/_/g, " ")}
+          </p>
+        </div>
+
+        <p className="mt-2 text-xs leading-relaxed text-secondary sm:text-sm">
           {action.reasoning}
         </p>
 
@@ -79,12 +83,12 @@ export default function ActionCard({
         {(action.status === "approved" || action.status === "auto_executed") && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             {action.executed_at ? (
-              <span className="inline-flex items-center gap-1.5 text-ok">
+              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-ok sm:text-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-ok" />
                 Ran {relativeTime(action.executed_at)}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-warn">
+              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warn sm:text-xs">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
                 Waiting for the executor to pick it up
               </span>
@@ -92,7 +96,7 @@ export default function ActionCard({
             {action.execution_result != null && (
               <button
                 onClick={() => setShowResult((v) => !v)}
-                className="text-accent hover:underline"
+                className="text-2xs font-medium text-accent hover:underline sm:text-xs"
               >
                 {showResult ? "Hide result" : "Show result"}
               </button>
@@ -107,30 +111,32 @@ export default function ActionCard({
         )}
 
         {action.action === "send_job_application_email" && action.metadata && (
-          <div className="mt-3 rounded-xl bg-primary/[0.03] p-3.5 ring-1 ring-inset ring-primary/10">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="break-words font-semibold text-primary">
+          <div className="mt-3 space-y-1.5 rounded-xl bg-primary/[0.03] p-3 sm:p-3.5 ring-1 ring-inset ring-primary/10">
+            <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+              <span className="break-words text-xs font-semibold text-primary sm:text-sm">
                 {String(action.metadata.company || "")} · {String(action.metadata.job_title || "")}
               </span>
               {action.metadata.suggested_resume ? (
-                <Badge tone="accent">{String(action.metadata.suggested_resume)}</Badge>
+                <span className="inline-flex max-w-full items-center gap-1 truncate rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent">
+                  📄 <span className="truncate">{String(action.metadata.suggested_resume)}</span>
+                </span>
               ) : null}
             </div>
             {action.metadata.recipient_email ? (
-              <p className="mt-1 break-all text-2xs text-muted">
+              <p className="break-all text-2xs text-muted">
                 To: <span className="font-medium text-secondary">{String(action.metadata.recipient_email)}</span>
               </p>
             ) : null}
             {action.metadata.email_subject ? (
-              <p className="mt-1 truncate text-xs text-secondary">
-                Subject: {String(action.metadata.email_subject)}
+              <p className="truncate text-2xs text-secondary sm:text-xs">
+                Subject: <span className="text-secondary/90">{String(action.metadata.email_subject)}</span>
               </p>
             ) : null}
           </div>
         )}
 
         {action.reviewed_by && action.status !== "pending" && (
-          <p className="mt-3 text-xs text-muted">
+          <p className="mt-2.5 text-2xs text-muted sm:text-xs">
             Reviewed by {action.reviewed_by}
             {action.reviewed_at && ` · ${relativeTime(action.reviewed_at)}`}
           </p>
