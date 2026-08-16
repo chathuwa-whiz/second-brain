@@ -90,7 +90,7 @@ nano .env.production
 Fill in `.env.production` with real values — critically:
 
 ```bash
-NEXTAUTH_URL=https://secondbrain.xubi.org/secondbrain/api/auth
+NEXTAUTH_URL=https://secondbrain.xubi.org/secondbrain
 NEXT_BASE_PATH=/secondbrain
 NEXT_PUBLIC_BASE_PATH=/secondbrain
 ORACLE_USER=ADMIN

@@ -1,4 +1,10 @@
-export { default } from "next-auth/middleware";
+import { withAuth } from "next-auth/middleware";
+
+export default withAuth({
+  pages: {
+    signIn: "/login",
+  },
+});
 
 /*
   Everything except public pages (login, verify-email) and auth endpoints requires a session.
