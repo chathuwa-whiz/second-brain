@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchActions, fetchActionById, getDb, isPgConfigured } from "@/lib/db";
-import oracledb from "oracledb";
+import { fetchActions, fetchActionById, getDb } from "@/lib/db";
+import { randomUUID } from "crypto";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -17,10 +17,7 @@ export async function GET(req: NextRequest) {
   const limit = Number(req.nextUrl.searchParams.get("limit") ?? 50);
 
   if (idsParam) {
-    const ids = idsParam
-      .split(",")
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isInteger(n));
+    const ids = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
     if (ids.length === 0) {
       return NextResponse.json({ actions: [] });
     }
@@ -52,62 +49,38 @@ export async function POST(req: NextRequest) {
 
   const userId = (session?.user as any)?.id || null;
 
-  let conn: any;
   try {
     const body = await req.json();
     const { module, action, reasoning, confidence, status, metadata } = body;
 
-    conn = await getDb();
+    const db = await getDb();
+    const id = randomUUID();
+    const now = new Date().toISOString();
 
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id`,
-        [
-          userId,
-          module || "job_finding",
-          action || "send_job_application_email",
-          reasoning || "",
-          Number(confidence ?? 0.8),
-          status || "pending",
-          JSON.stringify(metadata || {}),
-        ]
-      );
-      const insertedId = res.rows[0].id;
-      const { action: createdAction } = await fetchActionById(insertedId, userId);
-      return NextResponse.json({ success: true, action: createdAction });
-    } else {
-      const insertRes: any = await conn.execute(
-        `INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
-         VALUES (:userId, :module, :action, :reasoning, :confidence, :status, :metadata)
-         RETURNING id INTO :out_id`,
-        {
-          userId,
-          module: module || "job_finding",
-          action: action || "send_job_application_email",
-          reasoning: reasoning || "",
-          confidence: Number(confidence ?? 0.8),
-          status: status || "pending",
-          metadata: JSON.stringify(metadata || {}),
-          out_id: { type: oracledb.NUMBER, dir: oracledb.BIND_OUT },
-        }
-      );
+    const doc = {
+      id,
+      user_id: userId,
+      module: module || "job_finding",
+      action: action || "send_job_application_email",
+      reasoning: reasoning || "",
+      confidence: Number(confidence ?? 0.8),
+      status: status || "pending",
+      metadata: metadata && typeof metadata === "object" ? metadata : {},
+      reviewed_at: null,
+      reviewed_by: null,
+      executed_at: null,
+      execution_result: null,
+      created_at: now,
+    };
 
-      const insertedId = insertRes.outBinds.out_id[0];
-      const { action: createdAction } = await fetchActionById(insertedId, userId);
-      return NextResponse.json({ success: true, action: createdAction });
-    }
+    await db.collection("agent_actions").insertOne(doc);
+    const { action: createdAction } = await fetchActionById(id, userId);
+    return NextResponse.json({ success: true, action: createdAction });
   } catch (err) {
     console.error("POST /api/actions error:", err);
     return NextResponse.json(
       { error: "database error", details: String(err) },
       { status: 500 }
     );
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
   }
 }

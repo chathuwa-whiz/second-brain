@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { mongoConfigured } from "@/lib/mongo";
-import { oracleConfigured } from "@/lib/db";
 import PageHeader from "@/components/PageHeader";
 import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
@@ -109,13 +108,8 @@ export default async function SettingsPage() {
           <SectionHeader eyebrow="Infrastructure" title="Connections" />
           <Card className="divide-y overflow-hidden">
             <ConnectionRow
-              name="Action log & Trust layer"
-              detail="Oracle Autonomous AI Database (23ai) — every decision, approval, and execution result"
-              connected={oracleConfigured() || Boolean(process.env.DATABASE_URL)}
-            />
-            <ConnectionRow
-              name="Job database"
-              detail="MongoDB — multi-tenant job matches and applications"
+              name="Unified Database & Trust Layer"
+              detail="MongoDB Atlas (NoSQL) — Users, Auth, API Keys, Action Logs, Matches & Settings"
               connected={mongoConfigured()}
             />
             <ConnectionRow

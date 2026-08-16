@@ -1,42 +1,33 @@
 """
 Trust-layer logger. Every module and the orchestrator import this and call
 `log_action(...)` right before (or instead of) actually executing something.
-Supports Oracle Autonomous AI Database 23ai (Thin mode) and PostgreSQL.
+100% MongoDB NoSQL Backend.
 """
 
-import json
 import os
-from contextlib import contextmanager
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-try:
-    import oracledb
-    oracledb.fetchAsString = [oracledb.CLOB]
-    oracledb.autoCommit = True
-except ImportError:
-    oracledb = None
-
-try:
-    import psycopg2
-    import psycopg2.extras
-except ImportError:
-    psycopg2 = None
-
 from dotenv import load_dotenv
+from pymongo import MongoClient
+from bson import ObjectId
 
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
-ORACLE_USER = os.environ.get("ORACLE_USER", "ADMIN")
-ORACLE_PASSWORD = os.environ.get("ORACLE_PASSWORD", "Chathushka@2002")
-ORACLE_CONNECT_STRING = os.environ.get(
-    "ORACLE_CONNECT_STRING",
-    "(description=(retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-singapore-1.oraclecloud.com))(connect_data=(service_name=g9cfbd628b0ef7a_secondbrain_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))",
-)
+MONGO_URL = os.environ.get("MONGO_URL", "mongodb://localhost:27017")
+MONGO_DB = os.environ.get("MONGO_DB", "second_brain")
 
-DATABASE_URL = os.environ.get("LOG_DATABASE_URL")
+_client = None
+
+
+def get_mongo_db():
+    global _client
+    if _client is None:
+        _client = MongoClient(MONGO_URL)
+    return _client[MONGO_DB]
 
 
 @dataclass
@@ -50,161 +41,64 @@ class ActionLogEntry:
     user_id: Optional[str] = None
 
 
-@contextmanager
-def _connect():
-    if oracledb and (ORACLE_CONNECT_STRING or not DATABASE_URL):
-        conn = oracledb.connect(
-            user=ORACLE_USER,
-            password=ORACLE_PASSWORD,
-            dsn=ORACLE_CONNECT_STRING,
-        )
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-    elif psycopg2 and DATABASE_URL:
-        conn = psycopg2.connect(DATABASE_URL)
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-    else:
-        raise RuntimeError("No Oracle or PostgreSQL database configuration found.")
-
-
-def log_action(entry: ActionLogEntry) -> int:
-    """Insert a log row, return its id."""
+def log_action(entry: ActionLogEntry) -> str:
+    """Insert a log row into MongoDB agent_actions, return its id."""
     if not (0.0 <= entry.confidence <= 1.0):
         raise ValueError("confidence must be between 0 and 1")
 
-    with _connect() as conn:
-        with conn.cursor() as cur:
-            if hasattr(cur, "var"):  # Oracle cursor
-                out_id = cur.var(oracledb.NUMBER)
-                cur.execute(
-                    """
-                    INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
-                    VALUES (:user_id, :module, :action, :reasoning, :confidence, :status, :metadata)
-                    RETURNING id INTO :out_id
-                    """,
-                    {
-                        "user_id": entry.user_id,
-                        "module": entry.module,
-                        "action": entry.action,
-                        "reasoning": entry.reasoning,
-                        "confidence": float(entry.confidence),
-                        "status": entry.status,
-                        "metadata": json.dumps(entry.metadata),
-                        "out_id": out_id,
-                    },
-                )
-                return int(out_id.getvalue()[0])
-            else:
-                cur.execute(
-                    """
-                    INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    RETURNING id
-                    """,
-                    (
-                        entry.user_id,
-                        entry.module,
-                        entry.action,
-                        entry.reasoning,
-                        entry.confidence,
-                        entry.status,
-                        json.dumps(entry.metadata),
-                    ),
-                )
-                return cur.fetchone()[0]
+    db = get_mongo_db()
+    action_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+
+    doc = {
+        "id": action_id,
+        "user_id": entry.user_id,
+        "module": entry.module,
+        "action": entry.action,
+        "reasoning": entry.reasoning,
+        "confidence": float(entry.confidence),
+        "status": entry.status,
+        "metadata": entry.metadata,
+        "reviewed_at": None,
+        "reviewed_by": None,
+        "executed_at": now if entry.status == "auto_executed" else None,
+        "execution_result": None,
+        "created_at": now,
+    }
+
+    db.agent_actions.insert_one(doc)
+    return action_id
 
 
-def update_status(action_id: int, status: str, reviewed_by: Optional[str] = None) -> None:
-    with _connect() as conn:
-        with conn.cursor() as cur:
-            now_utc = datetime.now(timezone.utc)
-            if hasattr(cur, "var"):
-                cur.execute(
-                    """
-                    UPDATE agent_actions
-                    SET status = :status, reviewed_at = :reviewed_at, reviewed_by = :reviewed_by
-                    WHERE id = :id
-                    """,
-                    {
-                        "status": status,
-                        "reviewed_at": now_utc,
-                        "reviewed_by": reviewed_by,
-                        "id": action_id,
-                    },
-                )
-            else:
-                cur.execute(
-                    """
-                    UPDATE agent_actions
-                    SET status = %s, reviewed_at = %s, reviewed_by = %s
-                    WHERE id = %s
-                    """,
-                    (status, now_utc, reviewed_by, action_id),
-                )
+def update_status(action_id: Any, status: str, reviewed_by: Optional[str] = None) -> None:
+    db = get_mongo_db()
+    now = datetime.now(timezone.utc).isoformat()
+    filter_query: dict[str, Any] = {"$or": [{"id": str(action_id)}, {"id": action_id}]}
+    if isinstance(action_id, str) and ObjectId.is_valid(action_id):
+        filter_query["$or"].append({"_id": ObjectId(action_id)})
+
+    db.agent_actions.update_one(
+        filter_query,
+        {"$set": {"status": status, "reviewed_at": now, "reviewed_by": reviewed_by}},
+    )
 
 
-def get_recent(limit: int = 50, module: Optional[str] = None) -> list[dict]:
-    with _connect() as conn:
-        with conn.cursor() as cur:
-            if hasattr(cur, "var"):
-                if module:
-                    cur.execute(
-                        """
-                        SELECT id, created_at, module, action, reasoning, confidence, status, metadata,
-                               reviewed_at, reviewed_by, executed_at, execution_result
-                        FROM agent_actions WHERE module = :module
-                        ORDER BY created_at DESC FETCH FIRST :limit ROWS ONLY
-                        """,
-                        {"module": module, "limit": limit},
-                    )
-                else:
-                    cur.execute(
-                        """
-                        SELECT id, created_at, module, action, reasoning, confidence, status, metadata,
-                               reviewed_at, reviewed_by, executed_at, execution_result
-                        FROM agent_actions
-                        ORDER BY created_at DESC FETCH FIRST :limit ROWS ONLY
-                        """,
-                        {"limit": limit},
-                    )
-                rows = cur.fetchall()
-                result = []
-                for r in rows:
-                    row_dict = r if isinstance(r, dict) else {
-                        "id": r[0], "created_at": r[1], "module": r[2], "action": r[3],
-                        "reasoning": r[4], "confidence": r[5], "status": r[6],
-                        "metadata": json.loads(r[7]) if isinstance(r[7], str) else r[7],
-                        "reviewed_at": r[8], "reviewed_by": r[9], "executed_at": r[10],
-                        "execution_result": json.loads(r[11]) if isinstance(r[11], str) else r[11]
-                    }
-                    result.append(row_dict)
-                return result
-            else:
-                with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as pcur:
-                    if module:
-                        pcur.execute(
-                            "SELECT * FROM agent_actions WHERE module = %s ORDER BY created_at DESC LIMIT %s",
-                            (module, limit),
-                        )
-                    else:
-                        pcur.execute(
-                            "SELECT * FROM agent_actions ORDER BY created_at DESC LIMIT %s",
-                            (limit,),
-                        )
-                    return [dict(row) for row in pcur.fetchall()]
+def get_recent(limit: int = 50, module: Optional[str] = None, user_id: Optional[str] = None) -> list[dict]:
+    db = get_mongo_db()
+    query: dict[str, Any] = {}
+    if module:
+        query["module"] = module
+    if user_id:
+        query["user_id"] = user_id
+
+    cursor = db.agent_actions.find(query).sort("created_at", -1).limit(limit)
+    results = []
+    for doc in cursor:
+        doc_copy = dict(doc)
+        if "_id" in doc_copy:
+            doc_copy["_id"] = str(doc_copy["_id"])
+        results.append(doc_copy)
+    return results
 
 
 if __name__ == "__main__":
@@ -212,10 +106,10 @@ if __name__ == "__main__":
         ActionLogEntry(
             module="foundation",
             action="smoke_test",
-            reasoning="Verifying logger writes and reads correctly on Oracle Autonomous AI Database.",
+            reasoning="Verifying logger writes and reads correctly on MongoDB.",
             confidence=1.0,
             status="auto_executed",
-            metadata={"source": "logger.py __main__", "database": "Oracle 23ai"},
+            metadata={"source": "logger.py __main__", "database": "MongoDB"},
         )
     )
     print(f"Logged action id={entry_id}")

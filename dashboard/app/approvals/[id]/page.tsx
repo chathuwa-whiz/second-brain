@@ -51,7 +51,12 @@ export default async function ApprovalDetailPage({
       />
       <ApprovalEditor
         action={action}
-        defaultSender={emailSettings.default_sender_email}
+        defaultSender={
+          emailSettings.default_sender_email ||
+          emailSettings.fromEmail ||
+          session.user?.email ||
+          "user@secondbrain.app"
+        }
       />
     </>
   );

@@ -9,9 +9,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const userId = (session.user as any)?.id;
+
   try {
-    const settings = await getEmailSettings();
-    // Mask API key / password for display if desired, but allow full edit
+    const settings = await getEmailSettings(userId);
     return NextResponse.json({ settings });
   } catch (err) {
     console.error("GET /api/settings/email error:", err);
@@ -25,9 +26,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const userId = (session.user as any)?.id;
+
   try {
     const body = await req.json();
-    const updated = await saveEmailSettings(body);
+    const updated = await saveEmailSettings(userId, body);
     return NextResponse.json({ success: true, settings: updated });
   } catch (err) {
     console.error("POST /api/settings/email error:", err);

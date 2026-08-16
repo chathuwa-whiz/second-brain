@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { fetchActionById, getDb } from "@/lib/db";
+import { ObjectId } from "mongodb";
 
 export async function PATCH(
   req: NextRequest,
@@ -13,8 +14,7 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const actionId = Number(id);
-  if (!Number.isInteger(actionId)) {
+  if (!id) {
     return NextResponse.json({ error: "invalid action id" }, { status: 400 });
   }
 
@@ -26,31 +26,31 @@ export async function PATCH(
     );
   }
 
-  let conn;
   try {
-    conn = await getDb();
-    await conn.execute(
-      `UPDATE agent_actions
-       SET status = :status,
-           reviewed_at = CURRENT_TIMESTAMP,
-           reviewed_by = :reviewed_by
-       WHERE id = :id`,
-      {
-        status,
-        reviewed_by: session.user?.name ?? "dashboard",
-        id: actionId,
-      }
-    );
-
-    const { action, error } = await fetchActionById(actionId);
-    if (!action) {
-      return NextResponse.json({ error: error || "not found" }, { status: 404 });
+    const db = await getDb();
+    const filter: any = {
+      $or: [{ id: id }, { id: Number(id) ? Number(id) : null }, { _id: id }].filter(Boolean),
+    };
+    if (ObjectId.isValid(id)) {
+      filter.$or.push({ _id: new ObjectId(id) });
     }
-    return NextResponse.json({ action });
+
+    const res = await db.collection("agent_actions").updateOne(filter, {
+      $set: {
+        status,
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: session.user?.name ?? "dashboard",
+      },
+    });
+
+    if (res.matchedCount === 0) {
+      return NextResponse.json({ error: "Action not found" }, { status: 404 });
+    }
+
+    const { action: updatedAction } = await fetchActionById(id);
+    return NextResponse.json({ action: updatedAction });
   } catch (err) {
-    console.error("PATCH /api/actions/[id] error on Oracle DB:", err);
+    console.error("PATCH /api/actions/[id] error:", err);
     return NextResponse.json({ error: "database error" }, { status: 500 });
-  } finally {
-    if (conn) await conn.close();
   }
 }

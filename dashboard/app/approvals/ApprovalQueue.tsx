@@ -14,15 +14,15 @@ export default function ApprovalQueue({
   threshold: number;
 }) {
   const [actions, setActions] = useState(initial);
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Rows approved from here are handed to approval_executor.py, which polls
-  // Postgres every few seconds. We poll those specific rows back for their
+  // MongoDB every few seconds. We poll those specific rows back for their
   // execution result rather than re-fetching the whole queue on a timer.
-  const awaiting = useRef<Set<number>>(new Set());
+  const awaiting = useRef<Set<string | number>>(new Set());
 
-  async function review(id: number, status: "approved" | "rejected") {
+  async function review(id: string | number, status: "approved" | "rejected") {
     setBusyId(id);
     setError(null);
     try {

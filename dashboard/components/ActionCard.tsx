@@ -32,7 +32,7 @@ export default function ActionCard({
 }: {
   action: AgentAction;
   threshold: number;
-  onReview?: (id: number, status: "approved" | "rejected") => void;
+  onReview?: (id: string | number, status: "approved" | "rejected") => void;
   busy?: boolean;
   index?: number;
 }) {

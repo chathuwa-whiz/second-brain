@@ -6,8 +6,11 @@ import { recordJobApplication } from "@/lib/mongo";
 import { readFile } from "fs/promises";
 import path from "path";
 import nodemailer from "nodemailer";
+import { ObjectId } from "mongodb";
 
-const RESUME_DIR = process.env.RESUME_DIR || "D:\\second-brain\\mcp-servers\\job-tracker-mcp\\resumes";
+const RESUME_DIR =
+  process.env.RESUME_DIR ||
+  "D:\\second-brain\\mcp-servers\\job-tracker-mcp\\resumes";
 
 export async function POST(
   req: NextRequest,
@@ -19,15 +22,19 @@ export async function POST(
   }
 
   const { id } = await params;
-  const actionId = Number(id);
-  if (!Number.isInteger(actionId)) {
+  if (!id) {
     return NextResponse.json({ error: "invalid action id" }, { status: 400 });
   }
 
+  const userId = (session.user as any)?.id;
+
   try {
-    const { action, error } = await fetchActionById(actionId);
+    const { action, error: fetchErr } = await fetchActionById(id, userId);
     if (!action) {
-      return NextResponse.json({ error: error || "Action not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: fetchErr || "Action not found" },
+        { status: 404 }
+      );
     }
 
     const body = await req.json();
@@ -41,14 +48,15 @@ export async function POST(
       notes,
     } = body;
 
-    const emailSettings = await getEmailSettings();
-    const userSender = sender_email || emailSettings.default_sender_email || "chathushkanavod11@gmail.com";
+    const emailSettings = await getEmailSettings(userId);
+    const userSender =
+      sender_email || emailSettings.fromEmail || session.user?.email || "user@secondbrain.app";
 
     let messageId = "";
     let executionDetails: Record<string, unknown> = {};
 
     if (mode === "manual") {
-      // 1. Manual Application (Website / Portal apply without email)
+      // 1. Manual Application
       messageId = "manual-" + Date.now();
       executionDetails = {
         provider: "manual",
@@ -58,15 +66,17 @@ export async function POST(
         marked_at: new Date().toISOString(),
       };
     } else {
-      // 2. Email Application via Google SMTP
+      // 2. Email Application via SMTP
       if (!recipient_email || !subject || !email_body) {
         return NextResponse.json(
-          { error: "recipient_email, subject, and email_body are required for email dispatch" },
+          {
+            error:
+              "recipient_email, subject, and email_body are required for email dispatch",
+          },
           { status: 400 }
         );
       }
 
-      // Read resume attachment if specified
       let attachmentBuffer: Buffer | null = null;
       if (resume_filename) {
         try {
@@ -78,30 +88,30 @@ export async function POST(
         }
       }
 
-      const smtpHost = emailSettings.smtp_host || "smtp.gmail.com";
-      const smtpPort = Number(emailSettings.smtp_port) || 465;
-      const smtpUser = emailSettings.smtp_user || userSender;
-      const smtpPass = emailSettings.smtp_password || "";
+      const smtpHost = emailSettings.smtpHost || "smtp.gmail.com";
+      const smtpPort = Number(emailSettings.smtpPort) || 465;
+      const smtpUser = emailSettings.smtpUser || userSender;
+      const smtpPass = emailSettings.smtpPassword || "";
 
       if (smtpPass) {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
           port: smtpPort,
-          secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+          secure: smtpPort === 465,
           auth: {
             user: smtpUser,
             pass: smtpPass,
           },
         });
 
-        const fromHeader = userSender.includes("<")
-          ? userSender
-          : `Chathushka Navod <${userSender}>`;
+        const fromHeader = emailSettings.senderName
+          ? `${emailSettings.senderName} <${userSender}>`
+          : userSender;
 
         const mailOptions: nodemailer.SendMailOptions = {
           from: fromHeader,
           to: recipient_email,
-          replyTo: userSender,
+          replyTo: emailSettings.replyTo || userSender,
           subject: subject,
           text: email_body,
         };
@@ -119,7 +129,7 @@ export async function POST(
         const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || "smtp-" + Date.now();
         executionDetails = {
-          provider: "google_smtp",
+          provider: "smtp",
           messageId,
           sent_to: recipient_email,
           from: fromHeader,
@@ -130,7 +140,8 @@ export async function POST(
         messageId = "simulated-" + Date.now();
         executionDetails = {
           provider: "simulated",
-          notice: "No Google App Password configured in Settings. Action marked approved and application recorded.",
+          notice:
+            "No SMTP password configured in Settings. Action marked approved and application recorded.",
           messageId,
           sent_to: recipient_email,
           from: userSender,
@@ -139,7 +150,7 @@ export async function POST(
       }
     }
 
-    // 3. Mark action as approved & executed in Oracle Database
+    // 3. Update action in MongoDB
     const meta: Record<string, any> = {
       ...((action.metadata as Record<string, any>) || {}),
       application_mode: mode,
@@ -150,46 +161,44 @@ export async function POST(
       suggested_resume: resume_filename,
     };
 
-    let conn;
-    try {
-      conn = await getDb();
-      await conn.execute(
-        `UPDATE agent_actions
-         SET status = 'approved',
-             reviewed_at = CURRENT_TIMESTAMP,
-             reviewed_by = :reviewed_by,
-             executed_at = CURRENT_TIMESTAMP,
-             execution_result = :execution_result,
-             metadata = :metadata
-         WHERE id = :id`,
-        {
-          reviewed_by: session.user?.name || "operator",
-          execution_result: JSON.stringify(executionDetails),
-          metadata: JSON.stringify(meta),
-          id: actionId,
-        }
-      );
-    } finally {
-      if (conn) await conn.close();
+    const db = await getDb();
+    const filter: any = {
+      $or: [{ id: id }, { _id: id }].filter(Boolean),
+    };
+    if (ObjectId.isValid(id)) {
+      filter.$or.push({ _id: new ObjectId(id) });
     }
+
+    await db.collection("agent_actions").updateOne(filter, {
+      $set: {
+        status: "approved",
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: session.user?.name || "operator",
+        executed_at: new Date().toISOString(),
+        execution_result: executionDetails,
+        metadata: meta,
+      },
+    });
 
     // 4. Record application in MongoDB
     try {
       await recordJobApplication({
-        company: String(meta.company || meta.extracted_company || "TopJobs Employer"),
+        userId,
+        company: String(meta.company || meta.extracted_company || "Target Employer"),
         role: String(meta.job_title || meta.extracted_job_title || "Software Engineer"),
         job_url: String(meta.job_url || ""),
         resume_version: resume_filename || "Default",
-        notes: mode === "manual"
-          ? (notes || "Applied manually via company website/portal.")
-          : `Applied via Second Brain Approvals. Message ID: ${messageId}`,
+        notes:
+          mode === "manual"
+            ? notes || "Applied manually via company website/portal."
+            : `Applied via Second Brain Approvals. Message ID: ${messageId}`,
         status: "applied",
       });
     } catch (mongoErr) {
       console.warn("Could not log to MongoDB job_applications:", mongoErr);
     }
 
-    const { action: updatedAction } = await fetchActionById(actionId);
+    const { action: updatedAction } = await fetchActionById(id, userId);
 
     return NextResponse.json({
       success: true,

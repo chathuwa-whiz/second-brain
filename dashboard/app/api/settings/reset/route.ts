@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { getDb as getMongoDb, mongoConfigured } from "@/lib/mongo";
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -10,38 +9,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const userId = (session.user as any)?.id;
   const results: Record<string, unknown> = {};
 
-  // 1. Truncate Oracle Autonomous Database tables
-  let conn;
   try {
-    conn = await getDb();
-    await conn.execute("TRUNCATE TABLE agent_actions");
-    results.oracle_agent_actions = "truncated";
-  } catch (oracleErr) {
-    console.error("Failed to truncate Oracle agent_actions:", oracleErr);
-    results.oracle_error = oracleErr instanceof Error ? oracleErr.message : String(oracleErr);
-  } finally {
-    if (conn) await conn.close();
-  }
+    const db = await getDb();
+    const filter = userId
+      ? { $or: [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }] }
+      : {};
 
-  // 2. Clean MongoDB collections if configured
-  if (mongoConfigured()) {
-    try {
-      const mdb = await getMongoDb();
-      const resMatches = await mdb.collection("job_matches").deleteMany({});
-      const resApps = await mdb.collection("job_applications").deleteMany({});
-      results.mongodb_matches_deleted = resMatches.deletedCount;
-      results.mongodb_apps_deleted = resApps.deletedCount;
-    } catch (mongoErr) {
-      console.warn("MongoDB reset notice:", mongoErr);
-      results.mongodb_error = mongoErr instanceof Error ? mongoErr.message : String(mongoErr);
-    }
-  }
+    const [resActions, resMatches, resApps] = await Promise.all([
+      db.collection("agent_actions").deleteMany(filter),
+      db.collection("job_matches").deleteMany(filter),
+      db.collection("job_applications").deleteMany(filter),
+    ]);
 
-  return NextResponse.json({
-    success: true,
-    message: "All databases and approval queues have been reset to their initial clean state.",
-    details: results,
-  });
+    results.agent_actions_deleted = resActions.deletedCount;
+    results.job_matches_deleted = resMatches.deletedCount;
+    results.job_applications_deleted = resApps.deletedCount;
+
+    return NextResponse.json({
+      success: true,
+      message: "Your workspace queues and history have been reset.",
+      details: results,
+    });
+  } catch (err) {
+    console.error("POST /api/settings/reset error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Database reset failed" },
+      { status: 500 }
+    );
+  }
 }

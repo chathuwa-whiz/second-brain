@@ -1,92 +1,54 @@
-import oracledb from "oracledb";
-import { Pool as PgPool } from "pg";
+import { MongoClient, type Db, ObjectId } from "mongodb";
 import { randomUUID, randomBytes, createHash } from "crypto";
 
-// Enable Thin mode, fetch CLOB as string, and JSON formatted objects
-oracledb.fetchAsString = [oracledb.CLOB];
-oracledb.outFormat = oracledb.OUT_FORMAT_OBJECT;
-oracledb.autoCommit = true;
+/*
+  100% MongoDB Unified Database Adapter for Second Brain.
+  Handles Multi-Tenant Auth, Users, Verification Tokens, API Keys,
+  Agent Actions (Trust Layer), System Settings, and Email Configurations.
+*/
 
 declare global {
   // eslint-disable-next-line no-var
-  var _oraclePool: oracledb.Pool | undefined;
-  // eslint-disable-next-line no-var
-  var _pgPool: PgPool | undefined;
+  var _mongoDbInstance: Db | undefined;
 }
 
-let _oraclePoolInstance: oracledb.Pool | null = null;
-let _pgPoolInstance: PgPool | null = null;
+let _db: Db | null = null;
 
 export function isPgConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL || process.env.POSTGRES_URL);
+  return false;
 }
 
 export function oracleConfigured(): boolean {
-  return Boolean(
-    process.env.ORACLE_CONNECT_STRING ||
-      process.env.ORACLE_USER ||
-      process.env.ORACLE_PASSWORD
-  );
+  return false;
 }
 
-export async function getOraclePool(): Promise<oracledb.Pool> {
-  if (_oraclePoolInstance) return _oraclePoolInstance;
-  if (global._oraclePool) {
-    _oraclePoolInstance = global._oraclePool;
-    return _oraclePoolInstance;
+export function mongoConfigured(): boolean {
+  return Boolean(process.env.MONGO_URL);
+}
+
+export async function getDb(): Promise<Db> {
+  if (_db) return _db;
+  if (global._mongoDbInstance) {
+    _db = global._mongoDbInstance;
+    return _db;
   }
 
-  const user = process.env.ORACLE_USER || "ADMIN";
-  const password = process.env.ORACLE_PASSWORD || "Chathushka@2002";
-  const connectString =
-    process.env.ORACLE_CONNECT_STRING ||
-    "(description=(retry_count=20)(retry_delay=3)(address=(protocol=tcps)(port=1522)(host=adb.ap-singapore-1.oraclecloud.com))(connect_data=(service_name=g9cfbd628b0ef7a_secondbrain_high.adb.oraclecloud.com))(security=(ssl_server_dn_match=yes)))";
+  const url = process.env.MONGO_URL;
+  if (!url) {
+    throw new Error(
+      "MONGO_URL is not set. Add it to your .env file. See .env.example."
+    );
+  }
 
-  _oraclePoolInstance = await oracledb.createPool({
-    user,
-    password,
-    connectString,
-    poolMin: 1,
-    poolMax: 5,
-    poolIncrement: 1,
-  });
+  const client = new MongoClient(url);
+  await client.connect();
+  _db = client.db(process.env.MONGO_DB ?? "second_brain");
 
   if (process.env.NODE_ENV !== "production") {
-    global._oraclePool = _oraclePoolInstance;
-  }
-  return _oraclePoolInstance;
-}
-
-export function getPgPool(): PgPool {
-  if (_pgPoolInstance) return _pgPoolInstance;
-  if (global._pgPool) {
-    _pgPoolInstance = global._pgPool;
-    return _pgPoolInstance;
+    global._mongoDbInstance = _db;
   }
 
-  const connectionString =
-    process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  _pgPoolInstance = new PgPool({
-    connectionString,
-    ssl:
-      process.env.NODE_ENV === "production"
-        ? { rejectUnauthorized: false }
-        : undefined,
-  });
-
-  if (process.env.NODE_ENV !== "production") {
-    global._pgPool = _pgPoolInstance;
-  }
-  return _pgPoolInstance;
-}
-
-export async function getDb(): Promise<any> {
-  if (isPgConfigured()) {
-    const pool = getPgPool();
-    return pool.connect();
-  }
-  const pool = await getOraclePool();
-  return pool.getConnection();
+  return _db;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,7 +86,7 @@ export type ApiKey = {
 };
 
 export type AgentAction = {
-  id: number;
+  id: number | string;
   user_id: string | null;
   created_at: string;
   module: string;
@@ -139,240 +101,152 @@ export type AgentAction = {
   execution_result: Record<string, unknown> | null;
 };
 
-function formatAction(row: any): AgentAction {
-  let meta: Record<string, unknown> = {};
-  try {
-    meta =
-      typeof row.METADATA === "string"
-        ? JSON.parse(row.METADATA)
-        : typeof row.metadata === "string"
-        ? JSON.parse(row.metadata)
-        : row.METADATA || row.metadata || {};
-  } catch {
-    meta = {};
-  }
+export type EmailSettings = {
+  configured: boolean;
+  source: "default_alias" | "custom_smtp" | "resend_api";
+  fromEmail?: string;
+  default_sender_email?: string;
+  senderName?: string;
+  smtpHost?: string;
+  smtp_host?: string;
+  smtpPort?: number;
+  smtp_port?: number;
+  smtpUser?: string;
+  smtp_user?: string;
+  smtpPassword?: string;
+  smtp_password?: string;
+  replyTo?: string;
+  updatedAt?: string;
+};
 
-  let execRes: Record<string, unknown> | null = null;
-  try {
-    execRes =
-      typeof row.EXECUTION_RESULT === "string"
-        ? JSON.parse(row.EXECUTION_RESULT)
-        : typeof row.execution_result === "string"
-        ? JSON.parse(row.execution_result)
-        : row.EXECUTION_RESULT || row.execution_result || null;
-  } catch {
-    execRes = null;
-  }
+function iso(val: any): string {
+  if (val instanceof Date) return val.toISOString();
+  if (typeof val === "string") return val;
+  return new Date().toISOString();
+}
 
+function formatUser(doc: any): User {
   return {
-    id: Number(row.ID ?? row.id),
-    user_id: row.USER_ID ?? row.user_id ?? null,
-    created_at: row.CREATED_AT || row.created_at || "",
-    module: row.MODULE || row.module || "",
-    action: row.ACTION || row.action || "",
-    reasoning: row.REASONING || row.reasoning || "",
-    confidence: String(row.CONFIDENCE ?? row.confidence ?? 0),
-    status: row.STATUS || row.status || "pending",
-    metadata: meta,
-    reviewed_at: row.REVIEWED_AT || row.reviewed_at || null,
-    reviewed_by: row.REVIEWED_BY || row.reviewed_by || null,
-    executed_at: row.EXECUTED_AT || row.executed_at || null,
-    execution_result: execRes,
+    id: String(doc.id || doc._id),
+    name: doc.name ?? null,
+    email: String(doc.email).toLowerCase(),
+    password_hash: doc.password_hash ?? null,
+    email_verified: doc.email_verified ? iso(doc.email_verified) : null,
+    image: doc.image ?? null,
+    role: doc.role ?? "user",
+    created_at: iso(doc.created_at),
+    updated_at: iso(doc.updated_at),
   };
 }
 
-function formatUser(row: any): User {
+function formatAction(doc: any): AgentAction {
   return {
-    id: String(row.ID || row.id),
-    name: row.NAME || row.name || null,
-    email: String(row.EMAIL || row.email || "").toLowerCase(),
-    password_hash: row.PASSWORD_HASH || row.password_hash || null,
-    email_verified: row.EMAIL_VERIFIED || row.email_verified || null,
-    image: row.IMAGE || row.image || null,
-    role: row.ROLE || row.role || "user",
-    created_at: row.CREATED_AT || row.created_at || "",
-    updated_at: row.UPDATED_AT || row.updated_at || "",
+    id: String(doc.id || doc._id),
+    user_id: doc.user_id ? String(doc.user_id) : null,
+    created_at: iso(doc.created_at || doc.found_at),
+    module: String(doc.module || "job_finding"),
+    action: String(doc.action || "match_job_posting"),
+    reasoning: String(doc.reasoning || doc.reason || ""),
+    confidence: String(doc.confidence ?? "0.80"),
+    status: (doc.status as any) || "pending",
+    metadata: doc.metadata && typeof doc.metadata === "object" ? doc.metadata : {},
+    reviewed_at: doc.reviewed_at ? iso(doc.reviewed_at) : null,
+    reviewed_by: doc.reviewed_by ? String(doc.reviewed_by) : null,
+    executed_at: doc.executed_at ? iso(doc.executed_at) : null,
+    execution_result:
+      doc.execution_result && typeof doc.execution_result === "object"
+        ? doc.execution_result
+        : null,
   };
 }
 
 // ---------------------------------------------------------------------------
-// User & Auth Database Operations
+// User CRUD & Authentication
 // ---------------------------------------------------------------------------
 
 export async function getUserByEmail(email: string): Promise<User | null> {
-  const cleanEmail = email.trim().toLowerCase();
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query("SELECT * FROM users WHERE LOWER(email) = $1", [cleanEmail]);
-      if (!res.rows || res.rows.length === 0) return null;
-      return formatUser(res.rows[0]);
-    } else {
-      const res = await conn.execute(
-        `SELECT id, name, email, password_hash, 
-                TO_CHAR(email_verified, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as email_verified,
-                image, role,
-                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-                TO_CHAR(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at
-         FROM users WHERE LOWER(email) = :email`,
-        { email: cleanEmail }
-      );
-      if (!res.rows || res.rows.length === 0) return null;
-      return formatUser(res.rows[0]);
-    }
-  } catch (err) {
-    console.error("getUserByEmail error:", err);
-    return null;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  if (!email) return null;
+  const db = await getDb();
+  const doc = await db.collection("users").findOne({
+    email: email.trim().toLowerCase(),
+  });
+  if (!doc) return null;
+  return formatUser(doc);
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query("SELECT * FROM users WHERE id = $1", [id]);
-      if (!res.rows || res.rows.length === 0) return null;
-      return formatUser(res.rows[0]);
-    } else {
-      const res = await conn.execute(
-        `SELECT id, name, email, password_hash, 
-                TO_CHAR(email_verified, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as email_verified,
-                image, role,
-                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-                TO_CHAR(updated_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as updated_at
-         FROM users WHERE id = :id`,
-        { id }
-      );
-      if (!res.rows || res.rows.length === 0) return null;
-      return formatUser(res.rows[0]);
-    }
-  } catch (err) {
-    console.error("getUserById error:", err);
-    return null;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
+  if (!id) return null;
+  const db = await getDb();
+  const filter: any = {
+    $or: [{ id: id }],
+  };
+  if (ObjectId.isValid(id)) {
+    filter.$or.push({ _id: new ObjectId(id) });
   }
+
+  const doc = await db.collection("users").findOne(filter);
+  if (!doc) return null;
+  return formatUser(doc);
 }
 
 export async function createUser(data: {
-  id?: string;
   name?: string | null;
   email: string;
+  password?: string | null;
   passwordHash?: string | null;
   image?: string | null;
   emailVerified?: Date | null;
   role?: string;
 }): Promise<User> {
-  const id = data.id || randomUUID();
-  const email = data.email.trim().toLowerCase();
-  const name = data.name || null;
-  const passwordHash = data.passwordHash || null;
-  const image = data.image || null;
-  const role = data.role || "user";
-  const emailVerified = data.emailVerified ? new Date(data.emailVerified) : null;
+  const db = await getDb();
+  const id = randomUUID();
+  const now = new Date();
 
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `INSERT INTO users (id, name, email, password_hash, email_verified, image, role)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING *`,
-        [id, name, email, passwordHash, emailVerified, image, role]
-      );
-      return formatUser(res.rows[0]);
-    } else {
-      await conn.execute(
-        `INSERT INTO users (id, name, email, password_hash, email_verified, image, role)
-         VALUES (:id, :name, :email, :passwordHash, :emailVerified, :image, :role)`,
-        {
-          id,
-          name,
-          email,
-          passwordHash,
-          emailVerified,
-          image,
-          role,
-        }
-      );
-      const created = await getUserById(id);
-      if (!created) throw new Error("Failed to retrieve created user");
-      return created;
-    }
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const doc = {
+    id,
+    name: data.name || null,
+    email: data.email.trim().toLowerCase(),
+    password_hash: data.passwordHash || data.password || null,
+    email_verified: data.emailVerified ? data.emailVerified.toISOString() : null,
+    image: data.image || null,
+    role: data.role || "user",
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
+  };
+
+  await db.collection("users").insertOne(doc);
+  return formatUser(doc);
 }
 
 export async function updateUserPassword(
   userId: string,
-  newPasswordHash: string
+  passwordHash: string
 ): Promise<boolean> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`,
-        [newPasswordHash, userId]
-      );
-    } else {
-      await conn.execute(
-        `UPDATE users SET password_hash = :newPasswordHash, updated_at = CURRENT_TIMESTAMP WHERE id = :userId`,
-        { newPasswordHash, userId }
-      );
-    }
-    return true;
-  } catch (err) {
-    console.error("updateUserPassword error:", err);
-    return false;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const db = await getDb();
+  const filter: any = { $or: [{ id: userId }] };
+  if (ObjectId.isValid(userId)) filter.$or.push({ _id: new ObjectId(userId) });
+
+  const res = await db.collection("users").updateOne(filter, {
+    $set: {
+      password_hash: passwordHash,
+      updated_at: new Date().toISOString(),
+    },
+  });
+  return res.matchedCount > 0;
 }
 
 export async function verifyUserEmail(userId: string): Promise<boolean> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `UPDATE users SET email_verified = now(), updated_at = now() WHERE id = $1`,
-        [userId]
-      );
-    } else {
-      await conn.execute(
-        `UPDATE users SET email_verified = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :userId`,
-        { userId }
-      );
-    }
-    return true;
-  } catch (err) {
-    console.error("verifyUserEmail error:", err);
-    return false;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const db = await getDb();
+  const filter: any = { $or: [{ id: userId }] };
+  if (ObjectId.isValid(userId)) filter.$or.push({ _id: new ObjectId(userId) });
+
+  const res = await db.collection("users").updateOne(filter, {
+    $set: {
+      email_verified: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  });
+  return res.matchedCount > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -382,326 +256,61 @@ export async function verifyUserEmail(userId: string): Promise<boolean> {
 export async function createVerificationToken(data: {
   userId: string;
   token: string;
-  tokenType?: string;
   expiresAt: Date;
+  tokenType?: string;
 }): Promise<VerificationToken> {
+  const db = await getDb();
   const id = randomUUID();
   const tokenType = data.tokenType || "email_verification";
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      // Remove any existing tokens for this user and type
-      await conn.query(
-        `DELETE FROM verification_tokens WHERE user_id = $1 AND token_type = $2`,
-        [data.userId, tokenType]
-      );
-      const res = await conn.query(
-        `INSERT INTO verification_tokens (id, user_id, token, token_type, expires_at)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [id, data.userId, data.token, tokenType, data.expiresAt]
-      );
-      const row = res.rows[0];
-      return {
-        id: row.id,
-        user_id: row.user_id,
-        token: row.token,
-        token_type: row.token_type,
-        expires_at: row.expires_at,
-        created_at: row.created_at,
-      };
-    } else {
-      await conn.execute(
-        `DELETE FROM verification_tokens WHERE user_id = :userId AND token_type = :tokenType`,
-        { userId: data.userId, tokenType }
-      );
-      await conn.execute(
-        `INSERT INTO verification_tokens (id, user_id, token, token_type, expires_at)
-         VALUES (:id, :userId, :token, :tokenType, :expiresAt)`,
-        {
-          id,
-          userId: data.userId,
-          token: data.token,
-          tokenType,
-          expiresAt: data.expiresAt,
-        }
-      );
-      return {
-        id,
-        user_id: data.userId,
-        token: data.token,
-        token_type: tokenType,
-        expires_at: data.expiresAt.toISOString(),
-        created_at: new Date().toISOString(),
-      };
-    }
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const now = new Date();
+
+  // Delete existing tokens of same type for user
+  await db.collection("verification_tokens").deleteMany({
+    user_id: data.userId,
+    token_type: tokenType,
+  });
+
+  const doc = {
+    id,
+    user_id: data.userId,
+    token: data.token,
+    token_type: tokenType,
+    expires_at: data.expiresAt.toISOString(),
+    created_at: now.toISOString(),
+  };
+
+  await db.collection("verification_tokens").insertOne(doc);
+  return {
+    id,
+    user_id: data.userId,
+    token: data.token,
+    token_type: tokenType,
+    expires_at: data.expiresAt.toISOString(),
+    created_at: now.toISOString(),
+  };
 }
 
 export async function getVerificationToken(
   token: string
 ): Promise<VerificationToken | null> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `SELECT * FROM verification_tokens WHERE token = $1`,
-        [token]
-      );
-      if (!res.rows || res.rows.length === 0) return null;
-      const row = res.rows[0];
-      return {
-        id: row.id,
-        user_id: row.user_id,
-        token: row.token,
-        token_type: row.token_type,
-        expires_at: row.expires_at,
-        created_at: row.created_at,
-      };
-    } else {
-      const res = await conn.execute(
-        `SELECT id, user_id, token, token_type,
-                TO_CHAR(expires_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as expires_at,
-                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at
-         FROM verification_tokens WHERE token = :token`,
-        { token }
-      );
-      if (!res.rows || res.rows.length === 0) return null;
-      const row = res.rows[0];
-      return {
-        id: String(row.ID || row.id),
-        user_id: String(row.USER_ID || row.user_id),
-        token: String(row.TOKEN || row.token),
-        token_type: String(row.TOKEN_TYPE || row.token_type),
-        expires_at: row.EXPIRES_AT || row.expires_at,
-        created_at: row.CREATED_AT || row.created_at,
-      };
-    }
-  } catch (err) {
-    console.error("getVerificationToken error:", err);
-    return null;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  if (!token) return null;
+  const db = await getDb();
+  const doc = await db.collection("verification_tokens").findOne({ token });
+  if (!doc) return null;
+  return {
+    id: String(doc.id || doc._id),
+    user_id: String(doc.user_id),
+    token: String(doc.token),
+    token_type: String(doc.token_type),
+    expires_at: iso(doc.expires_at),
+    created_at: iso(doc.created_at),
+  };
 }
 
 export async function deleteVerificationToken(token: string): Promise<boolean> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(`DELETE FROM verification_tokens WHERE token = $1`, [
-        token,
-      ]);
-    } else {
-      await conn.execute(
-        `DELETE FROM verification_tokens WHERE token = :token`,
-        { token }
-      );
-    }
-    return true;
-  } catch (err) {
-    console.error("deleteVerificationToken error:", err);
-    return false;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// API Key Management (For n8n, scrapers, and external automations)
-// ---------------------------------------------------------------------------
-
-export function hashApiKey(key: string): string {
-  return createHash("sha256").update(key).digest("hex");
-}
-
-export async function createApiKey(
-  userId: string,
-  name: string
-): Promise<{ id: string; key: string; preview: string; name: string }> {
-  const id = randomUUID();
-  const rawSecret = randomBytes(20).toString("hex");
-  const fullKey = `sb_live_${rawSecret}`;
-  const keyHash = hashApiKey(fullKey);
-  const keyPreview = `sb_live_...${fullKey.slice(-4)}`;
-  const cleanName = name.trim() || "Default API Key";
-
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `INSERT INTO api_keys (id, user_id, name, key_hash, key_preview)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [id, userId, cleanName, keyHash, keyPreview]
-      );
-    } else {
-      await conn.execute(
-        `INSERT INTO api_keys (id, user_id, name, key_hash, key_preview)
-         VALUES (:id, :userId, :name, :keyHash, :keyPreview)`,
-        {
-          id,
-          userId,
-          name: cleanName,
-          keyHash,
-          keyPreview,
-        }
-      );
-    }
-
-    return {
-      id,
-      key: fullKey,
-      preview: keyPreview,
-      name: cleanName,
-    };
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
-}
-
-export async function listApiKeys(userId: string): Promise<ApiKey[]> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `SELECT id, user_id, name, key_preview, last_used_at, created_at
-         FROM api_keys
-         WHERE user_id = $1
-         ORDER BY created_at DESC`,
-        [userId]
-      );
-      return (res.rows || []).map((row: any) => ({
-        id: row.id,
-        user_id: row.user_id,
-        name: row.name,
-        key_preview: row.key_preview,
-        last_used_at: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
-        created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
-      }));
-    } else {
-      const res: any = await conn.execute(
-        `SELECT id, user_id, name, key_preview,
-                TO_CHAR(last_used_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as last_used_at,
-                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at
-         FROM api_keys
-         WHERE user_id = :userId
-         ORDER BY created_at DESC`,
-        { userId }
-      );
-      return (res.rows || []).map((row: any) => ({
-        id: String(row.ID || row.id),
-        user_id: String(row.USER_ID || row.user_id),
-        name: String(row.NAME || row.name),
-        key_preview: String(row.KEY_PREVIEW || row.key_preview),
-        last_used_at: row.LAST_USED_AT || row.last_used_at || null,
-        created_at: row.CREATED_AT || row.created_at || new Date().toISOString(),
-      }));
-    }
-  } catch (err) {
-    console.error("listApiKeys error:", err);
-    return [];
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
-}
-
-export async function deleteApiKey(
-  userId: string,
-  keyId: string
-): Promise<boolean> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `DELETE FROM api_keys WHERE id = $1 AND user_id = $2`,
-        [keyId, userId]
-      );
-    } else {
-      await conn.execute(
-        `DELETE FROM api_keys WHERE id = :keyId AND user_id = :userId`,
-        { keyId, userId }
-      );
-    }
-    return true;
-  } catch (err) {
-    console.error("deleteApiKey error:", err);
-    return false;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
-}
-
-export async function getUserByApiKey(apiKey: string): Promise<User | null> {
-  if (!apiKey || typeof apiKey !== "string") return null;
-  const keyHash = hashApiKey(apiKey.trim());
-
-  let conn: any;
-  try {
-    conn = await getDb();
-    let keyRecord: any = null;
-
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `SELECT id, user_id FROM api_keys WHERE key_hash = $1`,
-        [keyHash]
-      );
-      if (res.rows && res.rows.length > 0) {
-        keyRecord = res.rows[0];
-        conn.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [keyRecord.id]).catch(() => {});
-      }
-    } else {
-      const res: any = await conn.execute(
-        `SELECT id, user_id FROM api_keys WHERE key_hash = :keyHash`,
-        { keyHash }
-      );
-      if (res.rows && res.rows.length > 0) {
-        keyRecord = res.rows[0];
-        const recordId = keyRecord.ID || keyRecord.id;
-        conn.execute(
-          `UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = :id`,
-          { id: recordId }
-        ).catch(() => {});
-      }
-    }
-
-    if (!keyRecord) return null;
-    const userId = keyRecord.user_id || keyRecord.USER_ID;
-    return getUserById(String(userId));
-  } catch (err) {
-    console.error("getUserByApiKey error:", err);
-    return null;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const db = await getDb();
+  const res = await db.collection("verification_tokens").deleteMany({ token });
+  return res.deletedCount > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -723,7 +332,6 @@ export async function getOrCreateOAuthUser(data: {
   let user = await getUserByEmail(data.email);
 
   if (!user) {
-    // Automatically verify email for trusted OAuth providers (Google)
     user = await createUser({
       name: data.name,
       email: data.email,
@@ -731,478 +339,399 @@ export async function getOrCreateOAuthUser(data: {
       emailVerified: new Date(),
     });
   } else if (!user.email_verified) {
-    // If existing unverified email account signs in with Google, verify it
     await verifyUserEmail(user.id);
     user.email_verified = new Date().toISOString();
   }
 
-  // Link account if not linked
-  const accountId = randomUUID();
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `INSERT INTO accounts (id, user_id, type, provider, provider_account_id, access_token, refresh_token, expires_at, id_token, scope)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (provider, provider_account_id) DO UPDATE 
-         SET access_token = EXCLUDED.access_token, refresh_token = EXCLUDED.refresh_token, expires_at = EXCLUDED.expires_at`,
-        [
-          accountId,
-          user.id,
-          "oauth",
-          data.provider,
-          data.providerAccountId,
-          data.accessToken || null,
-          data.refreshToken || null,
-          data.expiresAt || null,
-          data.idToken || null,
-          data.scope || null,
-        ]
-      );
-    } else {
-      await conn.execute(
-        `MERGE INTO accounts a
-         USING (SELECT :provider AS p, :providerAccountId AS paid FROM dual) src
-         ON (a.provider = src.p AND a.provider_account_id = src.paid)
-         WHEN MATCHED THEN
-           UPDATE SET access_token = :accessToken, refresh_token = :refreshToken, expires_at = :expiresAt
-         WHEN NOT MATCHED THEN
-           INSERT (id, user_id, type, provider, provider_account_id, access_token, refresh_token, expires_at, id_token, scope)
-           VALUES (:id, :userId, 'oauth', :provider, :providerAccountId, :accessToken, :refreshToken, :expiresAt, :idToken, :scope)`,
-        {
-          id: accountId,
-          userId: user.id,
-          provider: data.provider,
-          providerAccountId: data.providerAccountId,
-          accessToken: data.accessToken || null,
-          refreshToken: data.refreshToken || null,
-          expiresAt: data.expiresAt || null,
-          idToken: data.idToken || null,
-          scope: data.scope || null,
-        }
-      );
-    }
-  } catch (err) {
-    console.error("Link OAuth account error:", err);
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
+  const db = await getDb();
+  await db.collection("accounts").updateOne(
+    {
+      provider: data.provider,
+      provider_account_id: data.providerAccountId,
+    },
+    {
+      $set: {
+        user_id: user.id,
+        type: "oauth",
+        access_token: data.accessToken || null,
+        refresh_token: data.refreshToken || null,
+        expires_at: data.expiresAt || null,
+        id_token: data.idToken || null,
+        scope: data.scope || null,
+        updated_at: new Date().toISOString(),
+      },
+      $setOnInsert: {
+        id: randomUUID(),
+        provider: data.provider,
+        provider_account_id: data.providerAccountId,
+        created_at: new Date().toISOString(),
+      },
+    },
+    { upsert: true }
+  );
 
   return user;
 }
 
 // ---------------------------------------------------------------------------
-// Multi-Tenant Agent Actions
+// API Key Management (For n8n, scrapers, and external automations)
 // ---------------------------------------------------------------------------
 
-export async function fetchActions(opts: {
-  userId?: string;
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+export async function createApiKey(
+  userId: string,
+  name: string
+): Promise<{ id: string; key: string; preview: string; name: string }> {
+  const db = await getDb();
+  const id = randomUUID();
+  const rawSecret = randomBytes(20).toString("hex");
+  const fullKey = `sb_live_${rawSecret}`;
+  const keyHash = hashApiKey(fullKey);
+  const keyPreview = `sb_live_...${fullKey.slice(-4)}`;
+  const cleanName = name.trim() || "Default API Key";
+  const now = new Date().toISOString();
+
+  await db.collection("api_keys").insertOne({
+    id,
+    user_id: userId,
+    name: cleanName,
+    key_hash: keyHash,
+    key_preview: keyPreview,
+    last_used_at: null,
+    created_at: now,
+  });
+
+  return {
+    id,
+    key: fullKey,
+    preview: keyPreview,
+    name: cleanName,
+  };
+}
+
+export async function listApiKeys(userId: string): Promise<ApiKey[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection("api_keys")
+    .find({ user_id: userId })
+    .sort({ created_at: -1 })
+    .toArray();
+
+  return docs.map((doc) => ({
+    id: String(doc.id || doc._id),
+    user_id: String(doc.user_id),
+    name: String(doc.name),
+    key_preview: String(doc.key_preview),
+    last_used_at: doc.last_used_at ? iso(doc.last_used_at) : null,
+    created_at: iso(doc.created_at),
+  }));
+}
+
+export async function deleteApiKey(
+  userId: string,
+  keyId: string
+): Promise<boolean> {
+  const db = await getDb();
+  const filter: any = {
+    user_id: userId,
+    $or: [{ id: keyId }],
+  };
+  if (ObjectId.isValid(keyId)) {
+    filter.$or.push({ _id: new ObjectId(keyId) });
+  }
+
+  const res = await db.collection("api_keys").deleteOne(filter);
+  return res.deletedCount > 0;
+}
+
+export async function getUserByApiKey(apiKey: string): Promise<User | null> {
+  if (!apiKey || typeof apiKey !== "string") return null;
+  const keyHash = hashApiKey(apiKey.trim());
+  const db = await getDb();
+
+  const keyDoc = await db.collection("api_keys").findOne({ key_hash: keyHash });
+  if (!keyDoc) return null;
+
+  // Update last_used_at asynchronously
+  db.collection("api_keys")
+    .updateOne(
+      { _id: keyDoc._id },
+      { $set: { last_used_at: new Date().toISOString() } }
+    )
+    .catch(() => {});
+
+  return getUserById(String(keyDoc.user_id));
+}
+
+// ---------------------------------------------------------------------------
+// Agent Actions & Trust Layer (MongoDB)
+// ---------------------------------------------------------------------------
+
+export async function fetchActions(options: {
   status?: string;
   module?: string;
   limit?: number;
-}): Promise<{ actions: AgentAction[]; error: string | null }> {
-  const { userId, status, module, limit = 100 } = opts;
-  const where: string[] = [];
-  const binds: Record<string, unknown> = {};
-
-  if (userId) {
-    where.push(isPgConfigured() ? `(user_id = $${where.length + 1} OR user_id IS NULL)` : `(user_id = :userId OR user_id IS NULL)`);
-    binds.userId = userId;
-  }
-  if (status) {
-    where.push(isPgConfigured() ? `status = $${where.length + 1}` : `status = :status`);
-    binds.status = status;
-  }
-  if (module) {
-    where.push(isPgConfigured() ? `module = $${where.length + 1}` : `module = :module`);
-    binds.module = module;
-  }
-
-  let conn: any;
+  offset?: number;
+  userId?: string;
+} = {}): Promise<{ actions: AgentAction[]; total: number; error: string | null }> {
   try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const sql = `SELECT id, 
-              TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-              user_id, module, action, reasoning, confidence, status, metadata,
-              TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
-              reviewed_by,
-              TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
-              execution_result
-       FROM agent_actions
-       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-       ORDER BY created_at DESC
-       LIMIT ${Number(limit)}`;
-      const values = Object.values(binds);
-      const result = await conn.query(sql, values);
-      const actions = (result.rows || []).map(formatAction);
-      return { actions, error: null };
-    } else {
-      const sql = `SELECT id, 
-              TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-              user_id, module, action, reasoning, confidence, status, metadata,
-              TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
-              reviewed_by,
-              TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
-              execution_result
-       FROM agent_actions
-       ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-       ORDER BY created_at DESC
-       FETCH FIRST ${Number(limit)} ROWS ONLY`;
-      const result: any = await conn.execute(sql, binds);
-      const actions = (result.rows || []).map(formatAction);
-      return { actions, error: null };
+    const db = await getDb();
+    const query: Record<string, any> = {};
+
+    if (options.status) {
+      query.status = options.status;
     }
+    if (options.module) {
+      query.module = options.module;
+    }
+    if (options.userId) {
+      query.$or = [
+        { user_id: options.userId },
+        { user_id: { $exists: false } },
+        { user_id: null },
+      ];
+    }
+
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
+
+    const [total, docs] = await Promise.all([
+      db.collection("agent_actions").countDocuments(query),
+      db
+        .collection("agent_actions")
+        .find(query)
+        .sort({ created_at: -1, _id: -1 })
+        .skip(offset)
+        .limit(limit)
+        .toArray(),
+    ]);
+
+    return {
+      actions: docs.map(formatAction),
+      total,
+      error: null,
+    };
   } catch (err) {
-    console.error("fetchActions failed:", err);
+    console.error("fetchActions error:", err);
     return {
       actions: [],
-      error: err instanceof Error ? err.message : "Database query failed.",
+      total: 0,
+      error: err instanceof Error ? err.message : "MongoDB error",
     };
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
   }
 }
 
 export async function fetchActionById(
-  id: number,
-  userId?: string
-): Promise<{
-  action: AgentAction | null;
-  error: string | null;
-}> {
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const sql = `SELECT id, 
-              TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-              user_id, module, action, reasoning, confidence, status, metadata,
-              TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
-              reviewed_by,
-              TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
-              execution_result
-       FROM agent_actions
-       WHERE id = $1 ${userId ? `AND (user_id = $2 OR user_id IS NULL)` : ""}`;
-      const params = userId ? [id, userId] : [id];
-      const result = await conn.query(sql, params);
-      if (!result.rows || result.rows.length === 0) {
-        return { action: null, error: "Action not found" };
-      }
-      return { action: formatAction(result.rows[0]), error: null };
-    } else {
-      const sql = `SELECT id, 
-              TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at,
-              user_id, module, action, reasoning, confidence, status, metadata,
-              TO_CHAR(reviewed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as reviewed_at,
-              reviewed_by,
-              TO_CHAR(executed_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as executed_at,
-              execution_result
-       FROM agent_actions
-       WHERE id = :id ${userId ? `AND (user_id = :userId OR user_id IS NULL)` : ""}`;
-      const binds = userId ? { id, userId } : { id };
-      const result: any = await conn.execute(sql, binds);
-      if (!result.rows || result.rows.length === 0) {
-        return { action: null, error: "Action not found" };
-      }
-      return { action: formatAction(result.rows[0]), error: null };
-    }
-  } catch (err) {
-    console.error("fetchActionById failed:", err);
-    return {
-      action: null,
-      error: err instanceof Error ? err.message : "Database error",
-    };
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
-  }
-}
-
-export async function updateActionMetadata(
-  id: number,
-  metadata: Record<string, unknown>,
-  reasoning?: string,
+  id: number | string,
   userId?: string
 ): Promise<{ action: AgentAction | null; error: string | null }> {
-  let conn: any;
   try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const sql = reasoning
-        ? `UPDATE agent_actions SET metadata = $1, reasoning = $2 WHERE id = $3 ${
-            userId ? "AND (user_id = $4 OR user_id IS NULL)" : ""
-          }`
-        : `UPDATE agent_actions SET metadata = $1 WHERE id = $2 ${
-            userId ? "AND (user_id = $3 OR user_id IS NULL)" : ""
-          }`;
-      const params = reasoning
-        ? userId
-          ? [JSON.stringify(metadata), reasoning, id, userId]
-          : [JSON.stringify(metadata), reasoning, id]
-        : userId
-        ? [JSON.stringify(metadata), id, userId]
-        : [JSON.stringify(metadata), id];
-      await conn.query(sql, params);
-    } else {
-      const sql = reasoning
-        ? `UPDATE agent_actions SET metadata = :metadata, reasoning = :reasoning WHERE id = :id ${
-            userId ? "AND (user_id = :userId OR user_id IS NULL)" : ""
-          }`
-        : `UPDATE agent_actions SET metadata = :metadata WHERE id = :id ${
-            userId ? "AND (user_id = :userId OR user_id IS NULL)" : ""
-          }`;
-      const binds: any = reasoning
-        ? { metadata: JSON.stringify(metadata), reasoning, id }
-        : { metadata: JSON.stringify(metadata), id };
-      if (userId) binds.userId = userId;
-      await conn.execute(sql, binds);
+    const db = await getDb();
+    const strId = String(id);
+    const filter: any = {
+      $or: [{ id: id }, { id: strId }],
+    };
+    if (typeof id === "string" && ObjectId.isValid(id)) {
+      filter.$or.push({ _id: new ObjectId(id) });
     }
-    return fetchActionById(id, userId);
+    if (userId) {
+      filter.user_id = userId;
+    }
+
+    const doc = await db.collection("agent_actions").findOne(filter);
+    if (!doc) return { action: null, error: "Action not found" };
+    return { action: formatAction(doc), error: null };
   } catch (err) {
-    console.error("updateActionMetadata failed:", err);
+    console.error("fetchActionById error:", err);
     return {
       action: null,
-      error: err instanceof Error ? err.message : "Database error",
+      error: err instanceof Error ? err.message : "MongoDB error",
     };
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
   }
 }
 
-export type ActionStats = {
-  total: number;
-  pending: number;
-  autoExecuted: number;
-  approved: number;
-  rejected: number;
-  failed: number;
-  last24h: number;
-  byModule: { module: string; count: number }[];
-};
-
-const EMPTY_STATS: ActionStats = {
-  total: 0,
-  pending: 0,
-  autoExecuted: 0,
-  approved: 0,
-  rejected: 0,
-  failed: 0,
-  last24h: 0,
-  byModule: [],
-};
-
-export async function fetchStats(userId?: string): Promise<{
-  stats: ActionStats;
+export async function fetchStats(
+  userId?: string
+): Promise<{
+  stats: {
+    pending: number;
+    autoExecuted: number;
+    last24h: number;
+    total: number;
+    byModule: Array<{ module: string; count: number }>;
+  };
   error: string | null;
 }> {
-  let conn: any;
   try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const whereClause = userId ? `WHERE (user_id = $1 OR user_id IS NULL)` : "";
-      const params = userId ? [userId] : [];
-
-      const [totalsRes, modulesRes] = await Promise.all([
-        conn.query(
-          `SELECT
-            count(*) AS total,
-            count(CASE WHEN status = 'pending' THEN 1 END) AS pending,
-            count(CASE WHEN status = 'auto_executed' THEN 1 END) AS auto_executed,
-            count(CASE WHEN status = 'approved' THEN 1 END) AS approved,
-            count(CASE WHEN status = 'rejected' THEN 1 END) AS rejected,
-            count(CASE WHEN status = 'failed' THEN 1 END) AS failed,
-            count(CASE WHEN created_at > (now() - INTERVAL '1 day') THEN 1 END) AS last_24h
-          FROM agent_actions ${whereClause}`,
-          params
-        ),
-        conn.query(
-          `SELECT module, count(*) AS count FROM agent_actions
-           ${whereClause} GROUP BY module ORDER BY count DESC`,
-          params
-        ),
-      ]);
-
-      const r = totalsRes.rows[0] || {};
-      const moduleRows = (modulesRes.rows || []).map((m: any) => ({
-        module: m.module,
-        count: Number(m.count || 0),
-      }));
-
-      return {
-        stats: {
-          total: Number(r.total || 0),
-          pending: Number(r.pending || 0),
-          autoExecuted: Number(r.auto_executed || 0),
-          approved: Number(r.approved || 0),
-          rejected: Number(r.rejected || 0),
-          failed: Number(r.failed || 0),
-          last24h: Number(r.last_24h || 0),
-          byModule: moduleRows,
-        },
-        error: null,
-      };
-    } else {
-      const whereClause = userId ? `WHERE (user_id = :userId OR user_id IS NULL)` : "";
-      const binds = userId ? { userId } : {};
-
-      const [totalsRes, modulesRes]: any = await Promise.all([
-        conn.execute(
-          `SELECT
-            count(*) AS total,
-            count(CASE WHEN status = 'pending' THEN 1 END) AS pending,
-            count(CASE WHEN status = 'auto_executed' THEN 1 END) AS auto_executed,
-            count(CASE WHEN status = 'approved' THEN 1 END) AS approved,
-            count(CASE WHEN status = 'rejected' THEN 1 END) AS rejected,
-            count(CASE WHEN status = 'failed' THEN 1 END) AS failed,
-            count(CASE WHEN created_at > (CURRENT_TIMESTAMP - INTERVAL '1' DAY) THEN 1 END) AS last_24h
-          FROM agent_actions ${whereClause}`,
-          binds
-        ),
-        conn.execute(
-          `SELECT module, count(*) AS "count" FROM agent_actions
-           ${whereClause} GROUP BY module ORDER BY "count" DESC`,
-          binds
-        ),
-      ]);
-
-      const r = totalsRes.rows[0] || {};
-      const moduleRows = (modulesRes.rows || []).map((m: any) => ({
-        module: m.MODULE || m.module,
-        count: Number(m.count || m.COUNT || 0),
-      }));
-
-      return {
-        stats: {
-          total: Number(r.TOTAL || r.total || 0),
-          pending: Number(r.PENDING || r.pending || 0),
-          autoExecuted: Number(r.AUTO_EXECUTED || r.auto_executed || 0),
-          approved: Number(r.APPROVED || r.approved || 0),
-          rejected: Number(r.REJECTED || r.rejected || 0),
-          failed: Number(r.FAILED || r.failed || 0),
-          last24h: Number(r.LAST_24H || r.last_24h || 0),
-          byModule: moduleRows,
-        },
-        error: null,
-      };
+    const db = await getDb();
+    const query: Record<string, any> = {};
+    if (userId) {
+      query.$or = [
+        { user_id: userId },
+        { user_id: { $exists: false } },
+        { user_id: null },
+      ];
     }
-  } catch (err) {
-    console.error("fetchStats failed:", err);
+
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const [total, pending, autoExecuted, last24hDocs, byModuleAgg] =
+      await Promise.all([
+        db.collection("agent_actions").countDocuments(query),
+        db
+          .collection("agent_actions")
+          .countDocuments({ ...query, status: "pending" }),
+        db
+          .collection("agent_actions")
+          .countDocuments({ ...query, status: "auto_executed" }),
+        db.collection("agent_actions").countDocuments({
+          ...query,
+          $or: [
+            { created_at: { $gte: twentyFourHoursAgo.toISOString() } },
+            { created_at: { $gte: twentyFourHoursAgo } },
+          ],
+        }),
+        db
+          .collection("agent_actions")
+          .aggregate([
+            { $match: query },
+            { $group: { _id: "$module", count: { $sum: 1 } } },
+            { $sort: { count: -1 } },
+          ])
+          .toArray(),
+      ]);
+
+    const byModule = byModuleAgg.map((row) => ({
+      module: String(row._id || "general"),
+      count: Number(row.count),
+    }));
+
     return {
-      stats: EMPTY_STATS,
-      error: err instanceof Error ? err.message : "Database query failed.",
+      stats: {
+        pending,
+        autoExecuted,
+        last24h: last24hDocs,
+        total,
+        byModule,
+      },
+      error: null,
     };
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
+  } catch (err) {
+    console.error("fetchStats error:", err);
+    return {
+      stats: {
+        pending: 0,
+        autoExecuted: 0,
+        last24h: 0,
+        total: 0,
+        byModule: [],
+      },
+      error: err instanceof Error ? err.message : "MongoDB error",
+    };
   }
 }
 
-export type EmailSettings = {
-  provider: "smtp";
-  default_sender_email: string;
-  smtp_host: string;
-  smtp_port: number;
-  smtp_user: string;
-  smtp_password?: string;
-};
-
-export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
-  provider: "smtp",
-  default_sender_email: process.env.SMTP_FROM || "notifications@secondbrain.app",
-  smtp_host: process.env.SMTP_HOST || "smtp.gmail.com",
-  smtp_port: Number(process.env.SMTP_PORT) || 465,
-  smtp_user: process.env.SMTP_USER || "",
-  smtp_password: process.env.SMTP_PASSWORD || "",
-};
+// ---------------------------------------------------------------------------
+// System Settings (MongoDB)
+// ---------------------------------------------------------------------------
 
 export async function getEmailSettings(userId?: string): Promise<EmailSettings> {
-  let conn: any;
   try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      const res = await conn.query(
-        `SELECT value FROM system_settings WHERE key = 'email_settings' ${
-          userId ? "AND (user_id = $1 OR user_id IS NULL) ORDER BY user_id NULLS LAST LIMIT 1" : "LIMIT 1"
-        }`,
-        userId ? [userId] : []
-      );
-      if (!res.rows || res.rows.length === 0) return DEFAULT_EMAIL_SETTINGS;
-      const val = typeof res.rows[0].value === "string" ? JSON.parse(res.rows[0].value) : res.rows[0].value;
-      return { ...DEFAULT_EMAIL_SETTINGS, ...val };
-    } else {
-      const res: any = await conn.execute(
-        `SELECT value FROM system_settings WHERE key = 'email_settings' ${
-          userId ? "AND (user_id = :userId OR user_id IS NULL)" : ""
-        }`,
-        userId ? { userId } : {}
-      );
-      if (!res.rows || res.rows.length === 0) return DEFAULT_EMAIL_SETTINGS;
-      const raw = res.rows[0].VALUE || res.rows[0].value;
-      const val = typeof raw === "string" ? JSON.parse(raw) : raw;
-      return { ...DEFAULT_EMAIL_SETTINGS, ...val };
+    const db = await getDb();
+    const query: Record<string, any> = { key: "email_settings" };
+    if (userId) {
+      query.user_id = userId;
+    }
+
+    const doc = await db.collection("system_settings").findOne(query);
+    if (doc && doc.value) {
+      const from = doc.value.fromEmail || doc.value.default_sender_email;
+      return {
+        configured: Boolean(doc.value.configured),
+        source: doc.value.source ?? "default_alias",
+        fromEmail: from,
+        default_sender_email: from,
+        senderName: doc.value.senderName,
+        smtpHost: doc.value.smtpHost || doc.value.smtp_host,
+        smtp_host: doc.value.smtpHost || doc.value.smtp_host,
+        smtpPort: doc.value.smtpPort ? Number(doc.value.smtpPort) : undefined,
+        smtp_port: doc.value.smtpPort ? Number(doc.value.smtpPort) : undefined,
+        smtpUser: doc.value.smtpUser || doc.value.smtp_user,
+        smtp_user: doc.value.smtpUser || doc.value.smtp_user,
+        smtpPassword: doc.value.smtpPassword || doc.value.smtp_password,
+        smtp_password: doc.value.smtpPassword || doc.value.smtp_password,
+        replyTo: doc.value.replyTo,
+        updatedAt: iso(doc.updated_at),
+      };
     }
   } catch (err) {
-    console.error("getEmailSettings error:", err);
-    return DEFAULT_EMAIL_SETTINGS;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
+    console.warn("getEmailSettings error:", err);
   }
+
+  // Fallback to environment variables
+  const envConfigured = Boolean(
+    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
+  );
+  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465;
+
+  return {
+    configured: envConfigured,
+    source: "custom_smtp",
+    fromEmail,
+    default_sender_email: fromEmail,
+    smtpHost: process.env.SMTP_HOST,
+    smtp_host: process.env.SMTP_HOST,
+    smtpPort,
+    smtp_port: smtpPort,
+    smtpUser: process.env.SMTP_USER,
+    smtp_user: process.env.SMTP_USER,
+    smtpPassword: process.env.SMTP_PASSWORD,
+    smtp_password: process.env.SMTP_PASSWORD,
+  };
 }
 
 export async function saveEmailSettings(
-  settings: Partial<EmailSettings>,
-  userId?: string
+  arg1: string | EmailSettings | undefined,
+  arg2?: EmailSettings
 ): Promise<EmailSettings> {
-  const current = await getEmailSettings(userId);
-  const updated = { ...current, ...settings };
-  let conn: any;
-  try {
-    conn = await getDb();
-    if (isPgConfigured()) {
-      await conn.query(
-        `INSERT INTO system_settings (key, user_id, value, updated_at)
-         VALUES ('email_settings', $1, $2, now())
-         ON CONFLICT (key, user_id) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`,
-        [userId || null, JSON.stringify(updated)]
-      );
-    } else {
-      await conn.execute(
-        `MERGE INTO system_settings s
-         USING (SELECT 'email_settings' AS k, :userId AS u FROM dual) src
-         ON (s.key = src.k AND (s.user_id = src.u OR (s.user_id IS NULL AND src.u IS NULL)))
-         WHEN MATCHED THEN
-           UPDATE SET s.value = :val, s.updated_at = CURRENT_TIMESTAMP
-         WHEN NOT MATCHED THEN
-           INSERT (key, user_id, value, updated_at) VALUES ('email_settings', :userId, :val, CURRENT_TIMESTAMP)`,
-        { val: JSON.stringify(updated), userId: userId || null }
-      );
-    }
-    return updated;
-  } catch (err) {
-    console.error("saveEmailSettings error:", err);
-    throw err;
-  } finally {
-    if (conn) {
-      if (typeof conn.release === "function") conn.release();
-      else if (typeof conn.close === "function") await conn.close();
-    }
+  let userId: string | undefined;
+  let settings: EmailSettings;
+
+  if (typeof arg1 === "object" && arg1 !== null) {
+    settings = arg1;
+    userId = undefined;
+  } else {
+    userId = arg1;
+    settings = arg2 || ({} as EmailSettings);
   }
+
+  const db = await getDb();
+  const query: Record<string, any> = {
+    key: "email_settings",
+    user_id: userId || "default_system_user",
+  };
+
+  const toSave: EmailSettings = {
+    ...settings,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await db.collection("system_settings").updateOne(
+    query,
+    {
+      $set: {
+        key: "email_settings",
+        user_id: userId || "default_system_user",
+        value: toSave,
+        updated_at: new Date().toISOString(),
+      },
+    },
+    { upsert: true }
+  );
+
+  return toSave;
 }
