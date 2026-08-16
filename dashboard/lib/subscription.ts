@@ -19,8 +19,9 @@ export type UserSubscriptionInfo = {
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
+  planType: "monthly" | "yearly" | null;
+  lemonSqueezySubscriptionId: string | null;
+  customerPortalUrl: string | null;
   planName: string;
 };
 
@@ -41,17 +42,16 @@ export function getSubscriptionInfo(
       trialEndsAt: trialEnd,
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
+      planType: null,
+      lemonSqueezySubscriptionId: null,
+      customerPortalUrl: null,
       planName: "7-Day Free Trial",
     };
   }
 
   const rawStatus = (profile.subscriptionStatus || "trialing") as SubscriptionStatus;
   const trialEndsAt = profile.trialEndsAt ? new Date(profile.trialEndsAt) : null;
-  const currentPeriodEnd = profile.currentPeriodEnd
-    ? new Date(profile.currentPeriodEnd)
-    : null;
+  const planType = (profile.planType || "monthly") as "monthly" | "yearly";
   const now = new Date();
 
   // Calculate days remaining in trial
@@ -64,8 +64,9 @@ export function getSubscriptionInfo(
     isTrialExpired = diffMs <= 0;
   }
 
-  // Active Stripe Subscriber
+  // Active Subscriber
   if (rawStatus === "active") {
+    const isYearly = planType === "yearly";
     return {
       status: "active",
       isAccessGranted: true,
@@ -76,9 +77,10 @@ export function getSubscriptionInfo(
       trialEndsAt: profile.trialEndsAt || null,
       currentPeriodEnd: profile.currentPeriodEnd || null,
       cancelAtPeriodEnd: Boolean(profile.cancelAtPeriodEnd),
-      stripeCustomerId: profile.stripeCustomerId || null,
-      stripeSubscriptionId: profile.stripeSubscriptionId || null,
-      planName: "Pro Plan ($1.00/mo)",
+      planType,
+      lemonSqueezySubscriptionId: profile.lemonSqueezySubscriptionId || null,
+      customerPortalUrl: profile.customerPortalUrl || null,
+      planName: isYearly ? "Pro Annual ($19.00/yr)" : "Pro Monthly ($2.99/mo)",
     };
   }
 
@@ -94,8 +96,9 @@ export function getSubscriptionInfo(
       trialEndsAt: profile.trialEndsAt || null,
       currentPeriodEnd: profile.currentPeriodEnd || null,
       cancelAtPeriodEnd: Boolean(profile.cancelAtPeriodEnd),
-      stripeCustomerId: profile.stripeCustomerId || null,
-      stripeSubscriptionId: profile.stripeSubscriptionId || null,
+      planType,
+      lemonSqueezySubscriptionId: profile.lemonSqueezySubscriptionId || null,
+      customerPortalUrl: profile.customerPortalUrl || null,
       planName: "Payment Past Due",
     };
   }
@@ -112,8 +115,9 @@ export function getSubscriptionInfo(
       trialEndsAt: profile.trialEndsAt || null,
       currentPeriodEnd: null,
       cancelAtPeriodEnd: false,
-      stripeCustomerId: profile.stripeCustomerId || null,
-      stripeSubscriptionId: profile.stripeSubscriptionId || null,
+      planType: null,
+      lemonSqueezySubscriptionId: profile.lemonSqueezySubscriptionId || null,
+      customerPortalUrl: null,
       planName: `7-Day Free Trial (${daysRemaining}d left)`,
     };
   }
@@ -129,8 +133,9 @@ export function getSubscriptionInfo(
     trialEndsAt: profile.trialEndsAt || null,
     currentPeriodEnd: null,
     cancelAtPeriodEnd: false,
-    stripeCustomerId: profile.stripeCustomerId || null,
-    stripeSubscriptionId: profile.stripeSubscriptionId || null,
+    planType: null,
+    lemonSqueezySubscriptionId: profile.lemonSqueezySubscriptionId || null,
+    customerPortalUrl: null,
     planName: "Trial Expired",
   };
 }

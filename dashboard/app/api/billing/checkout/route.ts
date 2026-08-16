@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getStripe, isStripeConfigured, STRIPE_CONFIG } from "@/lib/stripe";
-import { getDb } from "@/lib/db";
+import { createLemonCheckout, isLemonConfigured } from "@/lib/lemonsqueezy";
 import { withBasePath } from "@/lib/basePath";
 
 export async function POST(req: NextRequest) {
@@ -13,33 +12,32 @@ export async function POST(req: NextRequest) {
 
   const userId = (session.user as any)?.id;
   const userEmail = session.user.email;
+  const userName = session.user.name || undefined;
 
   if (!userEmail || !userId) {
     return NextResponse.json({ error: "Missing user session data" }, { status: 400 });
   }
 
-  if (!isStripeConfigured()) {
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch {
+    // defaults to monthly
+  }
+
+  const planType = (body.plan === "yearly" ? "yearly" : "monthly") as "monthly" | "yearly";
+
+  if (!isLemonConfigured()) {
     return NextResponse.json(
       {
         error:
-          "Stripe is not yet configured on this server. Please add STRIPE_SECRET_KEY to your environment.",
+          "Lemon Squeezy is not yet configured with API credentials. Please set LEMONSQUEEZY_API_KEY and LEMONSQUEEZY_STORE_ID in your environment.",
       },
       { status: 503 }
     );
   }
 
   try {
-    const stripe = getStripe();
-    const db = await getDb();
-
-    // Check if user already has a stripeCustomerId in their profile
-    const profileDoc = await db.collection("system_settings").findOne({
-      key: "user_profile",
-      user_id: userId,
-    });
-
-    const stripeCustomerId = profileDoc?.value?.stripeCustomerId;
-
     const origin =
       req.headers.get("origin") ||
       req.headers.get("referer") ||
@@ -47,65 +45,19 @@ export async function POST(req: NextRequest) {
       "http://localhost:3000";
 
     const cleanOrigin = origin.replace(/\/$/, "");
-    const successUrl = `${cleanOrigin}${withBasePath("/settings?billing=success")}`;
-    const cancelUrl = `${cleanOrigin}${withBasePath("/settings?billing=canceled")}`;
+    const redirectUrl = `${cleanOrigin}${withBasePath("/settings?billing=success")}`;
 
-    // Create Checkout Session
-    const checkoutParams: any = {
-      payment_method_types: ["card"],
-      mode: "subscription",
-      client_reference_id: userId,
-      metadata: {
-        userId,
-      },
-      subscription_data: {
-        metadata: {
-          userId,
-        },
-      },
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-    };
-
-    if (stripeCustomerId) {
-      checkoutParams.customer = stripeCustomerId;
-    } else {
-      checkoutParams.customer_email = userEmail;
-    }
-
-    // Use Price ID or custom recurring price_data if no Price ID is supplied
-    if (process.env.STRIPE_PRICE_ID) {
-      checkoutParams.line_items = [
-        {
-          price: process.env.STRIPE_PRICE_ID,
-          quantity: 1,
-        },
-      ];
-    } else {
-      // Inline $1.00 USD monthly recurring price definition
-      checkoutParams.line_items = [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: "Second Brain Pro Subscription",
-              description: "Autonomous Career & AI Copilot with unlimited job lead matching.",
-            },
-            unit_amount: 100, // $1.00 in cents
-            recurring: {
-              interval: "month",
-            },
-          },
-          quantity: 1,
-        },
-      ];
-    }
-
-    const checkoutSession = await stripe.checkout.sessions.create(checkoutParams);
+    const checkoutUrl = await createLemonCheckout({
+      planType,
+      userEmail,
+      userName,
+      userId,
+      redirectUrl,
+    });
 
     return NextResponse.json({
       success: true,
-      url: checkoutSession.url,
+      url: checkoutUrl,
     });
   } catch (err) {
     console.error("POST /api/billing/checkout error:", err);
@@ -114,7 +66,7 @@ export async function POST(req: NextRequest) {
         error:
           err instanceof Error
             ? err.message
-            : "Failed to initiate Stripe Checkout session.",
+            : "Failed to initiate Lemon Squeezy checkout session.",
       },
       { status: 500 }
     );
