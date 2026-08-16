@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { fetchActions, fetchStats } from "@/lib/db";
+import { fetchActions, fetchStats, getDb } from "@/lib/db";
 import { MODULES, MODULE_STATE_LABEL, MODULE_STATE_TONE } from "@/lib/modules";
 import Link from "next/link";
 import PageHeader from "@/components/PageHeader";
@@ -26,6 +26,27 @@ export default async function OverviewPage() {
   if (!session) redirect("/login");
 
   const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+
+  // If newly registered regular user hasn't completed onboarding, guide them to workspace setup
+  if (userId && userRole !== "admin") {
+    try {
+      const db = await getDb();
+      const profileDoc = await db.collection("system_settings").findOne({
+        key: "user_profile",
+        user_id: userId,
+      });
+
+      if (!profileDoc || !profileDoc.value?.onboardingCompleted) {
+        redirect("/onboarding");
+      }
+    } catch (e) {
+      // Allow through if already throwing Next.js redirect
+      if (typeof e === "object" && e !== null && "digest" in e && String((e as any).digest).startsWith("NEXT_REDIRECT")) {
+        throw e;
+      }
+    }
+  }
 
   const [{ stats, error: statsError }, { actions, error: actionsError }] =
     await Promise.all([

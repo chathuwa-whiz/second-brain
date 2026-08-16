@@ -8,6 +8,7 @@ import EmailSettingsCard from "./EmailSettingsCard";
 import BillingCard from "./BillingCard";
 import AiJobSearchCard from "./AiJobSearchCard";
 import AiAutonomyCard from "./AiAutonomyCard";
+import WorkspaceSetupCard from "./WorkspaceSetupCard";
 import AdvancedDeveloperCard from "./AdvancedDeveloperCard";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,12 @@ export default async function SettingsPage() {
       />
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
+        {/* Section 0: Interactive Workspace Setup Wizard */}
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Quick Setup" title="Workspace Onboarding Wizard" />
+          <WorkspaceSetupCard />
+        </section>
+
         {/* Section 1: AI Job Search & Matching Targets */}
         <section className="lg:col-span-2">
           <SectionHeader eyebrow="AI Agent" title="Job Discovery & Targets" />

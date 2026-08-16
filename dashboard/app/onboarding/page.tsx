@@ -13,6 +13,34 @@ type ResumeItem = {
   modifiedAt: string;
 };
 
+const POPULAR_ROLES_BY_CATEGORY: Record<string, string[]> = {
+  "Software & Tech": [
+    "Full Stack Engineer",
+    "Frontend Developer",
+    "Backend Developer",
+    "AI/ML Engineer",
+    "DevOps Engineer",
+  ],
+  "Accounting & Finance": [
+    "Accountant",
+    "Financial Analyst",
+    "Audit Associate",
+    "Accounts Executive",
+  ],
+  "Sales & Marketing": [
+    "Marketing Manager",
+    "Digital Marketing Specialist",
+    "Sales Executive",
+    "Content Strategist",
+  ],
+  "Management & HR": [
+    "Project Manager",
+    "HR Executive",
+    "Operations Manager",
+    "Talent Acquisition",
+  ],
+};
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -27,20 +55,19 @@ export default function OnboardingPage() {
   // Step 2: Career Targets
   const [targetTitleInput, setTargetTitleInput] = useState("");
   const [targetTitles, setTargetTitles] = useState<string[]>([
-    "Full-Stack Engineer",
-    "AI/ML Engineer",
+    "Full Stack Engineer",
+    "Software Developer",
   ]);
-  const [locations, setLocations] = useState<string[]>(["Remote", "United States", "Worldwide"]);
+  const [locations, setLocations] = useState<string[]>(["Remote", "Worldwide"]);
   const [locationInput, setLocationInput] = useState("");
   const [remotePref, setRemotePref] = useState<"remote_only" | "hybrid" | "onsite" | "any">("remote_only");
-  const [minSalary, setMinSalary] = useState<string>("100000");
+  const [minSalary, setMinSalary] = useState<string>("80000");
   const [experienceLevel, setExperienceLevel] = useState<string>("mid");
   const [skills, setSkills] = useState<string[]>([
     "TypeScript",
     "React",
+    "Node.js",
     "Python",
-    "Next.js",
-    "PostgreSQL",
   ]);
   const [skillInput, setSkillInput] = useState("");
 
@@ -50,9 +77,44 @@ export default function OnboardingPage() {
 
   // Form State
   const [loading, setLoading] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch initial resumes if any exist
+  // Fetch initial profile & resumes if any exist
+  useEffect(() => {
+    async function loadInitialData() {
+      try {
+        const [resumesRes, profileRes] = await Promise.all([
+          fetch(withBasePath("/api/resumes")),
+          fetch(withBasePath("/api/user/onboarding")),
+        ]);
+
+        if (resumesRes.ok) {
+          const resData = await resumesRes.json();
+          if (resData.files) setResumes(resData.files);
+        }
+
+        if (profileRes.ok) {
+          const profData = await profileRes.json();
+          if (profData.profile) {
+            const p = profData.profile;
+            if (p.targetJobTitles?.length) setTargetTitles(p.targetJobTitles);
+            if (p.locations?.length) setLocations(p.locations);
+            if (p.remotePreference) setRemotePref(p.remotePreference);
+            if (p.minSalary) setMinSalary(String(p.minSalary));
+            if (p.experienceLevel) setExperienceLevel(p.experienceLevel);
+            if (p.skills?.length) setSkills(p.skills);
+            if (p.confidenceThreshold) setConfidenceThreshold(p.confidenceThreshold);
+            if (p.notificationFrequency) setNotificationFreq(p.notificationFrequency);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadInitialData();
+  }, []);
+
   async function fetchResumes() {
     try {
       const res = await fetch(withBasePath("/api/resumes"));
@@ -64,10 +126,6 @@ export default function OnboardingPage() {
       // ignore
     }
   }
-
-  useEffect(() => {
-    fetchResumes();
-  }, []);
 
   async function handleFileUpload(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -116,16 +174,17 @@ export default function OnboardingPage() {
     }
   }
 
-  function addTitle() {
-    if (!targetTitleInput.trim()) return;
-    if (!targetTitles.includes(targetTitleInput.trim())) {
-      setTargetTitles([...targetTitles, targetTitleInput.trim()]);
+  function addTitle(titleToAdd?: string) {
+    const val = (titleToAdd || targetTitleInput).trim();
+    if (!val) return;
+    if (!targetTitles.includes(val)) {
+      setTargetTitles([...targetTitles, val]);
     }
     setTargetTitleInput("");
   }
 
-  function removeTitle(t: string) {
-    setTargetTitles(targetTitles.filter((item) => item !== t));
+  function removeTitle(title: string) {
+    setTargetTitles(targetTitles.filter((t) => t !== title));
   }
 
   function addLocation() {
@@ -136,8 +195,8 @@ export default function OnboardingPage() {
     setLocationInput("");
   }
 
-  function removeLocation(l: string) {
-    setLocations(locations.filter((item) => item !== l));
+  function removeLocation(loc: string) {
+    setLocations(locations.filter((l) => l !== loc));
   }
 
   function addSkill() {
@@ -148,33 +207,72 @@ export default function OnboardingPage() {
     setSkillInput("");
   }
 
-  function removeSkill(s: string) {
-    setSkills(skills.filter((item) => item !== s));
+  function removeSkill(skill: string) {
+    setSkills(skills.filter((s) => s !== skill));
+  }
+
+  // Quick skip all setup and go straight to dashboard
+  async function handleQuickSkip() {
+    setSkipping(true);
+    setError(null);
+
+    const payload = {
+      targetJobTitles: targetTitles.length > 0 ? targetTitles : ["Software Developer", "Accountant", "Marketing Executive"],
+      locations: locations.length > 0 ? locations : ["Remote", "Worldwide"],
+      remotePreference: remotePref,
+      minSalary: minSalary ? Number(minSalary) : 80000,
+      experienceLevel,
+      skills: skills.length > 0 ? skills : ["General Professional Skills"],
+      confidenceThreshold: confidenceThreshold || 0.75,
+      notificationFrequency: notificationFreq || "instant",
+      onboardingCompleted: true,
+    };
+
+    try {
+      const res = await fetch(withBasePath("/api/user/onboarding"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to save default workspace preferences.");
+      }
+
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to skip onboarding.");
+      setSkipping(false);
+    }
   }
 
   async function handleFinishOnboarding() {
     setLoading(true);
     setError(null);
 
+    const payload = {
+      targetJobTitles: targetTitles.length > 0 ? targetTitles : ["Professional"],
+      locations: locations.length > 0 ? locations : ["Remote", "Worldwide"],
+      remotePreference: remotePref,
+      minSalary: minSalary ? Number(minSalary) : null,
+      experienceLevel,
+      skills,
+      confidenceThreshold,
+      notificationFrequency: notificationFreq,
+      onboardingCompleted: true,
+    };
+
     try {
       const res = await fetch(withBasePath("/api/user/onboarding"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          targetJobTitles: targetTitles,
-          locations,
-          remotePreference: remotePref,
-          minSalary: minSalary ? Number(minSalary) : null,
-          experienceLevel,
-          skills,
-          confidenceThreshold,
-          notificationFrequency: notificationFreq,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to complete onboarding.");
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to save workspace settings.");
       }
 
       setStep(4);
@@ -189,90 +287,122 @@ export default function OnboardingPage() {
     "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
 
   return (
-    <main className="min-h-screen py-10 px-4 sm:px-6 max-w-3xl mx-auto flex flex-col justify-center">
-      {/* Top Header */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-accent/20 bg-accent/10 px-3.5 py-1 text-2xs font-semibold uppercase tracking-wider text-accent mb-3">
-          <span>✨ Workspace Setup</span>
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-primary sm:text-3xl">
-          Welcome to Second Brain
-        </h1>
-        <p className="mt-1.5 text-xs text-secondary sm:text-sm max-w-md mx-auto">
-          Let&apos;s configure your autonomous AI assistant and career copilot in 3 simple steps.
-        </p>
-
-        {/* 3-Step Progress Indicators */}
-        {step < 4 && (
-          <div className="mt-6 grid grid-cols-3 gap-2 sm:gap-4 max-w-lg mx-auto">
-            <div
-              className={`flex items-center gap-2 rounded-xl p-2 sm:px-3 text-xs font-semibold transition-all ${
-                step === 1
-                  ? "bg-accent text-white shadow-md shadow-accent/25"
-                  : step > 1
-                  ? "bg-emerald-500/15 text-emerald-400"
-                  : "bg-primary/[0.04] text-muted"
-              }`}
+    <main className="min-h-screen px-4 py-8 pb-safe pt-safe sm:py-12 flex flex-col items-center justify-center">
+      {/* Top Bar / Header */}
+      <div className="w-full max-w-2xl mb-6 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/20">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="h-5 w-5 text-white"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-2xs">
-                {step > 1 ? "✓" : "1"}
-              </span>
-              <span className="truncate">Resumes</span>
-            </div>
-
-            <div
-              className={`flex items-center gap-2 rounded-xl p-2 sm:px-3 text-xs font-semibold transition-all ${
-                step === 2
-                  ? "bg-accent text-white shadow-md shadow-accent/25"
-                  : step > 2
-                  ? "bg-emerald-500/15 text-emerald-400"
-                  : "bg-primary/[0.04] text-muted"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-2xs">
-                {step > 2 ? "✓" : "2"}
-              </span>
-              <span className="truncate">Targets</span>
-            </div>
-
-            <div
-              className={`flex items-center gap-2 rounded-xl p-2 sm:px-3 text-xs font-semibold transition-all ${
-                step === 3
-                  ? "bg-accent text-white shadow-md shadow-accent/25"
-                  : "bg-primary/[0.04] text-muted"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-white/20 text-2xs">
-                3
-              </span>
-              <span className="truncate">Trust Layer</span>
-            </div>
+              <path d="M12 2a8 8 0 0 0-8 8c0 3.36 2.07 6.24 5 7.42V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.58c2.93-1.18 5-4.06 5-7.42a8 8 0 0 0-8-8z" />
+              <path d="M10 14h4" />
+              <path d="M10 17h4" />
+            </svg>
           </div>
+          <div>
+            <h1 className="text-base font-bold text-primary">Second Brain Workspace Setup</h1>
+            <p className="text-2xs text-secondary">
+              {step === 1 && "Step 1 of 3: Resume Management"}
+              {step === 2 && "Step 2 of 3: Job Discovery Targets"}
+              {step === 3 && "Step 3 of 3: AI Trust Layer"}
+              {step === 4 && "Workspace Ready"}
+            </p>
+          </div>
+        </div>
+
+        {step < 4 && (
+          <Button
+            variant="quiet"
+            onClick={handleQuickSkip}
+            disabled={skipping || loading}
+            className="text-xs font-semibold text-muted hover:text-primary transition-colors"
+          >
+            {skipping ? "Skipping…" : "Skip Setup for Now →"}
+          </Button>
         )}
       </div>
 
-      <Card className="p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
+      {/* Wizard Progress Steps Indicator */}
+      {step < 4 && (
+        <div className="w-full max-w-2xl mb-6">
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              type="button"
+              onClick={() => setStep(1)}
+              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
+                step === 1
+                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                  : step > 1
+                  ? "bg-primary/[0.05] text-primary hover:bg-primary/[0.08]"
+                  : "bg-primary/[0.02] text-muted opacity-60"
+              }`}
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
+                1
+              </span>
+              <span className="truncate">Resumes</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStep(2)}
+              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
+                step === 2
+                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                  : step > 2
+                  ? "bg-primary/[0.05] text-primary hover:bg-primary/[0.08]"
+                  : "bg-primary/[0.02] text-muted opacity-60"
+              }`}
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
+                2
+              </span>
+              <span className="truncate">Career Targets</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStep(3)}
+              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
+                step === 3
+                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
+                  : "bg-primary/[0.02] text-muted opacity-60"
+              }`}
+            >
+              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
+                3
+              </span>
+              <span className="truncate">Trust Layer</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Main Form Card */}
+      <Card className="w-full max-w-2xl p-5 sm:p-8">
         {/* ================================================================= */}
-        {/* STEP 1: RESUMES UPLOAD (Cloudflare R2)                            */}
+        {/* STEP 1: RESUME UPLOAD                                             */}
         {/* ================================================================= */}
         {step === 1 && (
           <div className="space-y-6">
             <div>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                  <IconResumes className="h-5 w-5 text-accent" />
-                  Upload Your Resumes
-                </h2>
-                <span className="text-xs font-semibold text-secondary">
-                  {resumes.length} / 5 Uploaded
-                </span>
-              </div>
+              <h2 className="text-lg font-bold text-primary flex items-center gap-2">
+                <IconResumes className="h-5 w-5 text-accent" />
+                Upload Candidate Resumes
+              </h2>
               <p className="mt-1 text-xs text-secondary leading-relaxed">
-                Upload up to 5 variations of your resume (PDF or DOCX). Second Brain automatically indexes and matches the best version for each opportunity.
+                Upload up to 5 variations of your CV (e.g. Full Stack, Frontend, Executive). Your AI agent selects the most relevant resume dynamically for each job application.
               </p>
             </div>
 
-            {/* Cloudflare R2 Upload Zone */}
+            {/* Drop Zone */}
             <div
               onDragOver={(e) => {
                 e.preventDefault();
@@ -284,71 +414,60 @@ export default function OnboardingPage() {
                 setDragging(false);
                 handleFileUpload(e.dataTransfer.files);
               }}
-              className={`rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+              onClick={() => fileInputRef.current?.click()}
+              className={`group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-7 text-center transition-all ${
                 dragging
-                  ? "border-accent bg-accent/[0.08]"
-                  : "border-hairline/25 bg-primary/[0.02] hover:bg-primary/[0.04]"
+                  ? "border-accent bg-accent/10"
+                  : "border-hairline/25 bg-primary/[0.02] hover:border-accent/40 hover:bg-primary/[0.04]"
               }`}
             >
-              <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-accent/15 text-accent shadow-lg shadow-accent/20">
-                <IconResumes className="h-6 w-6" />
-              </div>
-              <p className="text-sm font-semibold text-primary">
-                {uploading ? "Uploading to Cloudflare R2…" : "Drag & drop your resumes here"}
-              </p>
-              <p className="mt-1 text-2xs text-muted">
-                PDF or Word DOCX (Max 10MB each)
-              </p>
-
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".pdf,.docx"
                 multiple
+                accept=".pdf,.docx,.txt"
                 className="hidden"
                 onChange={(e) => handleFileUpload(e.target.files)}
               />
-
-              <Button
-                type="button"
-                variant="quiet"
-                disabled={uploading || resumes.length >= 5}
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-4 text-xs font-medium"
-              >
-                {resumes.length >= 5 ? "Limit Reached (5/5)" : "Browse Files"}
-              </Button>
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/[0.05] text-primary transition-transform group-hover:scale-105">
+                <IconResumes className="h-6 w-6 text-accent" />
+              </div>
+              <p className="mt-3 text-xs font-semibold text-primary">
+                {uploading ? "Uploading to Cloudflare R2…" : "Click or drag & drop resumes here"}
+              </p>
+              <p className="mt-1 text-2xs text-muted">
+                Supports PDF, DOCX, TXT · Maximum 5 resumes
+              </p>
             </div>
 
-            {/* Uploaded List */}
+            {/* Uploaded Resumes List */}
             {resumes.length > 0 && (
               <div className="space-y-2">
-                <p className="text-2xs font-bold uppercase tracking-wider text-muted">
-                  Indexed Resumes ({resumes.length}/5)
+                <p className="text-xs font-semibold text-primary">
+                  Uploaded Resumes ({resumes.length}/5)
                 </p>
-                <div className="space-y-1.5">
+                <div className="divide-y divide-hairline/15 rounded-xl border border-hairline/15 bg-primary/[0.02] overflow-hidden">
                   {resumes.map((file) => (
                     <div
                       key={file.name}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-hairline/15 bg-primary/[0.03] p-3 text-xs"
+                      className="flex items-center justify-between p-3 text-xs text-secondary"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent font-bold text-2xs">
-                          PDF
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-primary truncate">{file.name}</p>
-                          <p className="text-2xs text-muted">{formatBytes(file.size)}</p>
-                        </div>
+                      <div className="flex items-center gap-2.5 truncate">
+                        <IconCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+                        <span className="truncate font-medium text-primary">{file.name}</span>
+                        <span className="text-2xs text-muted shrink-0">({formatBytes(file.size)})</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteResume(file.name)}
+                      <Button
+                        variant="quiet"
                         disabled={deleting === file.name}
-                        className="press rounded-lg p-1.5 text-secondary hover:bg-danger/10 hover:text-danger text-2xs font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteResume(file.name);
+                        }}
+                        className="text-2xs text-rose-400 hover:text-rose-300"
                       >
-                        {deleting === file.name ? "…" : "Remove"}
-                      </button>
+                        {deleting === file.name ? "Deleting…" : "Delete"}
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -357,14 +476,21 @@ export default function OnboardingPage() {
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <div className="flex justify-end pt-4 border-t">
+            {/* Step 1 Actions */}
+            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
+              <Button
+                variant="quiet"
+                onClick={() => {
+                  setError(null);
+                  setStep(2);
+                }}
+                className="text-xs text-muted hover:text-primary font-medium"
+              >
+                Skip for now →
+              </Button>
               <Button
                 variant="primary"
                 onClick={() => {
-                  if (resumes.length === 0) {
-                    setError("Please upload at least 1 resume to continue.");
-                    return;
-                  }
                   setError(null);
                   setStep(2);
                 }}
@@ -377,21 +503,46 @@ export default function OnboardingPage() {
         )}
 
         {/* ================================================================= */}
-        {/* STEP 2: CAREER TARGETS & CRITERIA                                */}
+        {/* STEP 2: CAREER TARGETS & CRITERIA                                 */}
         {/* ================================================================= */}
         {step === 2 && (
           <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-primary flex items-center gap-2">
                 <IconJobs className="h-5 w-5 text-accent" />
-                Career Targets & Job Criteria
+                Target Career Roles & Criteria
               </h2>
               <p className="mt-1 text-xs text-secondary leading-relaxed">
-                Define the roles and parameters you want your AI agent to actively search and match.
+                Define the roles you want your agent to hunt for across TopJobs and career feeds.
               </p>
             </div>
 
-            {/* Target Job Titles */}
+            {/* Quick Presets by Industry */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-primary">
+                Quick Category Suggestions
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(POPULAR_ROLES_BY_CATEGORY).flatMap(([cat, roles]) =>
+                  roles.slice(0, 2).map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => addTitle(role)}
+                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium border transition-colors ${
+                        targetTitles.includes(role)
+                          ? "bg-accent/15 border-accent/30 text-accent"
+                          : "bg-primary/[0.03] border-hairline/15 text-secondary hover:bg-primary/[0.08]"
+                      }`}
+                    >
+                      + {role}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Target Job Titles Input */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-primary">
                 Target Job Titles
@@ -399,13 +550,13 @@ export default function OnboardingPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="e.g. Lead Full-Stack Engineer"
+                  placeholder="e.g. Software Engineer, Accountant, Marketing Lead"
                   value={targetTitleInput}
                   onChange={(e) => setTargetTitleInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTitle())}
                   className={field}
                 />
-                <Button type="button" variant="quiet" onClick={addTitle} className="text-xs">
+                <Button type="button" variant="quiet" onClick={() => addTitle()} className="text-xs font-semibold">
                   Add
                 </Button>
               </div>
@@ -428,11 +579,11 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            {/* Remote Preference & Experience Level */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Location & Remote Preference */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-primary">
-                  Work Location Preference
+                  Work Preference
                 </label>
                 <select
                   value={remotePref}
@@ -464,29 +615,67 @@ export default function OnboardingPage() {
               </div>
             </div>
 
-            {/* Min Target Salary */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-primary">
-                Minimum Target Salary (Annual USD)
-              </label>
-              <input
-                type="number"
-                placeholder="100000"
-                value={minSalary}
-                onChange={(e) => setMinSalary(e.target.value)}
-                className={field}
-              />
+            {/* Target Salary & Locations */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-primary">
+                  Minimum Target Salary (Annual USD)
+                </label>
+                <input
+                  type="number"
+                  placeholder="80000"
+                  value={minSalary}
+                  onChange={(e) => setMinSalary(e.target.value)}
+                  className={field}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-primary">
+                  Target Locations
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Remote, Sri Lanka, UK"
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addLocation())}
+                    className={field}
+                  />
+                  <Button type="button" variant="quiet" onClick={addLocation} className="text-xs">
+                    Add
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {locations.map((loc) => (
+                    <span
+                      key={loc}
+                      className="inline-flex items-center gap-1 rounded-lg bg-primary/[0.05] px-2 py-0.5 text-2xs font-medium text-secondary"
+                    >
+                      {loc}
+                      <button
+                        type="button"
+                        onClick={() => removeLocation(loc)}
+                        className="hover:text-primary ml-1"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Core Skills */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-primary">
-                Core Technologies & Skills
+                Core Skills & Domain Expertise
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="e.g. Next.js, LangChain, Kubernetes"
+                  placeholder="e.g. React, Financial Accounting, CRM, SEO, SQL"
                   value={skillInput}
                   onChange={(e) => setSkillInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSkill())}
@@ -517,28 +706,37 @@ export default function OnboardingPage() {
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <div className="flex items-center justify-between pt-4 border-t">
+            {/* Step 2 Actions */}
+            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
               <Button
                 variant="quiet"
                 onClick={() => setStep(1)}
-                className="text-xs"
+                className="text-xs font-medium"
               >
                 ← Back
               </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  if (targetTitles.length === 0) {
-                    setError("Please add at least 1 target job title.");
-                    return;
-                  }
-                  setError(null);
-                  setStep(3);
-                }}
-                className="min-h-[44px] px-6 text-sm font-semibold"
-              >
-                Continue to Trust Layer →
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="quiet"
+                  onClick={() => {
+                    setError(null);
+                    setStep(3);
+                  }}
+                  className="text-xs text-muted hover:text-primary font-medium"
+                >
+                  Skip for now →
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    setError(null);
+                    setStep(3);
+                  }}
+                  className="min-h-[44px] px-6 text-sm font-semibold"
+                >
+                  Continue to Trust Layer →
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -624,22 +822,33 @@ export default function OnboardingPage() {
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <div className="flex items-center justify-between pt-4 border-t">
+            {/* Step 3 Actions */}
+            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
               <Button
                 variant="quiet"
                 onClick={() => setStep(2)}
-                className="text-xs"
+                className="text-xs font-medium"
               >
                 ← Back
               </Button>
-              <Button
-                variant="primary"
-                disabled={loading}
-                onClick={handleFinishOnboarding}
-                className="min-h-[44px] px-7 text-sm font-semibold"
-              >
-                {loading ? "Activating Workspace…" : "Complete Setup & Launch ⚡"}
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="quiet"
+                  onClick={handleQuickSkip}
+                  disabled={skipping || loading}
+                  className="text-xs text-muted hover:text-primary font-medium"
+                >
+                  {skipping ? "Skipping…" : "Skip & Launch →"}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={loading}
+                  onClick={handleFinishOnboarding}
+                  className="min-h-[44px] px-7 text-sm font-semibold"
+                >
+                  {loading ? "Activating Workspace…" : "Complete Setup & Launch ⚡"}
+                </Button>
+              </div>
             </div>
           </div>
         )}
@@ -658,7 +867,7 @@ export default function OnboardingPage() {
                 Your Second Brain Workspace is Ready!
               </h2>
               <p className="text-xs text-secondary max-w-md mx-auto leading-relaxed">
-                Your career targets and resumes are synchronized with Cloudflare R2 and your autonomous trust layer is active.
+                Your career targets and resumes are synchronized, and your autonomous trust layer is active.
               </p>
             </div>
 
@@ -681,6 +890,10 @@ export default function OnboardingPage() {
                 <span className="text-muted">Auto-Execute Gate:</span>
                 <span className="font-semibold text-accent">{Math.round(confidenceThreshold * 100)}%</span>
               </div>
+            </div>
+
+            <div className="rounded-xl bg-accent/10 border border-accent/20 p-3 text-xs text-accent max-w-md mx-auto">
+              💡 Tip: You can adjust all target roles, add resumes, and change thresholds anytime in <strong>Settings</strong>.
             </div>
 
             <div className="pt-3">
