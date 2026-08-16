@@ -25,8 +25,13 @@ export default async function OverviewPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const userId = (session.user as any)?.id;
+
   const [{ stats, error: statsError }, { actions, error: actionsError }] =
-    await Promise.all([fetchStats(), fetchActions({ limit: 6 })]);
+    await Promise.all([
+      fetchStats(userId),
+      fetchActions({ userId, limit: 6 }),
+    ]);
 
   const error = statsError ?? actionsError;
   const liveCount = MODULES.filter((m) => m.state === "live").length;
@@ -35,7 +40,11 @@ export default async function OverviewPage() {
     <>
       <PageHeader
         eyebrow="Overview"
-        title={`Good to see you, ${session.user?.name ? session.user.name.charAt(0).toUpperCase() + session.user.name.slice(1) : "there"}`}
+        title={`Good to see you, ${
+          session.user?.name
+            ? session.user.name.charAt(0).toUpperCase() + session.user.name.slice(1)
+            : "there"
+        }`}
         description="What the agent has been doing, and anything waiting on your call."
       />
 

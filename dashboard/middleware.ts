@@ -1,13 +1,12 @@
 export { default } from "next-auth/middleware";
 
 /*
-  Everything except the login page and the auth endpoints requires a session.
-  Listed explicitly rather than as a catch-all so adding a public page later is
-  a deliberate decision rather than an accident of regex.
+  Everything except public pages (login, verify-email) and auth endpoints requires a session.
 */
 export const config = {
   matcher: [
     "/",
+    "/onboarding",
     "/approvals/:path*",
     "/activity/:path*",
     "/jobs/:path*",
@@ -18,5 +17,6 @@ export const config = {
     "/api/jobs/:path*",
     "/api/stats/:path*",
     "/api/resumes/:path*",
+    "/api/user/:path*",
   ],
 };
