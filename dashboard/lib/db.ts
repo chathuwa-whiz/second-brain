@@ -1,6 +1,6 @@
 import oracledb from "oracledb";
 import { Pool as PgPool } from "pg";
-import { randomUUID } from "crypto";
+import { randomUUID, randomBytes, createHash } from "crypto";
 
 // Enable Thin mode, fetch CLOB as string, and JSON formatted objects
 oracledb.fetchAsString = [oracledb.CLOB];
@@ -111,6 +111,15 @@ export type VerificationToken = {
   token: string;
   token_type: string;
   expires_at: string;
+  created_at: string;
+};
+
+export type ApiKey = {
+  id: string;
+  user_id: string;
+  name: string;
+  key_preview: string;
+  last_used_at: string | null;
   created_at: string;
 };
 
@@ -504,6 +513,189 @@ export async function deleteVerificationToken(token: string): Promise<boolean> {
   } catch (err) {
     console.error("deleteVerificationToken error:", err);
     return false;
+  } finally {
+    if (conn) {
+      if (typeof conn.release === "function") conn.release();
+      else if (typeof conn.close === "function") await conn.close();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// API Key Management (For n8n, scrapers, and external automations)
+// ---------------------------------------------------------------------------
+
+export function hashApiKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
+export async function createApiKey(
+  userId: string,
+  name: string
+): Promise<{ id: string; key: string; preview: string; name: string }> {
+  const id = randomUUID();
+  const rawSecret = randomBytes(20).toString("hex");
+  const fullKey = `sb_live_${rawSecret}`;
+  const keyHash = hashApiKey(fullKey);
+  const keyPreview = `sb_live_...${fullKey.slice(-4)}`;
+  const cleanName = name.trim() || "Default API Key";
+
+  let conn: any;
+  try {
+    conn = await getDb();
+    if (isPgConfigured()) {
+      await conn.query(
+        `INSERT INTO api_keys (id, user_id, name, key_hash, key_preview)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [id, userId, cleanName, keyHash, keyPreview]
+      );
+    } else {
+      await conn.execute(
+        `INSERT INTO api_keys (id, user_id, name, key_hash, key_preview)
+         VALUES (:id, :userId, :name, :keyHash, :keyPreview)`,
+        {
+          id,
+          userId,
+          name: cleanName,
+          keyHash,
+          keyPreview,
+        }
+      );
+    }
+
+    return {
+      id,
+      key: fullKey,
+      preview: keyPreview,
+      name: cleanName,
+    };
+  } finally {
+    if (conn) {
+      if (typeof conn.release === "function") conn.release();
+      else if (typeof conn.close === "function") await conn.close();
+    }
+  }
+}
+
+export async function listApiKeys(userId: string): Promise<ApiKey[]> {
+  let conn: any;
+  try {
+    conn = await getDb();
+    if (isPgConfigured()) {
+      const res = await conn.query(
+        `SELECT id, user_id, name, key_preview, last_used_at, created_at
+         FROM api_keys
+         WHERE user_id = $1
+         ORDER BY created_at DESC`,
+        [userId]
+      );
+      return (res.rows || []).map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        name: row.name,
+        key_preview: row.key_preview,
+        last_used_at: row.last_used_at ? new Date(row.last_used_at).toISOString() : null,
+        created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      }));
+    } else {
+      const res: any = await conn.execute(
+        `SELECT id, user_id, name, key_preview,
+                TO_CHAR(last_used_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as last_used_at,
+                TO_CHAR(created_at, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as created_at
+         FROM api_keys
+         WHERE user_id = :userId
+         ORDER BY created_at DESC`,
+        { userId }
+      );
+      return (res.rows || []).map((row: any) => ({
+        id: String(row.ID || row.id),
+        user_id: String(row.USER_ID || row.user_id),
+        name: String(row.NAME || row.name),
+        key_preview: String(row.KEY_PREVIEW || row.key_preview),
+        last_used_at: row.LAST_USED_AT || row.last_used_at || null,
+        created_at: row.CREATED_AT || row.created_at || new Date().toISOString(),
+      }));
+    }
+  } catch (err) {
+    console.error("listApiKeys error:", err);
+    return [];
+  } finally {
+    if (conn) {
+      if (typeof conn.release === "function") conn.release();
+      else if (typeof conn.close === "function") await conn.close();
+    }
+  }
+}
+
+export async function deleteApiKey(
+  userId: string,
+  keyId: string
+): Promise<boolean> {
+  let conn: any;
+  try {
+    conn = await getDb();
+    if (isPgConfigured()) {
+      await conn.query(
+        `DELETE FROM api_keys WHERE id = $1 AND user_id = $2`,
+        [keyId, userId]
+      );
+    } else {
+      await conn.execute(
+        `DELETE FROM api_keys WHERE id = :keyId AND user_id = :userId`,
+        { keyId, userId }
+      );
+    }
+    return true;
+  } catch (err) {
+    console.error("deleteApiKey error:", err);
+    return false;
+  } finally {
+    if (conn) {
+      if (typeof conn.release === "function") conn.release();
+      else if (typeof conn.close === "function") await conn.close();
+    }
+  }
+}
+
+export async function getUserByApiKey(apiKey: string): Promise<User | null> {
+  if (!apiKey || typeof apiKey !== "string") return null;
+  const keyHash = hashApiKey(apiKey.trim());
+
+  let conn: any;
+  try {
+    conn = await getDb();
+    let keyRecord: any = null;
+
+    if (isPgConfigured()) {
+      const res = await conn.query(
+        `SELECT id, user_id FROM api_keys WHERE key_hash = $1`,
+        [keyHash]
+      );
+      if (res.rows && res.rows.length > 0) {
+        keyRecord = res.rows[0];
+        conn.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [keyRecord.id]).catch(() => {});
+      }
+    } else {
+      const res: any = await conn.execute(
+        `SELECT id, user_id FROM api_keys WHERE key_hash = :keyHash`,
+        { keyHash }
+      );
+      if (res.rows && res.rows.length > 0) {
+        keyRecord = res.rows[0];
+        const recordId = keyRecord.ID || keyRecord.id;
+        conn.execute(
+          `UPDATE api_keys SET last_used_at = CURRENT_TIMESTAMP WHERE id = :id`,
+          { id: recordId }
+        ).catch(() => {});
+      }
+    }
+
+    if (!keyRecord) return null;
+    const userId = keyRecord.user_id || keyRecord.USER_ID;
+    return getUserById(String(userId));
+  } catch (err) {
+    console.error("getUserByApiKey error:", err);
+    return null;
   } finally {
     if (conn) {
       if (typeof conn.release === "function") conn.release();

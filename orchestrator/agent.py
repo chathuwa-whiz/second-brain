@@ -59,6 +59,7 @@ llm_client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
 
 class OrchestratorState(TypedDict, total=False):
     request: str                 # the user's natural-language request
+    user_id: Optional[str]       # multi-tenant user ID
     tools: list[dict]            # tools discovered from MCP servers
     tool_name: Optional[str]
     tool_args: dict[str, Any]
@@ -258,12 +259,14 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
     tool_name = state.get("tool_name")
     confidence = state.get("confidence", 0.0)
     tools = state.get("tools", [])
+    user_id = state.get("user_id")
 
     tool_meta = next((t for t in tools if t["name"] == tool_name), None)
     module = tool_meta["module"] if tool_meta else "unknown"
 
     if tool_name is None or tool_meta is None:
         entry = ActionLogEntry(
+            user_id=user_id,
             module=module,
             action="no_op",
             reasoning=state["reasoning"],
@@ -276,6 +279,7 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
 
     if confidence < AUTO_EXECUTE_CONFIDENCE_THRESHOLD:
         entry = ActionLogEntry(
+            user_id=user_id,
             module=module,
             action=tool_name,
             reasoning=state["reasoning"],
@@ -289,6 +293,7 @@ async def act_node(state: OrchestratorState) -> OrchestratorState:
     server = find_server_for_tool(tool_name, tools)
     result = await call_tool(server, tool_name, state["tool_args"])
     entry = ActionLogEntry(
+        user_id=user_id,
         module=module,
         action=tool_name,
         reasoning=state["reasoning"],
@@ -314,9 +319,12 @@ def build_graph():
     return graph.compile()
 
 
-async def handle_request(request: str) -> OrchestratorState:
+async def handle_request(request: str, user_id: Optional[str] = None) -> OrchestratorState:
     app = build_graph()
-    return await app.ainvoke({"request": request})
+    initial_state: OrchestratorState = {"request": request}
+    if user_id:
+        initial_state["user_id"] = user_id
+    return await app.ainvoke(initial_state)
 
 
 if __name__ == "__main__":

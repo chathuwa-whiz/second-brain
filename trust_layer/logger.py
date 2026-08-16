@@ -47,6 +47,7 @@ class ActionLogEntry:
     confidence: float
     status: str = "auto_executed"  # pending | approved | rejected | auto_executed | failed
     metadata: dict[str, Any] = field(default_factory=dict)
+    user_id: Optional[str] = None
 
 
 @contextmanager
@@ -90,11 +91,12 @@ def log_action(entry: ActionLogEntry) -> int:
                 out_id = cur.var(oracledb.NUMBER)
                 cur.execute(
                     """
-                    INSERT INTO agent_actions (module, action, reasoning, confidence, status, metadata)
-                    VALUES (:module, :action, :reasoning, :confidence, :status, :metadata)
+                    INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
+                    VALUES (:user_id, :module, :action, :reasoning, :confidence, :status, :metadata)
                     RETURNING id INTO :out_id
                     """,
                     {
+                        "user_id": entry.user_id,
                         "module": entry.module,
                         "action": entry.action,
                         "reasoning": entry.reasoning,
@@ -108,11 +110,12 @@ def log_action(entry: ActionLogEntry) -> int:
             else:
                 cur.execute(
                     """
-                    INSERT INTO agent_actions (module, action, reasoning, confidence, status, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO agent_actions (user_id, module, action, reasoning, confidence, status, metadata)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
                     (
+                        entry.user_id,
                         entry.module,
                         entry.action,
                         entry.reasoning,

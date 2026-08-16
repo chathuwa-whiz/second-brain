@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Oracle Autonomous AI Database (23ai Serverless) Schema
--- Multi-Tenant SaaS Tables: Users, Accounts, Verification Tokens, Actions, Settings
+-- Multi-Tenant SaaS Tables: Users, Accounts, Verification Tokens, API Keys, Actions, Settings
 -- ============================================================================
 
 CREATE TABLE users (
@@ -41,6 +41,16 @@ CREATE TABLE verification_tokens (
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
+CREATE TABLE api_keys (
+    id          VARCHAR2(64) PRIMARY KEY,
+    user_id     VARCHAR2(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name        VARCHAR2(100) NOT NULL,
+    key_hash    VARCHAR2(255) NOT NULL,
+    key_preview VARCHAR2(20) NOT NULL,
+    last_used_at TIMESTAMP WITH TIME ZONE,
+    created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE agent_actions (
     id              NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id         VARCHAR2(64) REFERENCES users(id) ON DELETE CASCADE,
@@ -69,6 +79,8 @@ CREATE INDEX idx_users_email ON users (email);
 CREATE INDEX idx_accounts_user_id ON accounts (user_id);
 CREATE INDEX idx_verif_tokens_token ON verification_tokens (token);
 CREATE INDEX idx_verif_tokens_user ON verification_tokens (user_id);
+CREATE INDEX idx_api_keys_user_id ON api_keys (user_id);
+CREATE INDEX idx_api_keys_key_hash ON api_keys (key_hash);
 CREATE INDEX idx_agent_actions_created ON agent_actions (created_at DESC);
 CREATE INDEX idx_agent_actions_user_id ON agent_actions (user_id, created_at DESC);
 CREATE INDEX idx_agent_actions_module ON agent_actions (module);

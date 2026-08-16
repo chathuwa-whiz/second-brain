@@ -78,14 +78,14 @@ async def health():
 async def receive_job_match(
     payload: JobMatchPayload,
     x_webhook_secret: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
 ):
     """Called by the n8n Job Search Matcher v3 workflow, once per job posting
-    that scores >= 7. Upserts by url — a posting seen again on a later daily
-    run refreshes its score/reason instead of creating a duplicate row.
+    that scores >= 7. Upserts by url for the given user.
     """
     _check_secret(x_webhook_secret)
     try:
-        match = await upsert_match(**payload.model_dump())
+        match = await upsert_match(**payload.model_dump(), user_id=x_user_id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     return {"match": match}
@@ -96,10 +96,11 @@ async def get_matches(
     status: Optional[str] = None,
     limit: int = 50,
     x_webhook_secret: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
 ):
     """Optional convenience endpoint — same data get_job_matches (MCP tool)
     returns, useful for a quick curl check that matches are landing.
     """
     _check_secret(x_webhook_secret)
-    results = await list_matches(status=status, limit=limit)
+    results = await list_matches(status=status, limit=limit, user_id=x_user_id)
     return {"matches": results, "count": len(results)}

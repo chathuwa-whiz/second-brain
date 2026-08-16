@@ -8,6 +8,7 @@ import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
 import EmailSettingsCard from "./EmailSettingsCard";
 import DangerZoneCard from "./DangerZoneCard";
+import ApiKeysCard from "./ApiKeysCard";
 
 export const dynamic = "force-dynamic";
 
@@ -43,12 +44,18 @@ export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const r2Connected = Boolean(
+    process.env.R2_ACCOUNT_ID &&
+      process.env.R2_ACCESS_KEY_ID &&
+      process.env.R2_SECRET_ACCESS_KEY
+  );
+
   return (
     <>
       <PageHeader
         eyebrow="System"
         title="Settings"
-        description="How the control panel looks, Google SMTP delivery credentials, and what it's currently wired up to."
+        description="Configure your workspace appearance, email delivery, API keys, and external n8n automations."
       />
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
@@ -62,7 +69,12 @@ export default async function SettingsPage() {
           <EmailSettingsCard />
         </section>
 
-        <section>
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Integrations" title="API Keys & n8n Automation" />
+          <ApiKeysCard />
+        </section>
+
+        <section className="lg:col-span-2">
           <SectionHeader eyebrow="Safety" title="When the agent asks first" />
           <Card className="p-4 sm:p-5">
             <p className="text-xs leading-relaxed text-secondary sm:text-sm">
@@ -99,17 +111,17 @@ export default async function SettingsPage() {
             <ConnectionRow
               name="Action log & Trust layer"
               detail="Oracle Autonomous AI Database (23ai) — every decision, approval, and execution result"
-              connected={oracleConfigured() || Boolean(process.env.LOG_DATABASE_URL)}
+              connected={oracleConfigured() || Boolean(process.env.DATABASE_URL)}
             />
             <ConnectionRow
               name="Job database"
-              detail="MongoDB — job matches and applications"
+              detail="MongoDB — multi-tenant job matches and applications"
               connected={mongoConfigured()}
             />
             <ConnectionRow
               name="Resume storage"
-              detail="Shared directory the agent reads resumes from"
-              connected={Boolean(process.env.RESUME_DIR)}
+              detail="Cloudflare R2 Object Storage (10 GB free tier with zero egress costs)"
+              connected={r2Connected || Boolean(process.env.RESUME_DIR)}
             />
           </Card>
         </section>

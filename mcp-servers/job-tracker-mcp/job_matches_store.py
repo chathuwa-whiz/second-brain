@@ -64,11 +64,10 @@ async def upsert_match(
     source: str = "",
     score: Optional[float] = None,
     reason: str = "",
+    user_id: Optional[str] = None,
 ) -> dict:
     """Insert a new job match, or update an existing one if a match with the
-    same url already exists (the n8n workflow runs daily and will re-see
-    the same postings — this keeps a single row per posting, freshened
-    with the latest score/reason, instead of piling up duplicates).
+    same url already exists for this user.
     """
     if not title.strip():
         raise ValueError("title is required")
@@ -78,7 +77,11 @@ async def upsert_match(
     now = datetime.now(timezone.utc)
     coll = get_matches_collection()
 
-    existing = await coll.find_one({"url": url.strip()})
+    filter_query: dict = {"url": url.strip()}
+    if user_id:
+        filter_query["user_id"] = user_id
+
+    existing = await coll.find_one(filter_query)
     if existing:
         update = {
             "title": title.strip(),
@@ -90,6 +93,8 @@ async def upsert_match(
             "reason": reason.strip(),
             "updated_at": now,
         }
+        if user_id and "user_id" not in existing:
+            update["user_id"] = user_id
         await coll.update_one({"_id": existing["_id"]}, {"$set": update})
         merged = {**existing, **update}
         return _serialize(merged)
@@ -103,22 +108,31 @@ async def upsert_match(
         "source": source.strip(),
         "score": score,
         "reason": reason.strip(),
-        # new -> applied (you logged it via add_application) -> dismissed
-        # (not interested). The webhook always creates matches as "new";
-        # nothing here auto-applies to anything.
         "status": "new",
         "found_at": now,
         "created_at": now,
         "updated_at": now,
     }
+    if user_id:
+        doc["user_id"] = user_id
+
     result = await coll.insert_one(doc)
     doc["_id"] = result.inserted_id
     return _serialize(doc)
 
 
-async def list_matches(status: Optional[str] = None, limit: int = 50) -> list:
+async def list_matches(
+    status: Optional[str] = None,
+    limit: int = 50,
+    user_id: Optional[str] = None,
+) -> list:
     coll = get_matches_collection()
-    query = {"status": status} if status else {}
+    query: dict = {}
+    if status:
+        query["status"] = status
+    if user_id:
+        query["user_id"] = user_id
+
     cursor = coll.find(query).sort("found_at", -1).limit(limit)
     return [_serialize(doc) async for doc in cursor]
 

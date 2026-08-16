@@ -69,27 +69,19 @@ async def health():
 async def receive_request(
     payload: AgentRequest,
     x_webhook_secret: Optional[str] = Header(default=None),
+    x_user_id: Optional[str] = Header(default=None),
 ):
     """Hand the orchestrator a natural-language request. Returns the same
     shape `python agent.py "..."` prints: tool_name, reasoning, confidence,
     status (auto_executed | pending | failed), and result if it ran.
-
-    A "pending" status here is not a failure — it means the planner's
-    confidence was below the auto-execute threshold (or the tool is
-    destructive), so the action is now sitting in the dashboard's Approvals
-    queue rather than having run. That's the trust layer working as
-    designed, not this endpoint doing something wrong.
     """
     _check_secret(x_webhook_secret)
     if not payload.request.strip():
         raise HTTPException(status_code=422, detail="request must not be empty")
 
     try:
-        result = await handle_request(payload.request)
+        result = await handle_request(payload.request, user_id=x_user_id)
     except Exception as e:
-        # Surface the real failure rather than a bare 500 — this is the one
-        # network-reachable entrypoint into the orchestrator, so whoever
-        # called it (n8n, a bot, curl) needs an actionable error, not silence.
         raise HTTPException(
             status_code=502, detail=f"orchestrator failed: {type(e).__name__}: {e}"
         )
