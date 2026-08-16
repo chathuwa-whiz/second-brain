@@ -1,134 +1,64 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { mongoConfigured } from "@/lib/mongo";
 import PageHeader from "@/components/PageHeader";
-import { Badge, Card, ConfidenceMeter, SectionHeader } from "@/components/ui";
+import { SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
 import EmailSettingsCard from "./EmailSettingsCard";
-import DangerZoneCard from "./DangerZoneCard";
-import ApiKeysCard from "./ApiKeysCard";
 import BillingCard from "./BillingCard";
+import AiJobSearchCard from "./AiJobSearchCard";
+import AiAutonomyCard from "./AiAutonomyCard";
+import AdvancedDeveloperCard from "./AdvancedDeveloperCard";
 
 export const dynamic = "force-dynamic";
-
-const THRESHOLD = Number(
-  process.env.NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD ?? "0.75"
-);
-
-function ConnectionRow({
-  name,
-  detail,
-  connected,
-}: {
-  name: string;
-  detail: string;
-  connected: boolean;
-}) {
-  return (
-    <div className="flex flex-col justify-between gap-2.5 p-3.5 xs:flex-row xs:items-center xs:gap-4 sm:p-4">
-      <div className="min-w-0 flex-1">
-        <p className="break-words text-sm font-medium text-primary">{name}</p>
-        <p className="mt-0.5 break-words text-xs text-muted">{detail}</p>
-      </div>
-      <div className="shrink-0 self-start xs:self-center">
-        <Badge tone={connected ? "ok" : "warn"}>
-          {connected ? "Configured" : "Not set"}
-        </Badge>
-      </div>
-    </div>
-  );
-}
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const r2Connected = Boolean(
-    process.env.R2_ACCOUNT_ID &&
-      process.env.R2_ACCESS_KEY_ID &&
-      process.env.R2_SECRET_ACCESS_KEY
-  );
-
   return (
     <>
       <PageHeader
-        eyebrow="System"
+        eyebrow="Preferences"
         title="Settings"
-        description="Configure your workspace appearance, email delivery, API keys, and external n8n automations."
+        description="Manage your target job search roles, AI autonomy level, outgoing email delivery, and workspace appearance."
       />
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
-        <section>
-          <SectionHeader eyebrow="Display" title="Appearance" />
-          <AppearancePicker />
+        {/* Section 1: AI Job Search & Matching Targets */}
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="AI Agent" title="Job Discovery & Targets" />
+          <AiJobSearchCard />
         </section>
 
-        <section>
-          <SectionHeader eyebrow="Applications" title="Email & Google SMTP Delivery" />
+        {/* Section 2: Application Autonomy Mode */}
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Control" title="Application Review Mode" />
+          <AiAutonomyCard />
+        </section>
+
+        {/* Section 3: Outgoing Email Delivery */}
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Delivery" title="Outgoing Email Account" />
           <EmailSettingsCard />
         </section>
 
-        <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Subscription" title="Plan & Billing" />
+        {/* Section 4: Workspace Plan */}
+        <section>
+          <SectionHeader eyebrow="Plan" title="Workspace Access" />
           <BillingCard />
         </section>
 
-        <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Integrations" title="API Keys & n8n Automation" />
-          <ApiKeysCard />
+        {/* Section 5: Appearance */}
+        <section>
+          <SectionHeader eyebrow="Display" title="Theme & Appearance" />
+          <AppearancePicker />
         </section>
 
+        {/* Section 6: Advanced & Developer Tools (Collapsible) */}
         <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Safety" title="When the agent asks first" />
-          <Card className="p-4 sm:p-5">
-            <p className="text-xs leading-relaxed text-secondary sm:text-sm">
-              The planner scores its own confidence in every action. At or above{" "}
-              <span className="tnum font-semibold text-primary">
-                {THRESHOLD.toFixed(2)}
-              </span>{" "}
-              the action runs immediately. Below it, the action waits in
-              Approvals for your decision.
-            </p>
-
-            <div className="mt-4 rounded-xl bg-primary/[0.04] p-3.5 sm:p-4">
-              <p className="mb-2.5 text-2xs font-semibold uppercase tracking-widest text-muted">
-                The bar
-              </p>
-              <ConfidenceMeter value={THRESHOLD} threshold={THRESHOLD} />
-            </div>
-
-            <p className="mt-4 text-xs leading-relaxed text-secondary sm:text-sm">
-              Anything that deletes, removes, sends, or pays is capped below the
-              bar in code, so it always waits for you no matter how confident
-              the model claims to be. Change the threshold with{" "}
-              <code className="break-all rounded bg-primary/[0.06] px-1.5 py-0.5 text-2xs sm:text-xs">
-                AUTO_EXECUTE_CONFIDENCE_THRESHOLD
-              </code>{" "}
-              in the orchestrator&apos;s environment.
-            </p>
-          </Card>
-        </section>
-
-        <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Infrastructure" title="Connections" />
-          <Card className="divide-y overflow-hidden">
-            <ConnectionRow
-              name="Unified Database & Trust Layer"
-              detail="MongoDB Atlas (NoSQL) — Users, Auth, API Keys, Action Logs, Matches & Settings"
-              connected={mongoConfigured()}
-            />
-            <ConnectionRow
-              name="Resume storage"
-              detail="Cloudflare R2 Object Storage (10 GB free tier with zero egress costs)"
-              connected={r2Connected || Boolean(process.env.RESUME_DIR)}
-            />
-          </Card>
-        </section>
-
-        <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Danger Zone" title="Reset & Maintenance" />
-          <DangerZoneCard />
+          <SectionHeader eyebrow="Power Users" title="External Automations" />
+          <AdvancedDeveloperCard />
         </section>
       </div>
     </>

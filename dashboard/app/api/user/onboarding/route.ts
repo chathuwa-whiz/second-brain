@@ -55,9 +55,9 @@ export async function POST(req: NextRequest) {
       skills: Array.isArray(body.skills) ? body.skills : [],
       confidenceThreshold: Number(body.confidenceThreshold || 0.75),
       notificationFrequency: body.notificationFrequency || "instant",
+      jobDiscoveryActive: true,
       onboardingCompleted: true,
-      trialEndsAt: body.trialEndsAt || trialEndsAt,
-      subscriptionStatus: "trialing",
+      subscriptionStatus: "active",
       updatedAt: new Date().toISOString(),
     };
 
@@ -74,6 +74,23 @@ export async function POST(req: NextRequest) {
       },
       { upsert: true }
     );
+
+    // Auto-create default API key if user has none
+    const existingKeys = await db.collection("api_keys").find({ user_id: userId }).toArray();
+    if (existingKeys.length === 0) {
+      const crypto = await import("crypto");
+      const rawSecret = `sb_live_${crypto.randomBytes(24).toString("hex")}`;
+      const keyPrefix = rawSecret.slice(0, 12);
+      const hash = crypto.createHash("sha256").update(rawSecret).digest("hex");
+      await db.collection("api_keys").insertOne({
+        id: crypto.randomUUID(),
+        user_id: userId,
+        name: "Default Automated Scraper Key",
+        key_prefix: keyPrefix,
+        key_hash: hash,
+        created_at: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({
       success: true,

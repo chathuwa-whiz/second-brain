@@ -52,13 +52,13 @@ export default function EmailSettingsCard() {
           default_sender_email: defaultSender,
           smtp_host: smtpHost,
           smtp_port: Number(smtpPort),
-          smtp_user: smtpUser,
+          smtp_user: smtpUser || defaultSender,
           smtp_password: smtpPassword,
         }),
       });
 
       if (res.ok) {
-        setMessage({ text: "Google SMTP settings saved successfully.", tone: "ok" });
+        setMessage({ text: "Email dispatch settings saved successfully.", tone: "ok" });
       } else {
         const data = await res.json();
         throw new Error(data.error || "Failed to save settings");
@@ -76,7 +76,7 @@ export default function EmailSettingsCard() {
   if (loading) {
     return (
       <Card className="p-4 sm:p-6">
-        <p className="text-xs text-muted">Loading Google SMTP settings...</p>
+        <p className="text-xs text-muted">Loading email settings...</p>
       </Card>
     );
   }
@@ -102,75 +102,33 @@ export default function EmailSettingsCard() {
             <div className="text-xs text-secondary leading-relaxed">
               <p className="font-semibold text-primary">Gmail Sent Box Sync</p>
               <p className="mt-0.5">
-                Every application email dispatched by Second Brain uses your Google SMTP server directly. Sent emails will automatically appear in your official Gmail <strong>Sent</strong> mailbox.
+                When you approve an application, the AI sends it directly through your Gmail account so it appears in your official <strong>Sent</strong> folder.
               </p>
             </div>
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-            Sender Email Address
-          </label>
-          <input
-            type="email"
-            required
-            value={defaultSender}
-            onChange={(e) => setDefaultSender(e.target.value)}
-            placeholder="you@gmail.com"
-            className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
-          />
-          <p className="mt-1 text-2xs text-muted">
-            The Google account email displayed on outgoing job applications.
-          </p>
-        </div>
-
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-              SMTP Host
+              Your Gmail Address
             </label>
             <input
-              type="text"
+              type="email"
               required
-              value={smtpHost}
-              onChange={(e) => setSmtpHost(e.target.value)}
-              placeholder="smtp.gmail.com"
-              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-              SMTP Port
-            </label>
-            <input
-              type="number"
-              required
-              value={smtpPort}
-              onChange={(e) => setSmtpPort(Number(e.target.value))}
-              placeholder="465"
-              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
-            />
-            <p className="mt-1 text-2xs text-muted">
-              Default is 465 (SSL) or 587 (TLS).
-            </p>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-              Google Account Username
-            </label>
-            <input
-              type="text"
-              required
-              value={smtpUser}
-              onChange={(e) => setSmtpUser(e.target.value)}
+              value={defaultSender}
+              onChange={(e) => {
+                setDefaultSender(e.target.value);
+                if (!smtpUser) setSmtpUser(e.target.value);
+              }}
               placeholder="you@gmail.com"
               className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
             />
           </div>
+
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-              Google App Password
+              Google App Password (16 Letters)
             </label>
             <input
               type="password"
@@ -179,15 +137,26 @@ export default function EmailSettingsCard() {
               placeholder="••••••••••••••••"
               className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
             />
-            <p className="mt-1 text-2xs text-muted">
-              16-character App Password from Google Security settings.
-            </p>
           </div>
         </div>
 
+        {/* 1-Minute Gmail Guide Accordion */}
+        <details className="rounded-xl bg-primary/[0.02] p-3 border border-hairline/10 text-xs">
+          <summary className="cursor-pointer font-medium text-accent hover:underline focus:outline-none">
+            💡 How to get a Google App Password in 60 seconds
+          </summary>
+          <ol className="list-decimal list-inside mt-2.5 space-y-1.5 text-muted leading-relaxed">
+            <li>Go to your <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="text-primary underline">Google Account Security</a> settings.</li>
+            <li>Make sure <strong>2-Step Verification</strong> is ON.</li>
+            <li>Search for <strong>&quot;App Passwords&quot;</strong> in the search bar.</li>
+            <li>Type &quot;Second Brain&quot; and click <strong>Create</strong>.</li>
+            <li>Copy the 16-character password generated by Google and paste it above!</li>
+          </ol>
+        </details>
+
         <div className="pt-2">
           <Button type="submit" variant="primary" disabled={saving} className="w-full xs:w-auto">
-            {saving ? "Saving..." : "Save Google SMTP Settings"}
+            {saving ? "Saving..." : "Save Email Settings"}
           </Button>
         </div>
       </form>
