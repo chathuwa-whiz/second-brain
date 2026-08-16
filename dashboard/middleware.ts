@@ -9,13 +9,15 @@ export async function middleware(req: NextRequest) {
   });
 
   if (!token) {
-    const proto = req.headers.get("x-forwarded-proto") || "https";
+    const proto =
+      req.headers.get("x-forwarded-proto") ||
+      (req.nextUrl.protocol ? req.nextUrl.protocol.replace(":", "") : "http");
     const host =
       req.headers.get("x-forwarded-host") ||
       req.headers.get("host") ||
-      "secondbrain.xubi.org";
+      req.nextUrl.host;
 
-    const basePath = process.env.NEXT_BASE_PATH || "/secondbrain";
+    const basePath = process.env.NEXT_BASE_PATH || "";
     const currentPath = req.nextUrl.pathname;
     const currentSearch = req.nextUrl.search;
 
@@ -36,6 +38,7 @@ export const config = {
     "/activity/:path*",
     "/jobs/:path*",
     "/resumes/:path*",
+    "/tasks/:path*",
     "/modules/:path*",
     "/settings/:path*",
     "/api/actions/:path*",
