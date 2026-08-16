@@ -20,6 +20,7 @@ import {
   IconSignOut,
   IconMenu,
 } from "./icons";
+import TrialBadge from "./TrialBadge";
 
 type NavItem = {
   href: string;
@@ -254,14 +255,14 @@ export default function AppShell({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-primary">
-                {userName}
-              </p>
-              {userEmail && (
-                <p className="truncate text-2xs text-muted">
-                  {userEmail}
+              <div className="flex items-center justify-between gap-1">
+                <p className="truncate text-xs font-semibold text-primary">
+                  {userName}
                 </p>
-              )}
+              </div>
+              <div className="mt-1">
+                <TrialBadge />
+              </div>
             </div>
           </div>
 

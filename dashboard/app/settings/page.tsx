@@ -8,6 +8,7 @@ import AppearancePicker from "./AppearancePicker";
 import EmailSettingsCard from "./EmailSettingsCard";
 import DangerZoneCard from "./DangerZoneCard";
 import ApiKeysCard from "./ApiKeysCard";
+import BillingCard from "./BillingCard";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,11 @@ export default async function SettingsPage() {
         <section>
           <SectionHeader eyebrow="Applications" title="Email & Google SMTP Delivery" />
           <EmailSettingsCard />
+        </section>
+
+        <section className="lg:col-span-2">
+          <SectionHeader eyebrow="Subscription" title="Plan & Billing" />
+          <BillingCard />
         </section>
 
         <section className="lg:col-span-2">
