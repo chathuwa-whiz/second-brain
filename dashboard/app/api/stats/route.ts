@@ -8,7 +8,9 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const { stats, error } = await fetchStats();
+
+  const userId = (session.user as any)?.id;
+  const { stats, error } = await fetchStats(userId);
   if (error) return NextResponse.json({ error }, { status: 500 });
   return NextResponse.json({ stats });
 }

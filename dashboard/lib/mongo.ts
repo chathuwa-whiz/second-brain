@@ -2,9 +2,8 @@ import { MongoClient, type Db, ObjectId } from "mongodb";
 
 /*
   Read access to the same MongoDB database job-tracker-mcp writes to, so the
-  Jobs page can show matches and applications without going through MCP. The
-  MCP tools remain the agent's path in; this is the human's path in. Both read
-  the same collections, so there's no second source of truth.
+  Jobs page can show matches and applications without going through MCP.
+  Supports multi-tenant scoping via userId.
 */
 
 declare global {
@@ -42,6 +41,7 @@ export async function getDb(): Promise<Db> {
 
 export type JobMatch = {
   id: string;
+  user_id?: string | null;
   title: string;
   company: string;
   url: string;
@@ -56,6 +56,7 @@ export type JobMatch = {
 
 export type JobApplication = {
   id: string;
+  user_id?: string | null;
   company: string;
   role: string;
   job_url: string;
@@ -71,11 +72,19 @@ function iso(v: unknown): string {
 
 export async function fetchJobMatches(
   status?: string,
-  limit = 100
+  limit = 100,
+  userId?: string
 ): Promise<{ matches: JobMatch[]; error: string | null }> {
   try {
     const db = await getDb();
-    const query = status ? { status } : {};
+    const query: Record<string, any> = {};
+    if (status) {
+      query.status = status;
+    }
+    if (userId) {
+      query.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+    }
+
     const docs = await db
       .collection("job_matches")
       .find(query)
@@ -86,6 +95,7 @@ export async function fetchJobMatches(
     return {
       matches: docs.map((d) => ({
         id: String(d._id),
+        user_id: d.user_id ? String(d.user_id) : null,
         title: d.title ?? "",
         company: d.company ?? "",
         url: d.url ?? "",
@@ -109,13 +119,19 @@ export async function fetchJobMatches(
 }
 
 export async function fetchApplications(
-  limit = 100
+  limit = 100,
+  userId?: string
 ): Promise<{ applications: JobApplication[]; error: string | null }> {
   try {
     const db = await getDb();
+    const query: Record<string, any> = {};
+    if (userId) {
+      query.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+    }
+
     const docs = await db
       .collection("job_applications")
-      .find({})
+      .find(query)
       .sort({ date_applied: -1 })
       .limit(limit)
       .toArray();
@@ -123,6 +139,7 @@ export async function fetchApplications(
     return {
       applications: docs.map((d) => ({
         id: String(d._id),
+        user_id: d.user_id ? String(d.user_id) : null,
         company: d.company ?? "",
         role: d.role ?? "",
         job_url: d.job_url ?? "",
@@ -142,21 +159,21 @@ export async function fetchApplications(
   }
 }
 
-/*
-  Only ever writes the `status` label on a match. It deliberately cannot create
-  a job_applications row - marking a match "applied" here is a bookkeeping
-  label, and logging a real application stays an explicit, separate step. Same
-  boundary the webhook respects on the ingestion side.
-*/
 export async function setMatchStatus(
   id: string,
-  status: "new" | "applied" | "dismissed"
+  status: "new" | "applied" | "dismissed",
+  userId?: string
 ): Promise<JobMatch | null> {
   const db = await getDb();
+  const filter: Record<string, any> = { _id: new ObjectId(id) };
+  if (userId) {
+    filter.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+  }
+
   const result = await db
     .collection("job_matches")
     .findOneAndUpdate(
-      { _id: new ObjectId(id) },
+      filter,
       { $set: { status, updated_at: new Date() } },
       { returnDocument: "after" }
     );
@@ -165,6 +182,7 @@ export async function setMatchStatus(
   if (!d) return null;
   return {
     id: String(d._id),
+    user_id: d.user_id ? String(d.user_id) : null,
     title: d.title ?? "",
     company: d.company ?? "",
     url: d.url ?? "",
@@ -179,6 +197,7 @@ export async function setMatchStatus(
 }
 
 export async function recordJobApplication(app: {
+  userId?: string;
   company: string;
   role: string;
   job_url?: string;
@@ -189,6 +208,7 @@ export async function recordJobApplication(app: {
   try {
     const db = await getDb();
     const res = await db.collection("job_applications").insertOne({
+      user_id: app.userId || null,
       company: app.company,
       role: app.role,
       job_url: app.job_url ?? "",
@@ -203,4 +223,3 @@ export async function recordJobApplication(app: {
     return { success: false, error: err instanceof Error ? err.message : "MongoDB error" };
   }
 }
-

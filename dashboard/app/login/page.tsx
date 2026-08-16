@@ -2,43 +2,142 @@
 
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card, ErrorNote } from "@/components/ui";
+import { IconGoogle, IconMail, IconCheck } from "@/components/icons";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/";
+
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
 
-  async function submit(e: FormEvent) {
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      await signIn("google", { callbackUrl });
+    } catch (err) {
+      console.error("Google sign in failed:", err);
+      setError("Failed to initialize Google Sign In.");
+      setGoogleLoading(false);
+    }
+  }
+
+  async function handleSignIn(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccessMessage(null);
+    setUnverifiedEmail(null);
+    setResendStatus(null);
 
-    const res = await signIn("credentials", {
-      username,
-      password,
-      redirect: false,
-    });
+    try {
+      const res = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
 
-    setLoading(false);
-    if (res?.error) {
-      setError("That username and password don't match. Try again.");
-      return;
+      setLoading(false);
+
+      if (res?.error) {
+        if (res.error.includes("EMAIL_NOT_VERIFIED")) {
+          setUnverifiedEmail(email);
+          setError("Your email address has not been verified yet.");
+        } else {
+          setError(res.error === "CredentialsSignin" ? "Invalid email or password." : res.error);
+        }
+        return;
+      }
+
+      router.push(callbackUrl);
+      router.refresh();
+    } catch (err) {
+      setLoading(false);
+      setError("An unexpected error occurred. Please try again.");
     }
-    router.push("/");
-    router.refresh();
+  }
+
+  async function handleSignUp(e: FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    setUnverifiedEmail(null);
+    setResendStatus(null);
+
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+      setLoading(false);
+
+      if (!res.ok || data.error) {
+        setError(data.error || "Failed to create account.");
+        return;
+      }
+
+      setSuccessMessage(
+        data.message ||
+          "Account created! We've sent a verification link to your email. Please check your inbox."
+      );
+      setUnverifiedEmail(email);
+      setPassword("");
+    } catch (err) {
+      setLoading(false);
+      setError("Failed to register. Please try again.");
+    }
+  }
+
+  async function handleResendVerification() {
+    const targetEmail = unverifiedEmail || email;
+    if (!targetEmail) return;
+
+    setResending(true);
+    setResendStatus(null);
+    try {
+      const res = await fetch("/api/auth/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: targetEmail }),
+      });
+      const data = await res.json();
+      setResending(false);
+      if (res.ok && data.success) {
+        setResendStatus("Verification email resent! Please check your spam/inbox.");
+      } else {
+        setResendStatus(data.error || "Failed to resend email.");
+      }
+    } catch (err) {
+      setResending(false);
+      setResendStatus("Error sending verification email.");
+    }
   }
 
   const field =
     "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-8 pb-safe pt-safe sm:py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center text-center sm:mb-7">
+    <main className="grid min-h-screen place-items-center px-4 py-8 pb-safe pt-safe sm:py-12">
+      <div className="w-full max-w-md">
+        {/* Brand Header */}
+        <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-xl shadow-accent/30 sm:h-14 sm:w-14">
             <svg
               viewBox="0 0 24 24"
@@ -54,47 +153,175 @@ export default function LoginPage() {
               <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
             </svg>
           </div>
-          <h1 className="mt-3.5 text-lg font-semibold tracking-tight text-primary sm:mt-4 sm:text-xl">
+          <h1 className="mt-3.5 text-xl font-bold tracking-tight text-primary sm:mt-4 sm:text-2xl">
             Second Brain
           </h1>
           <p className="mt-1 text-xs text-secondary sm:text-sm">
-            Sign in to the control panel.
+            {mode === "signin"
+              ? "Sign in to your autonomous AI workspace"
+              : "Create your personal AI & career copilot workspace"}
           </p>
         </div>
 
-        <Card className="p-5 sm:p-6">
-          <form onSubmit={submit} className="space-y-4">
+        <Card className="p-5 sm:p-7 shadow-2xl">
+          {/* Mode Switcher Tabs */}
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-primary/[0.05] p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signin");
+                setError(null);
+                setSuccessMessage(null);
+                setResendStatus(null);
+              }}
+              className={`rounded-lg py-2 transition-all ${
+                mode === "signin"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-secondary hover:text-primary"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setError(null);
+                setSuccessMessage(null);
+                setResendStatus(null);
+              }}
+              className={`rounded-lg py-2 transition-all ${
+                mode === "signup"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-secondary hover:text-primary"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {/* Social Google OAuth Button */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+            className="press flex min-h-[44px] w-full items-center justify-center gap-3 rounded-xl border border-hairline/20 bg-primary/[0.03] px-4 py-2.5 text-sm font-medium text-primary shadow-sm hover:bg-primary/[0.07] focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+          >
+            <IconGoogle className="h-5 w-5" />
+            <span>{googleLoading ? "Connecting to Google…" : "Continue with Google"}</span>
+          </button>
+
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-hairline/15" />
+            <span className="text-2xs font-medium uppercase tracking-wider text-muted">
+              or continue with email
+            </span>
+            <div className="h-px flex-1 bg-hairline/15" />
+          </div>
+
+          {/* Verification Notification Banner */}
+          {successMessage && (
+            <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-emerald-400">
+              <div className="flex items-start gap-2.5">
+                <IconMail className="h-4 w-4 mt-0.5 shrink-0 text-emerald-400" />
+                <div className="flex-1">
+                  <p className="font-semibold">Check your inbox</p>
+                  <p className="mt-0.5 leading-relaxed">{successMessage}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Unverified Account Warning */}
+          {unverifiedEmail && mode === "signin" && (
+            <div className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-300">
+              <p className="font-semibold">Email Verification Required</p>
+              <p className="mt-1 leading-relaxed">
+                Please verify your email address before signing in.
+              </p>
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resending}
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 py-1 text-2xs font-semibold text-amber-200 hover:bg-amber-500/30"
+              >
+                {resending ? "Sending link…" : "Resend verification link"}
+              </button>
+              {resendStatus && (
+                <p className="mt-2 text-2xs text-amber-200">{resendStatus}</p>
+              )}
+            </div>
+          )}
+
+          {/* Form */}
+          <form
+            onSubmit={mode === "signin" ? handleSignIn : handleSignUp}
+            className="space-y-4"
+          >
+            {mode === "signup" && (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="name"
+                  className="text-xs font-medium text-secondary"
+                >
+                  Full Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Alex Morgan"
+                  className={field}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoComplete="name"
+                  required={mode === "signup"}
+                />
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label
-                htmlFor="username"
+                htmlFor="email"
                 className="text-xs font-medium text-secondary"
               >
-                Username
+                Email Address
               </label>
               <input
-                id="username"
+                id="email"
+                type="email"
+                placeholder="you@company.com"
                 className={field}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
               />
             </div>
 
             <div className="space-y-1.5">
-              <label
-                htmlFor="password"
-                className="text-xs font-medium text-secondary"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="password"
+                  className="text-xs font-medium text-secondary"
+                >
+                  Password
+                </label>
+                {mode === "signup" && (
+                  <span className="text-2xs text-muted">Min. 8 characters</span>
+                )}
+              </div>
               <input
                 id="password"
                 type="password"
+                placeholder="••••••••"
                 className={field}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
+                autoComplete={
+                  mode === "signin" ? "current-password" : "new-password"
+                }
+                minLength={mode === "signup" ? 8 : undefined}
+                required
               />
             </div>
 
@@ -103,13 +330,24 @@ export default function LoginPage() {
             <Button
               type="submit"
               variant="primary"
-              disabled={loading}
-              className="min-h-[44px] w-full text-sm font-semibold"
+              disabled={loading || googleLoading}
+              className="min-h-[44px] w-full text-sm font-semibold mt-2"
             >
-              {loading ? "Signing in…" : "Sign in"}
+              {loading
+                ? mode === "signin"
+                  ? "Signing in…"
+                  : "Creating account…"
+                : mode === "signin"
+                ? "Sign in"
+                : "Create Account"}
             </Button>
           </form>
         </Card>
+
+        {/* Footer Note */}
+        <p className="mt-6 text-center text-2xs text-muted">
+          By signing in, you agree to Second Brain's Terms of Service and Privacy Policy.
+        </p>
       </div>
     </main>
   );

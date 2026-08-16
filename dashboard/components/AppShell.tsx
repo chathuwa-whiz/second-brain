@@ -78,7 +78,7 @@ function ThemeToggle() {
 
   return (
     <div
-      className="glass flex items-center gap-0.5 rounded-full p-1"
+      className="glass flex items-center justify-between gap-1 rounded-xl p-1 w-full"
       role="radiogroup"
       aria-label="Appearance"
     >
@@ -90,7 +90,7 @@ function ThemeToggle() {
           aria-label={label}
           title={label}
           onClick={() => setPreference(key)}
-          className={`press rounded-full p-1.5 ${
+          className={`press flex-1 flex items-center justify-center rounded-lg py-1.5 transition-colors ${
             preference === key
               ? "bg-accent text-white shadow-sm shadow-accent/30"
               : "text-muted hover:text-primary"
@@ -121,7 +121,7 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={`press group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium ${
         active
-          ? "bg-accent/12 text-primary"
+          ? "bg-accent/12 text-primary font-semibold"
           : "text-secondary hover:bg-primary/[0.05] hover:text-primary"
       }`}
     >
@@ -159,7 +159,7 @@ function Brand() {
         <p className="text-sm font-semibold tracking-tight text-primary">
           Second Brain
         </p>
-        <p className="text-2xs uppercase tracking-widest text-muted">
+        <p className="text-2xs uppercase tracking-widest text-muted font-medium">
           Control panel
         </p>
       </div>
@@ -167,16 +167,30 @@ function Brand() {
   );
 }
 
+type UserInfo =
+  | string
+  | {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+    }
+  | null;
+
 export default function AppShell({
   children,
   user,
 }: {
   children: ReactNode;
-  user?: string | null;
+  user?: UserInfo;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const current = ALL_ITEMS.find((i) => isActive(pathname, i.href));
+
+  const userName = typeof user === "string" ? user : user?.name || user?.email?.split("@")[0] || "User";
+  const userEmail = typeof user === "object" ? user?.email : null;
+  const userImage = typeof user === "object" ? user?.image : null;
+  const userInitials = (userName || "U").slice(0, 2).toUpperCase();
 
   // Close menu on Escape key
   useEffect(() => {
@@ -222,17 +236,41 @@ export default function AppShell({
           ))}
         </nav>
 
-        <div className="mt-4 space-y-3 border-t px-3 pt-4">
+        <div className="mt-auto space-y-3 border-t px-3 pt-4">
           <ThemeToggle />
+
+          {/* User Profile Card */}
+          <div className="flex items-center gap-2.5 rounded-xl bg-primary/[0.03] p-2 border border-hairline/10">
+            {userImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={userImage}
+                alt={userName}
+                className="h-8 w-8 rounded-lg object-cover ring-1 ring-hairline/20"
+              />
+            ) : (
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent text-xs font-bold ring-1 ring-accent/30">
+                {userInitials}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-semibold text-primary">
+                {userName}
+              </p>
+              {userEmail && (
+                <p className="truncate text-2xs text-muted">
+                  {userEmail}
+                </p>
+              )}
+            </div>
+          </div>
+
           <button
             onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-            className="press flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-secondary hover:bg-primary/[0.05] hover:text-primary"
+            className="press flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-secondary hover:bg-danger/10 hover:text-danger transition-colors"
           >
-            <IconSignOut className="h-[18px] w-[18px]" />
+            <IconSignOut className="h-4 w-4" />
             Sign out
-            {user && (
-              <span className="ml-auto truncate text-xs text-muted">{user}</span>
-            )}
           </button>
         </div>
       </aside>
@@ -258,8 +296,19 @@ export default function AppShell({
               {current?.label ?? "Second Brain"}
             </p>
           </div>
-          <div className="shrink-0">
-            <ThemeToggle />
+          <div className="flex items-center gap-2">
+            {userImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={userImage}
+                alt={userName}
+                className="h-7 w-7 rounded-lg object-cover ring-1 ring-hairline/20"
+              />
+            ) : (
+              <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-bold ring-1 ring-accent/30">
+                {userInitials}
+              </div>
+            )}
           </div>
         </header>
 
@@ -276,9 +325,15 @@ export default function AppShell({
             {/* Floating Glassmorphism Menu Panel */}
             <div className="fixed inset-x-3.5 top-[58px] z-50 rounded-2xl glass-chrome border border-hairline/20 p-4 shadow-2xl backdrop-blur-2xl animate-rise lg:hidden">
               <div className="flex items-center justify-between border-b pb-2.5">
-                <p className="text-2xs font-bold uppercase tracking-wider text-muted">
-                  Navigation Menu
-                </p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-bold">
+                    {userInitials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-primary truncate">{userName}</p>
+                    {userEmail && <p className="text-2xs text-muted truncate">{userEmail}</p>}
+                  </div>
+                </div>
                 <button
                   onClick={() => setMenuOpen(false)}
                   className="press rounded-lg px-2 py-0.5 text-xs font-medium text-muted hover:text-primary"
@@ -297,16 +352,14 @@ export default function AppShell({
                 ))}
               </div>
 
-              <div className="mt-3.5 border-t pt-3">
+              <div className="mt-3.5 border-t pt-3 space-y-2">
+                <ThemeToggle />
                 <button
                   onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
                   className="press flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-hairline/15 bg-primary/[0.04] px-3.5 py-2.5 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger"
                 >
                   <IconSignOut className="h-[18px] w-[18px]" />
                   Sign out
-                  {user && (
-                    <span className="ml-auto truncate text-xs text-muted">{user}</span>
-                  )}
                 </button>
               </div>
             </div>

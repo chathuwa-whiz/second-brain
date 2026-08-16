@@ -1,8 +1,8 @@
--- Trust layer & Multi-Tenant SaaS schema.
--- Compatible with PostgreSQL and Oracle Autonomous AI Database (23ai Serverless).
+-- Multi-Tenant SaaS Auth Schema Migration
+-- Creates users, accounts (OAuth), and verification_tokens tables, and associates agent_actions and system_settings with users.
 
 -- ============================================================================
--- PostgreSQL (Neon / Supabase / Self-Hosted) Schema:
+-- 1. PostgreSQL (Neon / Supabase / AWS RDS):
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS users (
@@ -43,44 +43,39 @@ CREATE TABLE IF NOT EXISTS verification_tokens (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE TABLE IF NOT EXISTS agent_actions (
-    id              BIGSERIAL PRIMARY KEY,
-    user_id         VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    module          TEXT NOT NULL,
-    action          TEXT NOT NULL,
-    reasoning       TEXT NOT NULL,
-    confidence      NUMERIC(4,3) NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
-    status          TEXT NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending', 'approved', 'rejected', 'auto_executed', 'failed')),
-    metadata        JSONB NOT NULL DEFAULT '{}'::jsonb,
-    reviewed_at     TIMESTAMPTZ,
-    reviewed_by     TEXT,
-    executed_at     TIMESTAMPTZ,
-    execution_result JSONB
-);
+-- Add user_id column to agent_actions if not present (PostgreSQL)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'agent_actions' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE agent_actions ADD COLUMN user_id VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
-CREATE TABLE IF NOT EXISTS system_settings (
-    key             VARCHAR(100) NOT NULL,
-    user_id         VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE,
-    value           JSONB NOT NULL DEFAULT '{}'::jsonb,
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (key, user_id)
-);
+-- Add user_id column to system_settings if not present (PostgreSQL)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'system_settings' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE system_settings ADD COLUMN user_id VARCHAR(64) REFERENCES users(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
-CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts (user_id);
 CREATE INDEX IF NOT EXISTS idx_verification_tokens_token ON verification_tokens (token);
 CREATE INDEX IF NOT EXISTS idx_verification_tokens_user ON verification_tokens (user_id);
-CREATE INDEX IF NOT EXISTS idx_agent_actions_created_at ON agent_actions (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts (user_id);
 CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions (user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_agent_actions_module ON agent_actions (module);
-CREATE INDEX IF NOT EXISTS idx_agent_actions_status ON agent_actions (status);
 
 -- ============================================================================
--- Oracle 23ai Autonomous Database Schema:
+-- 2. Oracle Database (23ai Autonomous Serverless / SQL Developer / Database Actions):
 -- ============================================================================
--- CREATE TABLE users (
+
+-- CREATE TABLE IF NOT EXISTS users (
 --     id              VARCHAR2(64) PRIMARY KEY,
 --     name            VARCHAR2(255),
 --     email           VARCHAR2(255) UNIQUE NOT NULL,
@@ -91,8 +86,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_actions_status ON agent_actions (status);
 --     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
 --     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 -- );
---
--- CREATE TABLE accounts (
+-- 
+-- CREATE TABLE IF NOT EXISTS accounts (
 --     id                  VARCHAR2(64) PRIMARY KEY,
 --     user_id             VARCHAR2(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 --     type                VARCHAR2(50) NOT NULL,
@@ -108,8 +103,8 @@ CREATE INDEX IF NOT EXISTS idx_agent_actions_status ON agent_actions (status);
 --     created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
 --     CONSTRAINT uq_accounts_provider UNIQUE (provider, provider_account_id)
 -- );
---
--- CREATE TABLE verification_tokens (
+-- 
+-- CREATE TABLE IF NOT EXISTS verification_tokens (
 --     id          VARCHAR2(64) PRIMARY KEY,
 --     user_id     VARCHAR2(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 --     token       VARCHAR2(255) UNIQUE NOT NULL,
@@ -117,27 +112,26 @@ CREATE INDEX IF NOT EXISTS idx_agent_actions_status ON agent_actions (status);
 --     expires_at  TIMESTAMP WITH TIME ZONE NOT NULL,
 --     created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL
 -- );
---
--- CREATE TABLE agent_actions (
---     id              NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
---     user_id         VARCHAR2(64) REFERENCES users(id) ON DELETE CASCADE,
---     created_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
---     module          VARCHAR2(100) NOT NULL,
---     action          VARCHAR2(150) NOT NULL,
---     reasoning       CLOB NOT NULL,
---     confidence      NUMBER(4,3) NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
---     status          VARCHAR2(50) DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'auto_executed', 'failed')),
---     metadata        JSON DEFAULT '{}' NOT NULL,
---     reviewed_at     TIMESTAMP WITH TIME ZONE,
---     reviewed_by     VARCHAR2(100),
---     executed_at     TIMESTAMP WITH TIME ZONE,
---     execution_result JSON
--- );
---
--- CREATE TABLE system_settings (
---     key             VARCHAR2(100) NOT NULL,
---     user_id         VARCHAR2(64) REFERENCES users(id) ON DELETE CASCADE,
---     value           JSON DEFAULT '{}' NOT NULL,
---     updated_at      TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
---     PRIMARY KEY (key, user_id)
--- );
+-- 
+-- BEGIN
+--     BEGIN
+--         EXECUTE IMMEDIATE 'ALTER TABLE agent_actions ADD user_id VARCHAR2(64) REFERENCES users(id) ON DELETE CASCADE';
+--     EXCEPTION
+--         WHEN OTHERS THEN
+--             IF SQLCODE != -1430 THEN RAISE; END IF;
+--     END;
+-- 
+--     BEGIN
+--         EXECUTE IMMEDIATE 'ALTER TABLE system_settings ADD user_id VARCHAR2(64) REFERENCES users(id) ON DELETE CASCADE';
+--     EXCEPTION
+--         WHEN OTHERS THEN
+--             IF SQLCODE != -1430 THEN RAISE; END IF;
+--     END;
+-- END;
+-- /
+-- 
+-- CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+-- CREATE INDEX IF NOT EXISTS idx_verification_tokens_token ON verification_tokens (token);
+-- CREATE INDEX IF NOT EXISTS idx_verification_tokens_user ON verification_tokens (user_id);
+-- CREATE INDEX IF NOT EXISTS idx_accounts_user_id ON accounts (user_id);
+-- CREATE INDEX IF NOT EXISTS idx_agent_actions_user_id ON agent_actions (user_id, created_at DESC);

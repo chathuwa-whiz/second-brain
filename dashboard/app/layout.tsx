@@ -42,7 +42,7 @@ export default async function RootLayout({
           <Providers>
             <Mesh />
             {session ? (
-              <AppShell user={session.user?.name}>{children}</AppShell>
+              <AppShell user={session.user}>{children}</AppShell>
             ) : (
               children
             )}
