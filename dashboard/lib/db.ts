@@ -207,7 +207,7 @@ export async function createUser(data: {
     name: data.name || null,
     email: data.email.trim().toLowerCase(),
     password_hash: data.passwordHash || data.password || null,
-    email_verified: data.emailVerified ? data.emailVerified.toISOString() : null,
+    email_verified: data.emailVerified ? data.emailVerified.toISOString() : now.toISOString(),
     image: data.image || null,
     role: data.role || "user",
     created_at: now.toISOString(),

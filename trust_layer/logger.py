@@ -83,6 +83,45 @@ def update_status(action_id: Any, status: str, reviewed_by: Optional[str] = None
     )
 
 
+def get_approved_unexecuted() -> list[dict]:
+    """Return all actions with status='approved' and executed_at is None."""
+    db = get_mongo_db()
+    cursor = db.agent_actions.find({"status": "approved", "executed_at": None}).sort("created_at", 1)
+    results = []
+    for doc in cursor:
+        doc_copy = dict(doc)
+        if "_id" in doc_copy:
+            doc_copy["_id"] = str(doc_copy["_id"])
+        results.append(doc_copy)
+    return results
+
+
+def mark_executed(action_id: Any, result: Any) -> None:
+    """Record execution completion for an approved action."""
+    db = get_mongo_db()
+    now = datetime.now(timezone.utc).isoformat()
+    filter_query: dict[str, Any] = {"$or": [{"id": str(action_id)}, {"id": action_id}]}
+    if isinstance(action_id, str) and ObjectId.is_valid(action_id):
+        filter_query["$or"].append({"_id": ObjectId(action_id)})
+    db.agent_actions.update_one(
+        filter_query,
+        {"$set": {"executed_at": now, "execution_result": result}},
+    )
+
+
+def mark_execution_failed(action_id: Any, error_msg: str) -> None:
+    """Record execution failure for an action."""
+    db = get_mongo_db()
+    now = datetime.now(timezone.utc).isoformat()
+    filter_query: dict[str, Any] = {"$or": [{"id": str(action_id)}, {"id": action_id}]}
+    if isinstance(action_id, str) and ObjectId.is_valid(action_id):
+        filter_query["$or"].append({"_id": ObjectId(action_id)})
+    db.agent_actions.update_one(
+        filter_query,
+        {"$set": {"status": "failed", "executed_at": now, "execution_result": {"error": error_msg}}},
+    )
+
+
 def get_recent(limit: int = 50, module: Optional[str] = None, user_id: Optional[str] = None) -> list[dict]:
     db = get_mongo_db()
     query: dict[str, Any] = {}

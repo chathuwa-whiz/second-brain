@@ -41,7 +41,7 @@ convenience.
 
 ## job_matches: how n8n feeds this system
 
-The n8n "Job Search Matcher v3" workflow (on the VPS, `chathushka.xubi.org`)
+The n8n "Job Search Matcher v3" workflow (on the VPS, `secondbrain.xubi.org`)
 scrapes/pulls job postings daily, scores each with the LLM gateway, and
 used to Telegram anything scoring >= 7. It now instead POSTs each good
 match to **`webhook_server.py`**, a small separate FastAPI app that lives
@@ -102,7 +102,7 @@ systemctl enable --now job-tracker-webhook
 ```
 
 Then add an Nginx location block on the same server block that already
-proxies n8n at `chathushka.xubi.org`, so it's reachable at a path instead
+proxies n8n at `secondbrain.xubi.org`, so it's reachable at a path instead
 of a new port/subdomain:
 
 ```nginx
@@ -117,13 +117,13 @@ location /job-tracker/ {
 node should call is:
 
 ```
-https://chathushka.xubi.org/job-tracker/webhook/job-match
+https://secondbrain.xubi.org/job-tracker/webhook/job-match
 ```
 
 Quick check once it's up:
 
 ```bash
-curl https://chathushka.xubi.org/job-tracker/health
+curl https://secondbrain.xubi.org/job-tracker/health
 # {"ok": true}
 ```
 

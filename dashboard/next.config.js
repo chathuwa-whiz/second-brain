@@ -4,7 +4,7 @@
   basePath must be a build-time constant baked into the bundle, so it's read
   from NEXT_BASE_PATH here (set in the environment that runs `next build`),
   not from a runtime-configurable source. On the VPS this is "/secondbrain",
-  since the app lives at chathushka.xubi.org/secondbrain rather than its own
+  since the app lives at secondbrain.xubi.org/secondbrain rather than its own
   subdomain. Local dev leaves it unset and runs at the root as before.
 
   "standalone" output traces only the files actually needed at runtime into

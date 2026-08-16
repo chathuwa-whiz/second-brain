@@ -47,5 +47,5 @@ Each subfolder has its own README with exact run instructions and env vars.
 - MCP servers: Python, FastMCP — one per module, scoped tool access
 - Data: MongoDB (module data) + Postgres (agent action log / trust layer)
 - Dashboard: Next.js + TypeScript + Tailwind + NextAuth
-- Deployment target: your existing VPS (chathushka.xubi.org) + Nginx, same pattern
+- Deployment target: your existing VPS (secondbrain.xubi.org) + Nginx, same pattern
   as your n8n setup

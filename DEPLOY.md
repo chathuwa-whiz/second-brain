@@ -27,7 +27,7 @@ a plain `git push` deploys automatically from then on.
   | `second-brain-job-tracker-webhook` | 8090 | n8n → `job_matches` (already documented in `mcp-servers/job-tracker-mcp/README.md`) |
   | `second-brain-orchestrator-webhook` | 8092 | The agent's front door — hand it a request, it plans + (maybe) acts |
   | `second-brain-approval-executor` | — (no port, just polls Postgres) | Actually runs actions once you approve them from the dashboard |
-- **Nginx** gets one new server block (`nginx/chathushka.xubi.org.conf` in
+- **Nginx** gets one new server block (`nginx/secondbrain.xubi.org.conf` in
   this folder) replacing whatever currently proxies `/` to n8n.
 
 ## 1. Get the code onto the VPS
@@ -90,7 +90,7 @@ nano .env.production
 Fill in `.env.production` with real values — critically:
 
 ```bash
-NEXTAUTH_URL=https://chathushka.xubi.org/secondbrain
+NEXTAUTH_URL=https://secondbrain.xubi.org/secondbrain
 NEXT_BASE_PATH=/secondbrain
 NEXT_PUBLIC_BASE_PATH=/secondbrain
 ORACLE_USER=ADMIN
@@ -148,7 +148,7 @@ machine.
 ## 5. Nginx
 
 ```bash
-sudo cp nginx/chathushka.xubi.org.conf /etc/nginx/sites-available/chathushka.xubi.org
+sudo cp nginx/secondbrain.xubi.org.conf /etc/nginx/sites-available/secondbrain.xubi.org
 ```
 
 **Read the file first** — it assumes it's replacing the entire existing
@@ -181,11 +181,11 @@ docker run -d \
   --memory-swap="1400m" \
   -e NODE_OPTIONS="--max-old-space-size=550" \
   -v ~/n8n-data:/home/node/.n8n \
-  -e N8N_HOST="chathushka.xubi.org" \
+  -e N8N_HOST="secondbrain.xubi.org" \
   -e N8N_PROTOCOL="https" \
   -e N8N_PATH="/n8n/" \
-  -e N8N_EDITOR_BASE_URL="https://chathushka.xubi.org/n8n/" \
-  -e WEBHOOK_URL="https://chathushka.xubi.org/n8n/" \
+  -e N8N_EDITOR_BASE_URL="https://secondbrain.xubi.org/n8n/" \
+  -e WEBHOOK_URL="https://secondbrain.xubi.org/n8n/" \
   -e N8N_PROXY_HOPS="1" \
   -e GENERIC_TIMEZONE="Asia/Colombo" \
   -e EXECUTIONS_DATA_SAVE_ON_SUCCESS="none" \
@@ -195,7 +195,7 @@ docker run -d \
   n8nio/n8n
 ```
 
-Confirm n8n loads at `https://chathushka.xubi.org/n8n/` before moving on —
+Confirm n8n loads at `https://secondbrain.xubi.org/n8n/` before moving on —
 if this step is wrong, `location /n8n/` in the Nginx config won't save you.
 
 ## 7. Install and start the services
@@ -220,20 +220,20 @@ journalctl -u second-brain-orchestrator-webhook -f   # tail logs for any one of 
 ## 8. Verify end to end
 
 ```bash
-curl https://chathushka.xubi.org/job-tracker/health
+curl https://secondbrain.xubi.org/job-tracker/health
 # {"ok":true}
 
-curl https://chathushka.xubi.org/agent/health
+curl https://secondbrain.xubi.org/agent/health
 # {"ok":true}
 
-curl -X POST https://chathushka.xubi.org/agent/webhook/request \
+curl -X POST https://secondbrain.xubi.org/agent/webhook/request \
   -H "Content-Type: application/json" \
   -H "X-Webhook-Secret: <ORCHESTRATOR_WEBHOOK_SECRET>" \
   -d '{"request": "Do I have any job applications that need a follow-up?"}'
 # should return the same shaped JSON `python agent.py "..."` prints locally
 ```
 
-Then open `https://chathushka.xubi.org/secondbrain` in a browser, log in,
+Then open `https://secondbrain.xubi.org/secondbrain` in a browser, log in,
 and confirm the Overview page loads with real data (or an honest empty
 state if the databases are fresh).
 
@@ -301,7 +301,7 @@ variables → Actions → New repository secret:
 
 | Secret | Value |
 |---|---|
-| `VPS_HOST` | `chathushka.xubi.org` |
+| `VPS_HOST` | `secondbrain.xubi.org` |
 | `VPS_USER` | `root` |
 | `VPS_SSH_KEY` | the **private** key, full contents of `~/gh_deploy_key` |
 | `VPS_SSH_PORT` | `22` (optional — workflow defaults to 22 if unset) |

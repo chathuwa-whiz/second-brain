@@ -82,11 +82,6 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Invalid email or password.");
         }
 
-        if (!user.email_verified) {
-          // Explicit code caught by the login page
-          throw new Error("EMAIL_NOT_VERIFIED");
-        }
-
         return {
           id: user.id,
           name: user.name || user.email.split("@")[0],

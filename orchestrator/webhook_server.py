@@ -21,7 +21,7 @@ Run:
     uvicorn webhook_server:app --host 127.0.0.1 --port 8092
 
 Deploy behind Nginx on the VPS so it's reachable at, e.g.:
-    https://chathushka.xubi.org/agent/webhook/request
+    https://secondbrain.xubi.org/agent/webhook/request
 See DEPLOY.md at the repo root for the full systemd + Nginx setup.
 """
 

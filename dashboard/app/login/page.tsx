@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card, ErrorNote } from "@/components/ui";
-import { IconGoogle, IconMail, IconCheck } from "@/components/icons";
+import { IconGoogle } from "@/components/icons";
 import { withBasePath } from "@/lib/basePath";
 
 export default function LoginPage() {
@@ -17,12 +17,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
-  const [resending, setResending] = useState(false);
-  const [resendStatus, setResendStatus] = useState<string | null>(null);
 
   async function handleGoogleSignIn() {
     setGoogleLoading(true);
@@ -40,9 +36,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMessage(null);
-    setUnverifiedEmail(null);
-    setResendStatus(null);
 
     try {
       const res = await signIn("credentials", {
@@ -54,12 +47,11 @@ export default function LoginPage() {
       setLoading(false);
 
       if (res?.error) {
-        if (res.error.includes("EMAIL_NOT_VERIFIED")) {
-          setUnverifiedEmail(email);
-          setError("Your email address has not been verified yet.");
-        } else {
-          setError(res.error === "CredentialsSignin" ? "Invalid email or password." : res.error);
-        }
+        setError(
+          res.error === "CredentialsSignin"
+            ? "Invalid email or password."
+            : res.error
+        );
         return;
       }
 
@@ -75,9 +67,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setSuccessMessage(null);
-    setUnverifiedEmail(null);
-    setResendStatus(null);
 
     try {
       const res = await fetch(withBasePath("/api/auth/register"), {
@@ -87,47 +76,34 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
-      setLoading(false);
 
       if (!res.ok || data.error) {
+        setLoading(false);
         setError(data.error || "Failed to create account.");
         return;
       }
 
-      setSuccessMessage(
-        data.message ||
-          "Account created! We've sent a verification link to your email. Please check your inbox."
-      );
-      setUnverifiedEmail(email);
-      setPassword("");
+      // Auto sign-in immediately after account creation
+      const signinRes = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
+
+      setLoading(false);
+
+      if (signinRes?.error) {
+        setError("Account created! Please enter your password to sign in.");
+        setMode("signin");
+        return;
+      }
+
+      // Route directly to onboarding wizard for new user setup
+      router.push(withBasePath("/onboarding"));
+      router.refresh();
     } catch (err) {
       setLoading(false);
       setError("Failed to register. Please try again.");
-    }
-  }
-
-  async function handleResendVerification() {
-    const targetEmail = unverifiedEmail || email;
-    if (!targetEmail) return;
-
-    setResending(true);
-    setResendStatus(null);
-    try {
-      const res = await fetch(withBasePath("/api/auth/verify-email"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: targetEmail }),
-      });
-      const data = await res.json();
-      setResending(false);
-      if (res.ok && data.success) {
-        setResendStatus("Verification email resent! Please check your spam/inbox.");
-      } else {
-        setResendStatus(data.error || "Failed to resend email.");
-      }
-    } catch (err) {
-      setResending(false);
-      setResendStatus("Error sending verification email.");
     }
   }
 
@@ -172,8 +148,6 @@ export default function LoginPage() {
               onClick={() => {
                 setMode("signin");
                 setError(null);
-                setSuccessMessage(null);
-                setResendStatus(null);
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "signin"
@@ -188,8 +162,6 @@ export default function LoginPage() {
               onClick={() => {
                 setMode("signup");
                 setError(null);
-                setSuccessMessage(null);
-                setResendStatus(null);
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "signup"
@@ -219,40 +191,6 @@ export default function LoginPage() {
             </span>
             <div className="h-px flex-1 bg-hairline/15" />
           </div>
-
-          {/* Verification Notification Banner */}
-          {successMessage && (
-            <div className="mb-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-xs text-emerald-400">
-              <div className="flex items-start gap-2.5">
-                <IconMail className="h-4 w-4 mt-0.5 shrink-0 text-emerald-400" />
-                <div className="flex-1">
-                  <p className="font-semibold">Check your inbox</p>
-                  <p className="mt-0.5 leading-relaxed">{successMessage}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Unverified Account Warning */}
-          {unverifiedEmail && mode === "signin" && (
-            <div className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3.5 text-xs text-amber-300">
-              <p className="font-semibold">Email Verification Required</p>
-              <p className="mt-1 leading-relaxed">
-                Please verify your email address before signing in.
-              </p>
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                disabled={resending}
-                className="mt-2.5 inline-flex items-center gap-1.5 rounded-lg bg-amber-500/20 px-2.5 py-1 text-2xs font-semibold text-amber-200 hover:bg-amber-500/30"
-              >
-                {resending ? "Sending link…" : "Resend verification link"}
-              </button>
-              {resendStatus && (
-                <p className="mt-2 text-2xs text-amber-200">{resendStatus}</p>
-              )}
-            </div>
-          )}
 
           {/* Form */}
           <form
