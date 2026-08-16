@@ -25,10 +25,12 @@ export function Card({
 export function SectionHeader({
   eyebrow,
   title,
+  description,
   action,
 }: {
   eyebrow?: string;
   title: string;
+  description?: string;
   action?: ReactNode;
 }) {
   return (
@@ -42,6 +44,9 @@ export function SectionHeader({
         <h2 className="text-sm font-semibold tracking-tight text-primary sm:text-base">
           {title}
         </h2>
+        {description && (
+          <p className="text-2xs text-secondary mt-0.5 max-w-2xl">{description}</p>
+        )}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -253,25 +258,38 @@ export function ConfidenceMeter({
 export function EmptyState({
   title,
   body,
+  message,
   action,
 }: {
   title: string;
-  body: string;
+  body?: string;
+  message?: string;
   action?: ReactNode;
 }) {
   return (
     <Card className="p-6 text-center sm:p-10">
       <p className="text-sm font-semibold text-primary sm:text-base">{title}</p>
-      <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-secondary sm:text-sm">{body}</p>
+      {(body || message) && (
+        <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-secondary sm:text-sm">
+          {body || message}
+        </p>
+      )}
       {action && <div className="mt-4 flex justify-center sm:mt-5">{action}</div>}
     </Card>
   );
 }
 
-export function ErrorNote({ children }: { children: ReactNode }) {
+export function ErrorNote({
+  children,
+  message,
+}: {
+  children?: ReactNode;
+  message?: string;
+}) {
   return (
     <div className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs leading-relaxed text-danger-ink ring-1 ring-inset ring-danger/25 sm:px-4 sm:py-3 sm:text-sm">
-      {children}
+      {children || message}
     </div>
   );
 }
+

@@ -735,3 +735,521 @@ export async function saveEmailSettings(
 
   return toSave;
 }
+
+// ---------------------------------------------------------------------------
+// Admin Side Operations & Platform Control
+// ---------------------------------------------------------------------------
+
+export type PlatformConfig = {
+  auto_execute_confidence: number;
+  registration_mode: "open" | "invite_only" | "closed";
+  maintenance_mode: boolean;
+  system_announcement: string;
+  default_model: string;
+  max_daily_actions_per_user: number;
+  updated_at?: string;
+  updated_by?: string;
+};
+
+export async function adminGetPlatformStats() {
+  const db = await getDb();
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  const [
+    totalUsers,
+    adminUsers,
+    verifiedUsers,
+    newUsers24h,
+    totalActions,
+    pendingActions,
+    autoExecutedActions,
+    approvedActions,
+    rejectedActions,
+    failedActions,
+    actions24h,
+    totalJobMatches,
+    totalApiKeys,
+    totalResumes,
+    byModuleAgg,
+  ] = await Promise.all([
+    db.collection("users").countDocuments({}),
+    db.collection("users").countDocuments({ role: "admin" }),
+    db.collection("users").countDocuments({ email_verified: { $ne: null } }),
+    db.collection("users").countDocuments({
+      $or: [
+        { created_at: { $gte: twentyFourHoursAgo.toISOString() } },
+        { created_at: { $gte: twentyFourHoursAgo } },
+      ],
+    }),
+    db.collection("agent_actions").countDocuments({}),
+    db.collection("agent_actions").countDocuments({ status: "pending" }),
+    db.collection("agent_actions").countDocuments({ status: "auto_executed" }),
+    db.collection("agent_actions").countDocuments({ status: "approved" }),
+    db.collection("agent_actions").countDocuments({ status: "rejected" }),
+    db.collection("agent_actions").countDocuments({ status: "failed" }),
+    db.collection("agent_actions").countDocuments({
+      $or: [
+        { created_at: { $gte: twentyFourHoursAgo.toISOString() } },
+        { created_at: { $gte: twentyFourHoursAgo } },
+      ],
+    }),
+    db.collection("job_matches").countDocuments({}).catch(() => 0),
+    db.collection("api_keys").countDocuments({}).catch(() => 0),
+    db.collection("resumes").countDocuments({}).catch(() => 0),
+    db.collection("agent_actions")
+      .aggregate([
+        { $group: { _id: "$module", count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+      ])
+      .toArray()
+      .catch(() => []),
+  ]);
+
+  const byModule = (byModuleAgg || []).map((row) => ({
+    module: String(row._id || "general"),
+    count: Number(row.count),
+  }));
+
+  return {
+    users: {
+      total: totalUsers,
+      admins: adminUsers,
+      regular: Math.max(0, totalUsers - adminUsers),
+      verified: verifiedUsers,
+      new24h: newUsers24h,
+    },
+    actions: {
+      total: totalActions,
+      pending: pendingActions,
+      autoExecuted: autoExecutedActions,
+      approved: approvedActions,
+      rejected: rejectedActions,
+      failed: failedActions,
+      last24h: actions24h,
+      byModule,
+    },
+    ecosystem: {
+      jobMatches: totalJobMatches,
+      apiKeys: totalApiKeys,
+      resumes: totalResumes,
+    },
+  };
+}
+
+export type AdminUserRow = User & {
+  actionCount: number;
+  apiKeyCount: number;
+  hasCustomProfile: boolean;
+};
+
+export async function adminListUsers(options: {
+  search?: string;
+  role?: string;
+  isVerified?: boolean;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ users: AdminUserRow[]; total: number }> {
+  const db = await getDb();
+  const query: Record<string, any> = {};
+
+  if (options.role) {
+    query.role = options.role;
+  }
+  if (options.isVerified !== undefined) {
+    query.email_verified = options.isVerified ? { $ne: null } : null;
+  }
+  if (options.search) {
+    const s = options.search.trim();
+    query.$or = [
+      { email: { $regex: s, $options: "i" } },
+      { name: { $regex: s, $options: "i" } },
+      { id: { $regex: s, $options: "i" } },
+    ];
+  }
+
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+
+  const [total, userDocs] = await Promise.all([
+    db.collection("users").countDocuments(query),
+    db
+      .collection("users")
+      .find(query)
+      .sort({ created_at: -1, _id: -1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray(),
+  ]);
+
+  const userIds = userDocs.map((u) => String(u.id || u._id));
+
+  // Batch query user metadata
+  const [actionCounts, keyCounts, profileDocs] = await Promise.all([
+    db
+      .collection("agent_actions")
+      .aggregate([
+        { $match: { user_id: { $in: userIds } } },
+        { $group: { _id: "$user_id", count: { $sum: 1 } } },
+      ])
+      .toArray()
+      .catch(() => []),
+    db
+      .collection("api_keys")
+      .aggregate([
+        { $match: { user_id: { $in: userIds } } },
+        { $group: { _id: "$user_id", count: { $sum: 1 } } },
+      ])
+      .toArray()
+      .catch(() => []),
+    db
+      .collection("system_settings")
+      .find({ key: "user_profile", user_id: { $in: userIds } })
+      .toArray()
+      .catch(() => []),
+  ]);
+
+  const actionMap = new Map<string, number>();
+  for (const a of actionCounts) {
+    if (a._id) actionMap.set(String(a._id), Number(a.count));
+  }
+
+  const keyMap = new Map<string, number>();
+  for (const k of keyCounts) {
+    if (k._id) keyMap.set(String(k._id), Number(k.count));
+  }
+
+  const profileSet = new Set<string>();
+  for (const p of profileDocs) {
+    if (p.user_id) profileSet.add(String(p.user_id));
+  }
+
+  const users: AdminUserRow[] = userDocs.map((doc) => {
+    const u = formatUser(doc);
+    return {
+      ...u,
+      actionCount: actionMap.get(u.id) || 0,
+      apiKeyCount: keyMap.get(u.id) || 0,
+      hasCustomProfile: profileSet.has(u.id),
+    };
+  });
+
+  return { users, total };
+}
+
+export async function adminGetUserDetail(userId: string) {
+  const db = await getDb();
+  const user = await getUserById(userId);
+  if (!user) return null;
+
+  const [profileDoc, emailDoc, keys, recentActions, jobMatchesCount, resumesCount] =
+    await Promise.all([
+      db.collection("system_settings").findOne({ key: "user_profile", user_id: userId }),
+      db.collection("system_settings").findOne({ key: "email_settings", user_id: userId }),
+      db.collection("api_keys").find({ user_id: userId }).toArray(),
+      db
+        .collection("agent_actions")
+        .find({ user_id: userId })
+        .sort({ created_at: -1 })
+        .limit(10)
+        .toArray(),
+      db.collection("job_matches").countDocuments({ user_id: userId }).catch(() => 0),
+      db.collection("resumes").countDocuments({ user_id: userId }).catch(() => 0),
+    ]);
+
+  return {
+    user,
+    profile: profileDoc?.value || null,
+    emailSettings: emailDoc?.value || null,
+    apiKeys: keys.map((k) => ({
+      id: String(k.id || k._id),
+      name: String(k.name),
+      preview: String(k.key_preview),
+      lastUsedAt: k.last_used_at ? iso(k.last_used_at) : null,
+      createdAt: iso(k.created_at),
+    })),
+    recentActions: recentActions.map(formatAction),
+    stats: {
+      jobMatchesCount,
+      resumesCount,
+      totalActions: recentActions.length,
+    },
+  };
+}
+
+export async function adminUpdateUser(
+  userId: string,
+  updates: {
+    name?: string;
+    role?: string;
+    email_verified?: string | null;
+    password_hash?: string;
+  }
+): Promise<boolean> {
+  const db = await getDb();
+  const filter: any = { $or: [{ id: userId }] };
+  if (ObjectId.isValid(userId)) filter.$or.push({ _id: new ObjectId(userId) });
+
+  const setFields: Record<string, any> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (updates.name !== undefined) setFields.name = updates.name;
+  if (updates.role !== undefined) setFields.role = updates.role;
+  if (updates.email_verified !== undefined) setFields.email_verified = updates.email_verified;
+  if (updates.password_hash !== undefined) setFields.password_hash = updates.password_hash;
+
+  const res = await db.collection("users").updateOne(filter, { $set: setFields });
+  return res.matchedCount > 0;
+}
+
+export async function adminDeleteUser(userId: string): Promise<boolean> {
+  const db = await getDb();
+  const filter: any = { $or: [{ id: userId }] };
+  if (ObjectId.isValid(userId)) filter.$or.push({ _id: new ObjectId(userId) });
+
+  // Delete user record
+  const res = await db.collection("users").deleteOne(filter);
+
+  // Clean up user-associated collections asynchronously
+  const userFilter = { user_id: userId };
+  Promise.all([
+    db.collection("system_settings").deleteMany(userFilter),
+    db.collection("api_keys").deleteMany(userFilter),
+    db.collection("verification_tokens").deleteMany(userFilter),
+    db.collection("accounts").deleteMany(userFilter),
+    db.collection("agent_actions").deleteMany(userFilter),
+    db.collection("job_matches").deleteMany(userFilter),
+    db.collection("job_applications").deleteMany(userFilter),
+    db.collection("resumes").deleteMany(userFilter),
+  ]).catch((err) => console.error("Error cascading admin user delete:", err));
+
+  return res.deletedCount > 0;
+}
+
+export async function adminListAllActions(options: {
+  status?: string;
+  module?: string;
+  userId?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<{ actions: (AgentAction & { userEmail?: string })[]; total: number }> {
+  const db = await getDb();
+  const query: Record<string, any> = {};
+
+  if (options.status) query.status = options.status;
+  if (options.module) query.module = options.module;
+  if (options.userId) query.user_id = options.userId;
+
+  if (options.search) {
+    const s = options.search.trim();
+    query.$or = [
+      { action: { $regex: s, $options: "i" } },
+      { reasoning: { $regex: s, $options: "i" } },
+      { module: { $regex: s, $options: "i" } },
+    ];
+  }
+
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+
+  const [total, docs] = await Promise.all([
+    db.collection("agent_actions").countDocuments(query),
+    db
+      .collection("agent_actions")
+      .find(query)
+      .sort({ created_at: -1, _id: -1 })
+      .skip(offset)
+      .limit(limit)
+      .toArray(),
+  ]);
+
+  // Lookup user emails for actions
+  const userIds = Array.from(
+    new Set(docs.map((d) => d.user_id).filter(Boolean).map(String))
+  );
+
+  let userEmailMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const users = await db
+      .collection("users")
+      .find({ id: { $in: userIds } })
+      .project({ id: 1, email: 1 })
+      .toArray();
+    for (const u of users) {
+      if (u.id && u.email) userEmailMap.set(String(u.id), String(u.email));
+    }
+  }
+
+  const actions = docs.map((d) => {
+    const formatted = formatAction(d);
+    return {
+      ...formatted,
+      userEmail: formatted.user_id ? userEmailMap.get(formatted.user_id) : undefined,
+    };
+  });
+
+  return { actions, total };
+}
+
+export async function adminListAllApiKeys() {
+  const db = await getDb();
+  const keys = await db
+    .collection("api_keys")
+    .find({})
+    .sort({ created_at: -1 })
+    .limit(100)
+    .toArray();
+
+  const userIds = Array.from(new Set(keys.map((k) => String(k.user_id)).filter(Boolean)));
+  const users = await db
+    .collection("users")
+    .find({ id: { $in: userIds } })
+    .project({ id: 1, email: 1, name: 1 })
+    .toArray();
+
+  const userMap = new Map<string, { email: string; name: string | null }>();
+  for (const u of users) {
+    userMap.set(String(u.id), {
+      email: String(u.email),
+      name: u.name ? String(u.name) : null,
+    });
+  }
+
+  return keys.map((k) => {
+    const u = userMap.get(String(k.user_id));
+    return {
+      id: String(k.id || k._id),
+      userId: String(k.user_id),
+      userEmail: u?.email || "Unknown User",
+      userName: u?.name || null,
+      name: String(k.name || "API Key"),
+      keyPreview: String(k.key_preview),
+      lastUsedAt: k.last_used_at ? iso(k.last_used_at) : null,
+      createdAt: iso(k.created_at),
+    };
+  });
+}
+
+export async function adminDeleteApiKey(keyId: string): Promise<boolean> {
+  const db = await getDb();
+  const filter: any = { $or: [{ id: keyId }] };
+  if (ObjectId.isValid(keyId)) filter.$or.push({ _id: new ObjectId(keyId) });
+
+  const res = await db.collection("api_keys").deleteOne(filter);
+  return res.deletedCount > 0;
+}
+
+export async function adminGetPlatformConfig(): Promise<PlatformConfig> {
+  const defaultThreshold = Number(
+    process.env.NEXT_PUBLIC_AUTO_EXECUTE_CONFIDENCE_THRESHOLD ?? "0.75"
+  );
+  try {
+    const db = await getDb();
+    const doc = await db
+      .collection("system_settings")
+      .findOne({ key: "admin_platform_config" });
+
+    if (doc && doc.value) {
+      return {
+        auto_execute_confidence:
+          doc.value.auto_execute_confidence ?? defaultThreshold,
+        registration_mode: doc.value.registration_mode ?? "open",
+        maintenance_mode: Boolean(doc.value.maintenance_mode),
+        system_announcement: doc.value.system_announcement ?? "",
+        default_model: doc.value.default_model ?? "gemini-1.5-pro",
+        max_daily_actions_per_user: doc.value.max_daily_actions_per_user ?? 50,
+        updated_at: doc.updated_at ? iso(doc.updated_at) : undefined,
+        updated_by: doc.value.updated_by,
+      };
+    }
+  } catch (err) {
+    console.warn("adminGetPlatformConfig error:", err);
+  }
+
+  return {
+    auto_execute_confidence: defaultThreshold,
+    registration_mode: "open",
+    maintenance_mode: false,
+    system_announcement: "",
+    default_model: "gemini-1.5-pro",
+    max_daily_actions_per_user: 50,
+  };
+}
+
+export async function adminSavePlatformConfig(
+  config: Partial<PlatformConfig>,
+  updatedBy?: string
+): Promise<PlatformConfig> {
+  const db = await getDb();
+  const current = await adminGetPlatformConfig();
+  const merged: PlatformConfig = {
+    ...current,
+    ...config,
+    updated_at: new Date().toISOString(),
+    updated_by: updatedBy || "admin",
+  };
+
+  await db.collection("system_settings").updateOne(
+    { key: "admin_platform_config" },
+    {
+      $set: {
+        key: "admin_platform_config",
+        value: merged,
+        updated_at: new Date().toISOString(),
+      },
+    },
+    { upsert: true }
+  );
+
+  return merged;
+}
+
+export async function adminPruneOldActions(
+  olderThanDays: number,
+  status?: string
+): Promise<{ deletedCount: number }> {
+  const db = await getDb();
+  const cutoffDate = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000);
+  const query: Record<string, any> = {
+    $or: [
+      { created_at: { $lte: cutoffDate.toISOString() } },
+      { created_at: { $lte: cutoffDate } },
+    ],
+  };
+  if (status) {
+    query.status = status;
+  }
+
+  const res = await db.collection("agent_actions").deleteMany(query);
+  return { deletedCount: res.deletedCount || 0 };
+}
+
+export async function adminGetCollectionStats() {
+  const db = await getDb();
+  const collections = [
+    "users",
+    "agent_actions",
+    "job_matches",
+    "job_applications",
+    "resumes",
+    "api_keys",
+    "system_settings",
+    "accounts",
+    "verification_tokens",
+  ];
+
+  const results = await Promise.all(
+    collections.map(async (name) => {
+      try {
+        const count = await db.collection(name).countDocuments({});
+        return { name, count, error: null };
+      } catch (err) {
+        return { name, count: 0, error: (err as Error).message };
+      }
+    })
+  );
+
+  return results;
+}
+

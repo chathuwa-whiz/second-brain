@@ -20,7 +20,12 @@ const STANDALONE = ["/onboarding", "/login", "/verify-email"];
 
 type UserInfo =
   | string
-  | { name?: string | null; email?: string | null; image?: string | null }
+  | {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
+      role?: string | null;
+    }
   | null;
 
 export default function ShellGate({

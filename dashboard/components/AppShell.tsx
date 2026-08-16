@@ -17,6 +17,11 @@ import {
   IconSettings,
   IconSignOut,
   IconMenu,
+  IconShield,
+  IconUsers,
+  IconAudit,
+  IconKey,
+  IconServer,
 } from "./icons";
 
 type NavItem = {
@@ -25,12 +30,10 @@ type NavItem = {
   Icon: (p: { className?: string }) => JSX.Element;
   /** Shown in the mobile tab bar - the rest live behind the menu. */
   primary?: boolean;
+  adminOnly?: boolean;
 };
 
-/* Grouped so the rail reads as "what the agent did" / "what it manages"
-   / "how it's set up" rather than one flat list that grows unreadable as
-   modules land. */
-const NAV: { group: string; items: NavItem[] }[] = [
+const BASE_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Oversight",
     items: [
@@ -61,10 +64,22 @@ const NAV: { group: string; items: NavItem[] }[] = [
   },
 ];
 
-const ALL_ITEMS = NAV.flatMap((g) => g.items);
+const ADMIN_GROUP: { group: string; items: NavItem[] } = {
+  group: "Admin Console",
+  items: [
+    { href: "/admin", label: "Platform Overview", Icon: IconShield, adminOnly: true },
+    { href: "/admin/users", label: "User Accounts", Icon: IconUsers, adminOnly: true },
+    { href: "/admin/actions", label: "Audit Logs", Icon: IconAudit, adminOnly: true },
+    { href: "/admin/api-keys", label: "API Keys", Icon: IconKey, adminOnly: true },
+    { href: "/admin/modules", label: "MCP Servers", Icon: IconServer, adminOnly: true },
+    { href: "/admin/settings", label: "Platform Settings", Icon: IconSettings, adminOnly: true },
+  ],
+};
 
 function isActive(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  if (href === "/") return pathname === "/";
+  if (href === "/admin") return pathname === "/admin";
+  return pathname.startsWith(href);
 }
 
 function NavLink({
@@ -101,30 +116,56 @@ function NavLink({
   );
 }
 
-function Brand() {
+function Brand({ isAdminRoute }: { isAdminRoute?: boolean }) {
   return (
     <div className="flex items-center gap-3 px-3">
-      <div className="relative grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-[18px] w-[18px]"
-          aria-hidden="true"
-        >
-          <path d="M12 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 6 0v-9a3 3 0 0 0-3-3z" />
-          <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
-        </svg>
+      <div className={`relative grid h-9 w-9 place-items-center rounded-xl shadow-lg ${
+        isAdminRoute
+          ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/25"
+          : "bg-gradient-to-br from-accent to-violet shadow-accent/25"
+      }`}>
+        {isAdminRoute ? (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+            aria-hidden="true"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        ) : (
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="white"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+            aria-hidden="true"
+          >
+            <path d="M12 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 6 0v-9a3 3 0 0 0-3-3z" />
+            <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
+          </svg>
+        )}
       </div>
       <div className="leading-tight">
-        <p className="text-sm font-semibold tracking-tight text-primary">
-          Second Brain
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold tracking-tight text-primary">
+            Second Brain
+          </p>
+          {isAdminRoute && (
+            <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-3xs font-bold uppercase tracking-wider text-amber-500">
+              Admin
+            </span>
+          )}
+        </div>
         <p className="text-2xs uppercase tracking-wider text-muted">
-          Control panel
+          {isAdminRoute ? "System Administration" : "Control panel"}
         </p>
       </div>
     </div>
@@ -137,6 +178,7 @@ type UserInfo =
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      role?: string | null;
     }
   | null;
 
@@ -149,7 +191,14 @@ export default function AppShell({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
-  const current = ALL_ITEMS.find((i) => isActive(pathname, i.href));
+
+  const userRole = typeof user === "object" ? user?.role : null;
+  const isAdmin = userRole === "admin";
+  const isOnAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+
+  const navGroups = isAdmin ? [...BASE_NAV, ADMIN_GROUP] : BASE_NAV;
+  const allItems = navGroups.flatMap((g) => g.items);
+  const current = allItems.find((i) => isActive(pathname, i.href));
 
   const userName = typeof user === "string" ? user : user?.name || user?.email?.split("@")[0] || "User";
   const userEmail = typeof user === "object" ? user?.email : null;
@@ -183,10 +232,10 @@ export default function AppShell({
     <div className="min-h-screen w-full">
       {/* ---------- Desktop fixed sidebar rail ---------- */}
       <aside className="glass-chrome fixed inset-y-0 left-0 z-30 hidden h-screen w-[248px] flex-col border-r py-5 lg:flex">
-        <Brand />
+        <Brand isAdminRoute={isOnAdminRoute} />
 
         <nav className="mt-7 flex-1 space-y-6 overflow-y-auto px-3">
-          {NAV.map((group) => (
+          {navGroups.map((group) => (
             <div key={group.group}>
               <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-wider text-muted">
                 {group.group}
@@ -216,9 +265,16 @@ export default function AppShell({
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-medium text-primary">
-                {userName}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-xs font-medium text-primary">
+                  {userName}
+                </p>
+                {isAdmin && (
+                  <span className="rounded bg-amber-500/15 px-1 py-0.2 text-3xs font-semibold uppercase text-amber-500">
+                    Admin
+                  </span>
+                )}
+              </div>
               {userEmail && (
                 <p className="truncate text-2xs text-muted">{userEmail}</p>
               )}
@@ -264,9 +320,16 @@ export default function AppShell({
               >
                 <IconMenu />
               </button>
-              <p className="truncate text-sm font-medium tracking-tight text-primary">
-                {current?.label ?? "Second Brain"}
-              </p>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <p className="truncate text-sm font-medium tracking-tight text-primary">
+                  {current?.label ?? (isOnAdminRoute ? "Admin Console" : "Second Brain")}
+                </p>
+                {isOnAdminRoute && (
+                  <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-3xs font-bold uppercase text-amber-500">
+                    Admin
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Appearance stays reachable in one tap, not buried in the menu */}
@@ -287,11 +350,7 @@ export default function AppShell({
             </div>
           </div>
 
-          {/*
-            Anchored to the header rather than a magic `top-[58px]`, which was
-            only correct at one breakpoint - the header grows at `sm` and the
-            panel used to detach from it.
-          */}
+          {/* Mobile slideout menu */}
           {menuOpen && (
             <div className="animate-rise absolute inset-x-3.5 top-full mt-2 rounded-2xl border border-hairline/15 bg-raised p-3 shadow-2xl sm:inset-x-4">
               <div className="flex items-center justify-between gap-2 pb-2.5">
@@ -318,7 +377,7 @@ export default function AppShell({
               </div>
 
               <div className="grid grid-cols-1 gap-0.5 border-t pt-2 xs:grid-cols-2">
-                {ALL_ITEMS.map((item) => (
+                {allItems.map((item) => (
                   <NavLink
                     key={item.href}
                     item={item}
@@ -349,7 +408,7 @@ export default function AppShell({
           aria-label="Mobile navigation"
           className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl border border-hairline/15 bg-chrome/85 px-1.5 py-1.5 shadow-2xl backdrop-blur-2xl lg:hidden"
         >
-          {ALL_ITEMS.filter((i) => i.primary).map((item) => {
+          {allItems.filter((i) => i.primary).map((item) => {
             const active = isActive(pathname, item.href);
             const { Icon } = item;
             return (

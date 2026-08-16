@@ -1,0 +1,195 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import AdminHeader from "@/components/admin/AdminHeader";
+import { Card, EmptyState, ErrorNote } from "@/components/ui";
+import { IconKey, IconTrash, IconRefresh, IconSearch } from "@/components/icons";
+import { withBasePath } from "@/lib/basePath";
+import { formatTimeAgo } from "@/lib/format";
+
+type AdminApiKey = {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string | null;
+  name: string;
+  keyPreview: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+};
+
+export default function AdminApiKeysPage() {
+  const [keys, setKeys] = useState<AdminApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [notification, setNotification] = useState<string | null>(null);
+
+  const loadKeys = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(withBasePath("/api/admin/api-keys"));
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        setError(data.error || "Failed to load API keys");
+      } else {
+        setKeys(data.keys || []);
+      }
+    } catch (err) {
+      setError("Failed to fetch API keys.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadKeys();
+  }, [loadKeys]);
+
+  async function handleRevokeKey(key: AdminApiKey) {
+    if (
+      !window.confirm(
+        `Are you sure you want to revoke the API key "${key.name}" (${key.keyPreview}) owned by ${key.userEmail}? Any active automations using this key will be disconnected immediately.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(withBasePath(`/api/admin/api-keys?id=${key.id}`), {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNotification(`API key "${key.name}" revoked.`);
+        loadKeys();
+        setTimeout(() => setNotification(null), 3000);
+      } else {
+        alert(data.error || "Failed to revoke API key");
+      }
+    } catch (err) {
+      alert("Failed to revoke API key");
+    }
+  }
+
+  const filteredKeys = keys.filter(
+    (k) =>
+      k.name.toLowerCase().includes(search.toLowerCase()) ||
+      k.userEmail.toLowerCase().includes(search.toLowerCase()) ||
+      k.keyPreview.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <>
+      <AdminHeader
+        title="API Keys & External Integrations"
+        description="Monitor, audit, and revoke external access tokens issued for n8n automations, MCP integrations, and scraper pipelines."
+        actions={
+          <button
+            onClick={() => loadKeys()}
+            className="press inline-flex items-center gap-1.5 rounded-xl border border-hairline/20 bg-raised px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/[0.05] transition-colors"
+          >
+            <IconRefresh className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+        }
+      />
+
+      {notification && (
+        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-medium text-emerald-400">
+          ✓ {notification}
+        </div>
+      )}
+
+      {error && <ErrorNote message={error} />}
+
+      {/* Search Input */}
+      <Card className="mb-6 p-4">
+        <div className="relative">
+          <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <input
+            type="text"
+            placeholder="Search by key label, owner email, or key preview..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-xl border border-hairline/20 bg-base pl-9 pr-4 py-2 text-xs text-primary placeholder-muted focus:border-accent focus:outline-none"
+          />
+        </div>
+      </Card>
+
+      {/* Keys Table */}
+      <Card className="divide-y divide-hairline/15 p-0">
+        <div className="hidden grid-cols-12 gap-3 px-4 py-3 bg-primary/[0.02] text-3xs font-semibold uppercase tracking-wider text-muted lg:grid">
+          <div className="col-span-4">Key Label & Token Preview</div>
+          <div className="col-span-3">Owner Account</div>
+          <div className="col-span-2">Last Used</div>
+          <div className="col-span-2">Issued Date</div>
+          <div className="col-span-1 text-right">Revoke</div>
+        </div>
+
+        {loading ? (
+          <div className="p-12 text-center text-xs text-muted">
+            Loading API keys...
+          </div>
+        ) : filteredKeys.length === 0 ? (
+          <div className="p-12">
+            <EmptyState
+              title="No API keys found"
+              message={
+                search
+                  ? "No issued keys match your search criteria."
+                  : "No API keys have been generated by users yet."
+              }
+            />
+          </div>
+        ) : (
+          filteredKeys.map((k) => (
+            <div
+              key={k.id}
+              className="flex flex-col gap-3 p-4 hover:bg-primary/[0.02] transition-colors lg:grid lg:grid-cols-12 lg:items-center lg:gap-3"
+            >
+              {/* Key Label & Token Preview */}
+              <div className="flex items-center gap-3 lg:col-span-4 min-w-0">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-violet-500/15 text-violet-500">
+                  <IconKey className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-semibold text-primary">{k.name}</p>
+                  <p className="font-mono text-2xs text-muted truncate">{k.keyPreview}</p>
+                </div>
+              </div>
+
+              {/* Owner Account */}
+              <div className="min-w-0 lg:col-span-3">
+                <p className="truncate text-xs text-primary">{k.userName || "User"}</p>
+                <p className="truncate text-2xs text-muted">{k.userEmail}</p>
+              </div>
+
+              {/* Last Used */}
+              <div className="text-2xs text-secondary lg:col-span-2">
+                {k.lastUsedAt ? formatTimeAgo(k.lastUsedAt) : "Never used"}
+              </div>
+
+              {/* Issued Date */}
+              <div className="text-2xs text-muted lg:col-span-2">
+                {formatTimeAgo(k.createdAt)}
+              </div>
+
+              {/* Revoke Button */}
+              <div className="flex items-center justify-end lg:col-span-1">
+                <button
+                  onClick={() => handleRevokeKey(k)}
+                  title="Revoke key"
+                  className="press rounded-lg p-1.5 text-danger hover:bg-danger/10"
+                >
+                  <IconTrash className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+    </>
+  );
+}

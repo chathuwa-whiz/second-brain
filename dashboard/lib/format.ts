@@ -34,3 +34,6 @@ export function absoluteTime(iso: string | Date): string {
     minute: "2-digit",
   });
 }
+
+export const formatTimeAgo = relativeTime;
+
