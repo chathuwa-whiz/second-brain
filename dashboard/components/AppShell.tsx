@@ -202,9 +202,9 @@ export default function AppShell({
   }, [menuOpen]);
 
   return (
-    <div className="flex min-h-screen w-full max-w-full overflow-x-hidden">
-      {/* ---------- Desktop rail ---------- */}
-      <aside className="glass-chrome sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-r py-5 lg:flex">
+    <div className="min-h-screen w-full">
+      {/* ---------- Desktop fixed sidebar rail ---------- */}
+      <aside className="glass-chrome fixed inset-y-0 left-0 z-30 hidden h-screen w-[248px] flex-col border-r py-5 lg:flex">
         <Brand />
 
         <nav className="mt-7 flex-1 space-y-6 overflow-y-auto px-3">
@@ -238,7 +238,7 @@ export default function AppShell({
       </aside>
 
       {/* ---------- Main column ---------- */}
-      <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
+      <div className="flex min-w-0 max-w-full flex-1 flex-col lg:pl-[248px]">
         {/* Sticky Mobile Top Bar */}
         <header className="glass-chrome sticky top-0 z-40 flex items-center justify-between gap-3 border-b px-3.5 py-2.5 backdrop-blur-2xl sm:px-4 sm:py-3 lg:hidden">
           <div className="flex min-w-0 items-center gap-2.5">
