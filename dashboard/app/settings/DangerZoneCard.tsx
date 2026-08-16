@@ -39,7 +39,7 @@ export default function DangerZoneCard() {
     <Card className="border-danger/30 p-4 ring-1 ring-danger/20 sm:p-5">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-semibold text-danger">
+          <h4 className="text-sm font-semibold text-danger-ink">
             Full Database & State Reset
           </h4>
           <p className="mt-1 text-xs text-muted">
@@ -87,7 +87,7 @@ export default function DangerZoneCard() {
       )}
 
       {success && (
-        <div className="mt-3 rounded-xl bg-ok/10 p-3 text-xs font-medium text-ok ring-1 ring-ok/25">
+        <div className="mt-3 rounded-xl bg-ok/10 p-3 text-xs font-medium text-ok-ink ring-1 ring-ok/25">
           {success}
         </div>
       )}

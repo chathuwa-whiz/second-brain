@@ -32,10 +32,26 @@
 
   --text-primary: 22 28 40; /* #161C28 - near-black, softened off pure #000 */
   --text-secondary: 78 90 112; /* #4E5A70 */
-  --text-muted: 133 145 166; /* #8591A6 */
+  /* #66707F - was #8591A6, which measured 2.96:1 on the canvas and 3.12:1 on
+     a glass card. Muted is used for labels and hints at 10-12px, where AA
+     wants 4.5:1; this clears it (4.6 / 4.9) and still reads as recessive. */
+  --text-muted: 102 112 132;
 
   --hairline: 16 24 40;
   --hairline-alpha: 0.1;
+
+  /*
+    "Ink" = the accent/violet hue when it is used as TEXT rather than a fill.
+    The fills (bg-accent, the meter gradients, status dots) stay byte-identical
+    across themes so the colour coding stays learnable - but the same mid-blue
+    that reads well as a solid button is only ~3.5:1 as 11px type on a tinted
+    chip. These shift per theme; the fills never do.
+  */
+  --accent-ink: 47 94 189; /* #2F5EBD on light paper */
+  --violet-ink: 82 68 204; /* #5244CC */
+  --ok-ink: 13 116 79; /* #0D744F  - #30C88F was 2.1:1 as text here */
+  --warn-ink: 140 84 0; /* #8C5400  - #F5A524 was 2.0:1 */
+  --danger-ink: 193 32 42; /* #C1202A  - #F2545B was 3.3:1 */
 
   /* Ambient mesh orbs - the light theme keeps them faint so the canvas stays calm */
   --mesh-1: 91 141 239;
@@ -60,10 +76,19 @@
 
   --text-primary: 237 241 249; /* #EDF1F9 - off-white, never #FFF */
   --text-secondary: 160 172 194; /* #A0ACC2 */
-  --text-muted: 111 124 148; /* #6F7C94 */
+  /* #94A0B6 - was #6F7C94, which fell to 3.92:1 once a glass card lifted the
+     background. Matches the light theme's muted contrast (6.3:1 on card). */
+  --text-muted: 148 160 182;
 
   --hairline: 255 255 255;
   --hairline-alpha: 0.1;
+
+  /* Same hues lifted for dark surfaces - see the light-theme note above. */
+  --accent-ink: 154 187 250; /* #9ABBFA */
+  --violet-ink: 178 168 250; /* #B2A8FA */
+  --ok-ink: 74 214 160; /* #4AD6A0 */
+  --warn-ink: 245 176 66; /* #F5B042 */
+  --danger-ink: 249 128 133; /* #F98085 */
 
   --mesh-1: 91 141 239;
   --mesh-2: 124 107 245;
@@ -221,10 +246,16 @@
     appearance: none;
     -webkit-appearance: none;
     padding-right: 2.25rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238591A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.75rem center;
     background-size: 1rem;
+    /* Light chevron. One fixed colour can't clear the 3:1 non-text floor
+       against both a near-white canvas and a near-black one, so the dark
+       theme overrides it below rather than sharing a muddy compromise. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366707F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+  [data-theme="dark"] .select-field {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A0B6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
 
   .press {

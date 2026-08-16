@@ -20,7 +20,7 @@ export default function BillingCard() {
           </p>
         </div>
 
-        <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-lg bg-ok/10 px-2.5 py-1.5 text-xs font-medium text-ok ring-1 ring-inset ring-ok/20">
+        <span className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-lg bg-ok/10 px-2.5 py-1.5 text-xs font-medium text-ok-ink ring-1 ring-inset ring-ok/20">
           <IconCheck className="h-4 w-4" />
           Active
         </span>

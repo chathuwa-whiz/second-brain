@@ -20,7 +20,7 @@ export default function WorkspaceSetupCard() {
 
         <Link
           href="/onboarding"
-          className="press inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-xl bg-accent px-4 text-xs font-medium text-white shadow-sm shadow-accent/25 transition-colors hover:bg-accent-deep"
+          className="press inline-flex min-h-[38px] shrink-0 items-center justify-center rounded-xl bg-accent-solid px-4 text-xs font-medium text-white shadow-sm shadow-accent/25 transition-colors hover:brightness-110"
         >
           Open wizard
         </Link>
@@ -33,7 +33,7 @@ export default function WorkspaceSetupCard() {
           { Icon: IconSettings, n: 3, label: "Autonomy", hint: "When it acts alone" },
         ].map(({ Icon, n, label, hint }) => (
           <li key={n} className="flex items-center gap-2.5">
-            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent">
+            <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/10 text-accent-ink">
               <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0">

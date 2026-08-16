@@ -114,10 +114,10 @@ export function ThemeSwitcher({
                 }`}
               >
                 <Icon
-                  className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : ""}`}
+                  className={`h-4 w-4 shrink-0 ${selected ? "text-accent-ink" : ""}`}
                 />
                 <span className="flex-1">{label}</span>
-                {selected && <IconCheck className="h-3.5 w-3.5 text-accent" />}
+                {selected && <IconCheck className="h-3.5 w-3.5 text-accent-ink" />}
               </button>
             );
           })}
@@ -158,7 +158,7 @@ export function ThemeSegmented() {
             }`}
           >
             <Icon
-              className={`h-4 w-4 shrink-0 ${selected ? "text-accent" : ""}`}
+              className={`h-4 w-4 shrink-0 ${selected ? "text-accent-ink" : ""}`}
             />
             <span>{label}</span>
           </button>

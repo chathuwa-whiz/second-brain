@@ -30,7 +30,7 @@ function Chip({
       aria-pressed={active}
       className={`press whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition-colors ${
         active
-          ? "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25"
+          ? "bg-accent/12 font-medium text-accent-ink ring-1 ring-inset ring-accent/25"
           : "text-secondary ring-1 ring-inset ring-hairline/15 hover:text-primary"
       }`}
     >

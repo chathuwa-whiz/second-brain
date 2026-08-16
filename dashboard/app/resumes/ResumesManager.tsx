@@ -98,7 +98,7 @@ export default function ResumesManager() {
             <h2 className="text-sm font-semibold text-primary sm:text-base">
               Resume library
             </h2>
-            <span className="tnum rounded-md bg-accent/12 px-2 py-0.5 text-2xs font-medium text-accent">
+            <span className="tnum rounded-md bg-accent/12 px-2 py-0.5 text-2xs font-medium text-accent-ink">
               {files.length} of {maxAllowed}
             </span>
           </div>
@@ -215,7 +215,7 @@ export default function ResumesManager() {
               className="flex flex-col justify-between gap-3 p-3.5 transition-colors hover:border-hairline/35 xs:flex-row xs:items-center sm:p-4"
             >
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent/10 text-3xs font-semibold tracking-wide text-accent">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent/10 text-3xs font-semibold tracking-wide text-accent-ink">
                   {f.name.endsWith(".docx") ? "DOC" : "PDF"}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -242,7 +242,7 @@ export default function ResumesManager() {
                   size="sm"
                   disabled={deleting === f.name}
                   onClick={() => remove(f.name)}
-                  className="shrink-0 text-danger hover:bg-danger/10 text-xs"
+                  className="shrink-0 text-danger-ink hover:bg-danger/10 text-xs"
                 >
                   {deleting === f.name ? "Removing…" : "Remove"}
                 </Button>

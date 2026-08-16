@@ -22,7 +22,17 @@ const config: Config = {
     },
     extend: {
       colors: {
-        base: v("--bg-base"),
+        /*
+          NOT named `base`. Tailwind derives `text-<key>` from BOTH `fontSize`
+          and `colors`, and `fontSize.base` already exists - so a color named
+          `base` emits a second `.text-base { color: ... }` rule. Unprefixed,
+          `.text-primary` is emitted later and wins; but `sm:text-base` lands
+          in a media block that comes after every unprefixed utility, so it
+          beat `.text-primary` and painted headings in the page background
+          colour. Any key colliding with a fontSize key (xs, sm, base, lg,
+          xl, 2xl...) will do this - keep colour names clear of them.
+        */
+        canvas: v("--bg-base"),
         chrome: v("--bg-chrome"),
         // Solid surface that sits *above* glass - segmented-control thumbs,
         // active tabs, popover menus. Glass-on-glass has no depth cue.
@@ -38,14 +48,25 @@ const config: Config = {
           DEFAULT: "#5B8DEF",
           soft: "#8AB0F5",
           deep: "#3D6FD1",
+          // Theme-aware; use for accent-coloured TEXT, not fills.
+          ink: v("--accent-ink"),
+          /*
+            `solid` = the fill under WHITE label text, e.g. a primary button.
+            The DEFAULT hue is only 3.23:1 against white, so it's fine as a
+            tint, a bar or a dot, but not as a button someone has to read.
+          */
+          solid: "#3565CB",
         },
         violet: {
           DEFAULT: "#7C6BF5",
           soft: "#A296F8",
+          ink: v("--violet-ink"),
         },
-        ok: "#30C88F",
-        warn: "#F5A524",
-        danger: "#F2545B",
+        // Fills. Identical in both themes so the colour coding stays learnable.
+        // `solid` is the darker variant used under white button text (see accent).
+        ok: { DEFAULT: "#30C88F", ink: v("--ok-ink"), solid: "#12855E" },
+        warn: { DEFAULT: "#F5A524", ink: v("--warn-ink"), solid: "#8C5400" },
+        danger: { DEFAULT: "#F2545B", ink: v("--danger-ink"), solid: "#CE2F37" },
       },
       /*
         Deliberately tighter than Tailwind's defaults. The interface nests

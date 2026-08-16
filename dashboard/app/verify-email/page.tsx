@@ -131,7 +131,7 @@ function VerifyEmailContent() {
 
           {!loading && success && (
             <div className="py-4 space-y-4">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok ring-1 ring-ok/25">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok-ink ring-1 ring-ok/25">
                 <IconCheck className="h-7 w-7" />
               </div>
               <h2 className="text-lg font-semibold text-primary">
@@ -153,14 +153,14 @@ function VerifyEmailContent() {
           {!loading && !success && (
             <div className="py-2 space-y-4 text-left">
               {error && (
-                <div className="rounded-xl border border-danger/25 bg-danger/10 p-3.5 text-xs text-danger">
+                <div className="rounded-xl border border-danger/25 bg-danger/10 p-3.5 text-xs text-danger-ink">
                   <p className="font-semibold">Verification Failed</p>
                   <p className="mt-0.5 leading-relaxed">{error}</p>
                 </div>
               )}
 
               <div className="text-center">
-                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-accent/10 text-accent mb-3">
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-accent/10 text-accent-ink mb-3">
                   <IconMail className="h-6 w-6" />
                 </div>
                 <h2 className="text-base font-semibold text-primary">
@@ -188,7 +188,7 @@ function VerifyEmailContent() {
                 </div>
 
                 {resendMessage && (
-                  <p className="text-xs font-medium text-accent">{resendMessage}</p>
+                  <p className="text-xs font-medium text-accent-ink">{resendMessage}</p>
                 )}
 
                 <Button

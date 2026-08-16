@@ -49,7 +49,7 @@ export default function ActionCard({
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <Badge tone={status.tone}>{status.label}</Badge>
-            <span className="truncate text-3xs font-semibold uppercase tracking-wider text-muted">
+            <span className="truncate text-2xs font-semibold uppercase tracking-wider text-muted">
               {moduleLabel(action.module)}
             </span>
           </div>
@@ -83,12 +83,12 @@ export default function ActionCard({
         {(action.status === "approved" || action.status === "auto_executed") && (
           <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
             {action.executed_at ? (
-              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-ok sm:text-xs">
+              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-ok-ink sm:text-xs">
                 <span className="h-1.5 w-1.5 rounded-full bg-ok" />
                 Ran {relativeTime(action.executed_at)}
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warn sm:text-xs">
+              <span className="inline-flex items-center gap-1.5 text-2xs font-medium text-warn-ink sm:text-xs">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
                 Waiting for the executor to pick it up
               </span>
@@ -96,7 +96,7 @@ export default function ActionCard({
             {action.execution_result != null && (
               <button
                 onClick={() => setShowResult((v) => !v)}
-                className="text-2xs font-medium text-accent hover:underline sm:text-xs"
+                className="text-2xs font-medium text-accent-ink hover:underline sm:text-xs"
               >
                 {showResult ? "Hide result" : "Show result"}
               </button>
@@ -117,7 +117,7 @@ export default function ActionCard({
                 {String(action.metadata.company || "")} · {String(action.metadata.job_title || "")}
               </span>
               {action.metadata.suggested_resume ? (
-                <div className="flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent">
+                <div className="flex min-w-0 max-w-full items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink">
                   <span className="shrink-0">📄</span>
                   <span className="truncate">{String(action.metadata.suggested_resume)}</span>
                 </div>
@@ -148,7 +148,7 @@ export default function ActionCard({
             {action.action === "send_job_application_email" ? (
               <Link
                 href={`/approvals/${action.id}`}
-                className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:bg-accent-deep"
+                className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
               >
                 Review & Edit Application
               </Link>

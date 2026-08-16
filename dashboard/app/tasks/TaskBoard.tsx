@@ -232,7 +232,7 @@ function TaskCard({
                   variant="ghost"
                   size="sm"
                   disabled={busy}
-                  className="text-danger hover:bg-danger/10"
+                  className="text-danger-ink hover:bg-danger/10"
                   onClick={async () => {
                     if (!confirm("Delete this task permanently?")) return;
                     setBusy(true);
@@ -424,7 +424,7 @@ function TaskForm({
                   key={tag}
                   type="button"
                   onClick={() => setTags(tags.filter((t) => t !== tag))}
-                  className="press rounded-lg bg-accent/12 px-2 py-0.5 text-2xs font-medium text-accent hover:bg-danger/12 hover:text-danger"
+                  className="press rounded-lg bg-accent/12 px-2 py-0.5 text-2xs font-medium text-accent-ink hover:bg-danger/12 hover:text-danger-ink"
                   title={`Remove "${tag}"`}
                 >
                   {tag} ✕
@@ -560,7 +560,7 @@ export default function TaskBoard({
     <div className="space-y-5 sm:space-y-6">
       {/* Notification toast */}
       {notification && (
-        <div className="animate-rise rounded-xl bg-ok/12 px-4 py-2.5 text-sm font-medium text-ok ring-1 ring-inset ring-ok/25">
+        <div className="animate-rise rounded-xl bg-ok/12 px-4 py-2.5 text-sm font-medium text-ok-ink ring-1 ring-inset ring-ok/25">
           {notification}
         </div>
       )}
@@ -598,7 +598,7 @@ export default function TaskBoard({
       {/* Edit overlay */}
       {editing && (
         <div>
-          <p className="mb-2 text-3xs font-semibold uppercase tracking-wider text-muted">
+          <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted">
             Editing task
           </p>
           <TaskForm

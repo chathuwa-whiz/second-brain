@@ -35,7 +35,7 @@ export function SectionHeader({
     <div className="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-4">
       <div className="min-w-0">
         {eyebrow && (
-          <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
             {eyebrow}
           </p>
         )}
@@ -48,13 +48,15 @@ export function SectionHeader({
   );
 }
 
+/* Text tones use the theme-aware `ink` hues: `text-accent-deep` is a dark blue
+   that measured 3.46:1 as badge text on a dark card. Fills stay fixed. */
 const TONES = {
   neutral: "bg-primary/[0.06] text-secondary ring-primary/10",
-  accent: "bg-accent/12 text-accent-deep ring-accent/25",
-  ok: "bg-ok/12 text-ok ring-ok/25",
-  warn: "bg-warn/14 text-warn ring-warn/30",
-  danger: "bg-danger/12 text-danger ring-danger/25",
-  violet: "bg-violet/12 text-violet ring-violet/25",
+  accent: "bg-accent/12 text-accent-ink ring-accent/25",
+  ok: "bg-ok/12 text-ok-ink ring-ok/25",
+  warn: "bg-warn/14 text-warn-ink ring-warn/30",
+  danger: "bg-danger/12 text-danger-ink ring-danger/25",
+  violet: "bg-violet/12 text-violet-ink ring-violet/25",
 } as const;
 
 export type Tone = keyof typeof TONES;
@@ -94,11 +96,12 @@ export function Dot({ tone = "neutral" }: { tone?: Tone }) {
   return <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />;
 }
 
+/* Solid fills, not the tint hues: white on `bg-ok` measured 2.15:1. */
 const BUTTON_VARIANTS = {
   primary:
-    "bg-accent text-white hover:bg-accent-deep shadow-sm shadow-accent/25",
-  approve: "bg-ok text-white hover:brightness-95 shadow-sm shadow-ok/25",
-  reject: "bg-danger text-white hover:brightness-95 shadow-sm shadow-danger/25",
+    "bg-accent-solid text-white hover:brightness-110 shadow-sm shadow-accent/25",
+  approve: "bg-ok-solid text-white hover:brightness-110 shadow-sm shadow-ok/25",
+  reject: "bg-danger-solid text-white hover:brightness-110 shadow-sm shadow-danger/25",
   quiet:
     "glass text-secondary hover:text-primary hover:bg-primary/[0.04]",
   ghost: "text-secondary hover:text-primary hover:bg-primary/[0.05]",
@@ -166,7 +169,7 @@ export function StatTile({
         className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentBar} to-transparent`}
       />
       <div className="flex items-center justify-between gap-1">
-        <p className="truncate text-3xs font-semibold uppercase tracking-wide text-muted">
+        <p className="truncate text-2xs font-semibold uppercase tracking-wide text-muted">
           {label}
         </p>
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
@@ -267,7 +270,7 @@ export function EmptyState({
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs leading-relaxed text-danger ring-1 ring-inset ring-danger/25 sm:px-4 sm:py-3 sm:text-sm">
+    <div className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs leading-relaxed text-danger-ink ring-1 ring-inset ring-danger/25 sm:px-4 sm:py-3 sm:text-sm">
       {children}
     </div>
   );

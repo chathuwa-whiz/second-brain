@@ -161,14 +161,14 @@ export default function ApiKeysCard() {
             <span className="font-medium text-primary">
               New key generated — copy it now
             </span>
-            <span className="text-2xs font-medium text-ok">Shown only once</span>
+            <span className="text-2xs font-medium text-ok-ink">Shown only once</span>
           </div>
           <div className="flex items-center gap-2 break-all rounded-lg bg-primary/[0.06] p-2.5 font-mono text-2xs text-primary">
             <span className="flex-1 select-all">{newlyCreatedKey}</span>
             <button
               type="button"
               onClick={() => copyToClipboard(newlyCreatedKey, setCopiedKey)}
-              className="press shrink-0 rounded-md bg-ok/15 px-2.5 py-1 text-2xs font-medium text-ok hover:bg-ok/25"
+              className="press shrink-0 rounded-md bg-ok/15 px-2.5 py-1 text-2xs font-medium text-ok-ink hover:bg-ok/25"
             >
               {copiedKey ? "Copied ✓" : "Copy"}
             </button>
@@ -231,7 +231,7 @@ export default function ApiKeysCard() {
           <button
             type="button"
             onClick={() => copyToClipboard(sampleWebhookUrl, setCopiedUrl)}
-            className="press text-2xs font-semibold text-accent hover:underline"
+            className="press text-2xs font-semibold text-accent-ink hover:underline"
           >
             {copiedUrl ? "Copied URL! ✓" : "Copy Webhook URL"}
           </button>
@@ -259,7 +259,7 @@ export default function ApiKeysCard() {
 
       {/* Active Keys List */}
       <div className="space-y-2.5">
-        <h4 className="text-3xs font-semibold uppercase tracking-wider text-muted">
+        <h4 className="text-2xs font-semibold uppercase tracking-wider text-muted">
           Active keys ({keys.length})
         </h4>
 
@@ -294,7 +294,7 @@ export default function ApiKeysCard() {
                   size="sm"
                   disabled={revokingId === k.id}
                   onClick={() => handleRevokeKey(k.id)}
-                  className="self-end sm:self-auto text-danger hover:bg-danger/10 text-xs shrink-0"
+                  className="self-end sm:self-auto text-danger-ink hover:bg-danger/10 text-xs shrink-0"
                 >
                   {revokingId === k.id ? "Revoking…" : "Revoke"}
                 </Button>

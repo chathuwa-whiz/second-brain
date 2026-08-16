@@ -88,8 +88,8 @@ export default function EmailSettingsCard() {
           <div
             className={`rounded-xl p-3 text-xs font-medium ${
               message.tone === "ok"
-                ? "bg-ok/10 text-ok ring-1 ring-ok/20"
-                : "bg-danger/10 text-danger ring-1 ring-danger/20"
+                ? "bg-ok/10 text-ok-ink ring-1 ring-ok/20"
+                : "bg-danger/10 text-danger-ink ring-1 ring-danger/20"
             }`}
           >
             {message.text}
@@ -142,7 +142,7 @@ export default function EmailSettingsCard() {
 
         {/* 1-Minute Gmail Guide Accordion */}
         <details className="rounded-xl bg-primary/[0.02] p-3 border border-hairline/10 text-xs">
-          <summary className="cursor-pointer font-medium text-accent hover:underline focus:outline-none">
+          <summary className="cursor-pointer font-medium text-accent-ink hover:underline focus:outline-none">
             💡 How to get a Google App Password in 60 seconds
           </summary>
           <ol className="list-decimal list-inside mt-2.5 space-y-1.5 text-muted leading-relaxed">

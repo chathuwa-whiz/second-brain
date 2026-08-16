@@ -116,7 +116,7 @@ export default async function OverviewPage() {
             action={
               <Link
                 href="/activity"
-                className="text-xs font-medium text-accent hover:underline sm:text-sm"
+                className="text-xs font-medium text-accent-ink hover:underline sm:text-sm"
               >
                 See all
               </Link>
@@ -154,7 +154,7 @@ export default async function OverviewPage() {
                     {m.href ? (
                       <Link
                         href={m.href}
-                        className="block truncate text-sm font-medium text-primary hover:text-accent"
+                        className="block truncate text-sm font-medium text-primary hover:text-accent-ink"
                       >
                         {m.name}
                       </Link>

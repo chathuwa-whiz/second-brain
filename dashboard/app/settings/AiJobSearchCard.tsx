@@ -111,14 +111,14 @@ export default function AiJobSearchCard() {
       */}
       <div className="grid grid-cols-1 gap-5 border-t border-hairline/10 pt-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
             Target job titles
           </p>
           <div className="flex flex-wrap gap-1.5">
             {targetTitles.map((title: string) => (
               <span
                 key={title}
-                className="inline-flex items-center rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent ring-1 ring-inset ring-accent/20"
+                className="inline-flex items-center rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink ring-1 ring-inset ring-accent/20"
               >
                 {title}
               </span>
@@ -127,7 +127,7 @@ export default function AiJobSearchCard() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
+          <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
             Locations &amp; work mode
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -147,7 +147,7 @@ export default function AiJobSearchCard() {
       </div>
 
       <div className="flex items-start gap-2 pt-1 text-2xs leading-relaxed text-muted">
-        <IconCheck className="mt-px h-3.5 w-3.5 shrink-0 text-ok" />
+        <IconCheck className="mt-px h-3.5 w-3.5 shrink-0 text-ok-ink" />
         <span>Matches show up in your Jobs and Approvals queues automatically.</span>
       </div>
     </Card>

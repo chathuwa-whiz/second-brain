@@ -142,7 +142,7 @@ export default function ApprovalEditor({
 
       {error && <ErrorNote>{error}</ErrorNote>}
       {successMsg && (
-        <div className="rounded-2xl bg-ok/10 p-4 text-xs font-medium text-ok ring-1 ring-ok/25 sm:text-sm">
+        <div className="rounded-2xl bg-ok/10 p-4 text-xs font-medium text-ok-ink ring-1 ring-ok/25 sm:text-sm">
           {successMsg}
         </div>
       )}
@@ -179,7 +179,7 @@ export default function ApprovalEditor({
                 href={meta.job_url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="press mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-accent hover:bg-primary/[0.08]"
+                className="press mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
               >
                 Open TopJobs Posting
                 <IconExternal className="h-3.5 w-3.5" />
@@ -188,13 +188,13 @@ export default function ApprovalEditor({
 
             {meta.match_reasons && Array.isArray(meta.match_reasons) && (
               <div className="mt-4 border-t pt-3">
-                <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
+                <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
                   Why this role matched
                 </p>
                 <ul className="mt-2 space-y-1.5 text-xs text-secondary">
                   {meta.match_reasons.map((r: string, i: number) => (
                     <li key={i} className="flex items-start gap-1.5">
-                      <span className="shrink-0 text-ok">✓</span>
+                      <span className="shrink-0 text-ok-ink">✓</span>
                       <span className="break-words">{r}</span>
                     </li>
                   ))}
@@ -205,7 +205,7 @@ export default function ApprovalEditor({
 
           {meta.poster_image_url && (
             <Card className="overflow-hidden p-3.5 sm:p-4">
-              <p className="mb-2 text-3xs font-semibold uppercase tracking-wider text-muted">
+              <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted">
                 Job Poster Artwork
               </p>
               <div className="overflow-hidden rounded-xl bg-black/5">
@@ -279,7 +279,7 @@ export default function ApprovalEditor({
                   ))}
                 </select>
                 {meta.suggested_resume_reason && (
-                  <p className="mt-1 break-words text-2xs text-accent">
+                  <p className="mt-1 break-words text-2xs text-accent-ink">
                     💡 AI recommendation: {meta.suggested_resume_reason}
                   </p>
                 )}
@@ -302,7 +302,7 @@ export default function ApprovalEditor({
                         href={meta.job_url}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="press inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-accent-deep"
+                        className="press inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent-solid px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:brightness-110"
                       >
                         Open Portal
                         <IconExternal className="h-3.5 w-3.5" />

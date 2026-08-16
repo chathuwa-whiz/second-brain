@@ -89,7 +89,7 @@ function Chip({
     <span
       className={`inline-flex items-center gap-1 rounded-md py-1 pl-2.5 pr-1 text-2xs font-medium ${
         tone === "accent"
-          ? "bg-accent/10 text-accent ring-1 ring-inset ring-accent/20"
+          ? "bg-accent/10 text-accent-ink ring-1 ring-inset ring-accent/20"
           : "bg-primary/[0.05] text-secondary ring-1 ring-inset ring-hairline/15"
       }`}
     >
@@ -98,7 +98,7 @@ function Chip({
         type="button"
         onClick={onRemove}
         aria-label="Remove"
-        className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:text-danger"
+        className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:text-danger-ink"
       >
         ✕
       </button>
@@ -360,7 +360,7 @@ export default function OnboardingPage() {
     return (
       <main className="grid min-h-screen place-items-center px-5 py-12 pb-safe pt-safe">
         <div className="w-full max-w-md text-center">
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok ring-1 ring-ok/25">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok-ink ring-1 ring-ok/25">
             <IconCheck className="h-7 w-7" />
           </div>
 
@@ -391,7 +391,7 @@ export default function OnboardingPage() {
             </div>
             <div className="flex items-center justify-between gap-3 py-2.5">
               <dt className="text-muted">Acts alone above</dt>
-              <dd className="tnum font-medium text-accent">
+              <dd className="tnum font-medium text-accent-ink">
                 {Math.round(confidenceThreshold * 100)}%
               </dd>
             </div>
@@ -439,7 +439,7 @@ export default function OnboardingPage() {
   return (
     <main className="flex min-h-screen flex-col">
       {/* ── Top bar: identity + escape hatch ── */}
-      <header className="pt-safe sticky top-0 z-20 border-b border-hairline/10 bg-base/80 backdrop-blur-xl">
+      <header className="pt-safe sticky top-0 z-20 border-b border-hairline/10 bg-canvas/80 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-accent to-violet">
@@ -570,7 +570,7 @@ export default function OnboardingPage() {
                         className="flex items-center justify-between gap-3 py-2.5"
                       >
                         <div className="flex min-w-0 items-center gap-2.5">
-                          <IconCheck className="h-4 w-4 shrink-0 text-ok" />
+                          <IconCheck className="h-4 w-4 shrink-0 text-ok-ink" />
                           <span className="truncate text-xs font-medium text-primary">
                             {file.name}
                           </span>
@@ -585,7 +585,7 @@ export default function OnboardingPage() {
                             e.stopPropagation();
                             handleDeleteResume(file.name);
                           }}
-                          className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-muted transition-colors hover:text-danger disabled:opacity-50"
+                          className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-muted transition-colors hover:text-danger-ink disabled:opacity-50"
                         >
                           {deleting === file.name ? "Removing…" : "Remove"}
                         </button>
@@ -772,7 +772,7 @@ export default function OnboardingPage() {
                   >
                     Acts on its own above
                   </label>
-                  <span className="tnum text-2xl font-semibold tracking-tight text-accent">
+                  <span className="tnum text-2xl font-semibold tracking-tight text-accent-ink">
                     {Math.round(confidenceThreshold * 100)}%
                   </span>
                 </div>
@@ -820,7 +820,7 @@ export default function OnboardingPage() {
               </Field>
 
               <div className="flex items-start gap-2.5 rounded-xl bg-ok/[0.08] p-3.5 ring-1 ring-inset ring-ok/20">
-                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
+                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-ink" />
                 <p className="text-xs leading-relaxed text-secondary">
                   <span className="font-medium text-primary">
                     Everything is included, free.
@@ -837,7 +837,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* ── Docked action bar ── */}
-      <div className="pb-safe sticky bottom-0 z-20 border-t border-hairline/10 bg-base/80 backdrop-blur-xl">
+      <div className="pb-safe sticky bottom-0 z-20 border-t border-hairline/10 bg-canvas/80 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 py-3">
           {step > 1 ? (
             <Button

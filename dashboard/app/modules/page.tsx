@@ -76,7 +76,7 @@ export default async function ModulesPage() {
                 {m.href && (
                   <Link
                     href={m.href}
-                    className="press inline-flex items-center text-xs font-medium text-accent hover:underline"
+                    className="press inline-flex items-center text-xs font-medium text-accent-ink hover:underline"
                   >
                     Open {m.name}
                   </Link>

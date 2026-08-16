@@ -95,7 +95,7 @@ function NavLink({
           active ? "opacity-100" : "opacity-0"
         }`}
       />
-      <Icon className={`h-[18px] w-[18px] ${active ? "text-accent" : ""}`} />
+      <Icon className={`h-[18px] w-[18px] ${active ? "text-accent-ink" : ""}`} />
       {item.label}
     </Link>
   );
@@ -123,7 +123,7 @@ function Brand() {
         <p className="text-sm font-semibold tracking-tight text-primary">
           Second Brain
         </p>
-        <p className="text-3xs uppercase tracking-wider text-muted">
+        <p className="text-2xs uppercase tracking-wider text-muted">
           Control panel
         </p>
       </div>
@@ -188,7 +188,7 @@ export default function AppShell({
         <nav className="mt-7 flex-1 space-y-6 overflow-y-auto px-3">
           {NAV.map((group) => (
             <div key={group.group}>
-              <p className="mb-1.5 px-3 text-3xs font-semibold uppercase tracking-wider text-muted">
+              <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-wider text-muted">
                 {group.group}
               </p>
               <div className="space-y-0.5">
@@ -211,7 +211,7 @@ export default function AppShell({
                 className="h-8 w-8 rounded-lg object-cover ring-1 ring-hairline/20"
               />
             ) : (
-              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-semibold ring-1 ring-accent/25">
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent-ink text-2xs font-semibold ring-1 ring-accent/25">
                 {userInitials}
               </div>
             )}
@@ -229,7 +229,7 @@ export default function AppShell({
 
           <button
             onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-            className="press flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-secondary hover:bg-danger/10 hover:text-danger transition-colors"
+            className="press flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-secondary hover:bg-danger/10 hover:text-danger-ink transition-colors"
           >
             <IconSignOut className="h-[18px] w-[18px] shrink-0" />
             Sign out
@@ -258,7 +258,7 @@ export default function AppShell({
                 aria-label="Toggle navigation menu"
                 className={`press flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
                   menuOpen
-                    ? "bg-accent/15 text-accent"
+                    ? "bg-accent/15 text-accent-ink"
                     : "text-secondary hover:bg-primary/[0.06] hover:text-primary"
                 }`}
               >
@@ -280,7 +280,7 @@ export default function AppShell({
                   className="h-7 w-7 rounded-lg object-cover ring-1 ring-hairline/20"
                 />
               ) : (
-                <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-3xs font-semibold ring-1 ring-accent/25">
+                <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent-ink text-3xs font-semibold ring-1 ring-accent/25">
                   {userInitials}
                 </div>
               )}
@@ -296,7 +296,7 @@ export default function AppShell({
             <div className="animate-rise absolute inset-x-3.5 top-full mt-2 rounded-2xl border border-hairline/15 bg-raised p-3 shadow-2xl sm:inset-x-4">
               <div className="flex items-center justify-between gap-2 pb-2.5">
                 <div className="flex min-w-0 items-center gap-2">
-                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-3xs font-semibold text-accent">
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-3xs font-semibold text-accent-ink">
                     {userInitials}
                   </div>
                   <div className="min-w-0">
@@ -330,7 +330,7 @@ export default function AppShell({
               <div className="mt-2 border-t pt-2">
                 <button
                   onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-                  className="press flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger"
+                  className="press flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger-ink"
                 >
                   <IconSignOut className="h-[18px] w-[18px]" />
                   Sign out
@@ -358,13 +358,13 @@ export default function AppShell({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={`press relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-lg py-1 transition-colors ${
-                  active ? "text-accent" : "text-secondary hover:text-primary"
+                  active ? "text-accent-ink" : "text-secondary hover:text-primary"
                 }`}
               >
                 {active && (
                   <span className="absolute inset-0 -z-10 rounded-lg bg-accent/12" />
                 )}
-                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-accent" : "text-secondary"}`} />
+                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-accent-ink" : "text-secondary"}`} />
                 <span className="mt-0.5 max-w-full truncate text-center text-3xs tracking-tight">
                   {item.label}
                 </span>

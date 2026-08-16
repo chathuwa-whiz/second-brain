@@ -28,7 +28,7 @@ const APP_STATUS_TONE: Record<string, Tone> = {
 
 function ScorePip({ score }: { score: number | null }) {
   if (score == null) return null;
-  const tone = score >= 80 ? "text-ok" : score >= 70 ? "text-accent" : "text-warn";
+  const tone = score >= 80 ? "text-ok-ink" : score >= 70 ? "text-accent-ink" : "text-warn-ink";
   return (
     <div className="flex shrink-0 flex-col items-center">
       <span className={`tnum text-lg font-semibold leading-none ${tone}`}>
@@ -50,7 +50,7 @@ function PendingApprovalRow({ action }: { action: AgentAction }) {
         <div className="flex items-center justify-between gap-2 min-w-0 sm:flex-col sm:items-center sm:justify-start sm:gap-1">
           <ScorePip score={score} />
           {meta.suggested_resume && (
-            <div className="flex min-w-0 max-w-[220px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent sm:hidden">
+            <div className="flex min-w-0 max-w-[220px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink sm:hidden">
               <span className="shrink-0">📄</span>
               <span className="truncate">{meta.suggested_resume}</span>
             </div>
@@ -70,7 +70,7 @@ function PendingApprovalRow({ action }: { action: AgentAction }) {
             </div>
 
             {meta.suggested_resume && (
-              <div className="hidden min-w-0 max-w-[240px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent sm:flex">
+              <div className="hidden min-w-0 max-w-[240px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent-ink sm:flex">
                 <span className="shrink-0">📄</span>
                 <span className="truncate">{meta.suggested_resume}</span>
               </div>
@@ -92,7 +92,7 @@ function PendingApprovalRow({ action }: { action: AgentAction }) {
           <div className="mt-3.5 flex flex-col gap-2 border-t pt-3 xs:flex-row xs:flex-wrap xs:items-center xs:gap-3">
             <Link
               href={`/approvals/${action.id}`}
-              className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:bg-accent-deep"
+              className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
             >
               Review & Send Application
             </Link>
@@ -225,7 +225,7 @@ export default function JobsBoard({
                     href={a.job_url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent-ink hover:underline"
                   >
                     Open posting
                     <IconExternal className="h-3.5 w-3.5" />

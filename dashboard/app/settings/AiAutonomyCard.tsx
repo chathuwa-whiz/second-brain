@@ -119,7 +119,7 @@ export default function AiAutonomyCard() {
       </div>
 
       <div className="flex items-start gap-2 pt-1 text-2xs leading-relaxed text-muted">
-        <IconCheck className="mt-px h-3.5 w-3.5 shrink-0 text-accent" />
+        <IconCheck className="mt-px h-3.5 w-3.5 shrink-0 text-accent-ink" />
         <span>
           {saving
             ? "Saving…"
