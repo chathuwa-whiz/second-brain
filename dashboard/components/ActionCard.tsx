@@ -49,7 +49,7 @@ export default function ActionCard({
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5">
           <div className="flex min-w-0 items-center gap-2">
             <Badge tone={status.tone}>{status.label}</Badge>
-            <span className="truncate text-2xs font-semibold uppercase tracking-wider text-muted">
+            <span className="truncate text-3xs font-semibold uppercase tracking-wider text-muted">
               {moduleLabel(action.module)}
             </span>
           </div>

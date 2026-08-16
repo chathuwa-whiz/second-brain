@@ -110,7 +110,7 @@ export default function EmailSettingsCard() {
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+            <label className="block text-xs font-medium text-primary">
               Your Gmail Address
             </label>
             <input
@@ -122,12 +122,12 @@ export default function EmailSettingsCard() {
                 if (!smtpUser) setSmtpUser(e.target.value);
               }}
               placeholder="you@gmail.com"
-              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+              className="field mt-1.5"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+            <label className="block text-xs font-medium text-primary">
               Google App Password (16 Letters)
             </label>
             <input
@@ -135,7 +135,7 @@ export default function EmailSettingsCard() {
               value={smtpPassword}
               onChange={(e) => setSmtpPassword(e.target.value)}
               placeholder="••••••••••••••••"
-              className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+              className="field mt-1.5"
             />
           </div>
         </div>

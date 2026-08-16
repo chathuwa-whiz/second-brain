@@ -28,10 +28,10 @@ function Chip({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className={`press whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium ${
+      className={`press whitespace-nowrap rounded-lg px-3 py-1.5 text-xs transition-colors ${
         active
-          ? "bg-accent text-white shadow-sm shadow-accent/25"
-          : "glass text-secondary hover:text-primary"
+          ? "bg-accent/12 font-medium text-accent ring-1 ring-inset ring-accent/25"
+          : "text-secondary ring-1 ring-inset ring-hairline/15 hover:text-primary"
       }`}
     >
       {children}

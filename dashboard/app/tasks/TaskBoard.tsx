@@ -150,16 +150,20 @@ function TaskCard({
               >
                 {task.title}
               </p>
-              <p className="mt-0.5 truncate text-xs text-muted">
-                {due && (
-                  <Badge tone={due.tone}>
-                    {due.text}
-                  </Badge>
+              {/*
+                A <p class="truncate"> around the badge clipped it to a sliver
+                on narrow cards - `truncate` sets overflow:hidden + nowrap on
+                the container, which a pill child can't survive.
+              */}
+              <div className="mt-1 text-xs text-muted">
+                {due ? (
+                  <Badge tone={due.tone}>{due.text}</Badge>
+                ) : (
+                  task.created_at && (
+                    <span>Added {relativeTime(task.created_at)}</span>
+                  )
                 )}
-                {!due && task.created_at && (
-                  <span>Added {relativeTime(task.created_at)}</span>
-                )}
-              </p>
+              </div>
             </div>
           </div>
 
@@ -275,8 +279,10 @@ function TaskForm({
   const [saving, setSaving] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
 
-  const inputClasses =
-    "w-full rounded-xl glass px-3 py-2 text-sm text-primary placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/40";
+  const inputClasses = "field";
+  // Selects were `appearance-none` with nothing drawn in its place, so they
+  // looked exactly like text inputs that refused to be typed into.
+  const selectClasses = "field select-field";
 
   function addTag() {
     const t = tagInput.trim().toLowerCase();
@@ -337,13 +343,13 @@ function TaskForm({
         <div className="grid grid-cols-1 gap-3 xs:grid-cols-3">
           {/* Priority */}
           <div>
-            <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
+            <label className="mb-1 block text-xs font-medium text-primary">
               Priority
             </label>
             <select
               value={priority}
               onChange={(e) => setPriority(e.target.value as Task["priority"])}
-              className={`${inputClasses} appearance-none`}
+              className={selectClasses}
             >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
@@ -353,7 +359,7 @@ function TaskForm({
 
           {/* Due date */}
           <div>
-            <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
+            <label className="mb-1 block text-xs font-medium text-primary">
               Due date
             </label>
             <input
@@ -366,13 +372,13 @@ function TaskForm({
 
           {/* Recurrence */}
           <div>
-            <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
+            <label className="mb-1 block text-xs font-medium text-primary">
               Repeat
             </label>
             <select
               value={recurrence}
               onChange={(e) => setRecurrence(e.target.value)}
-              className={`${inputClasses} appearance-none`}
+              className={selectClasses}
             >
               <option value="">None</option>
               <option value="daily">Daily</option>
@@ -385,7 +391,7 @@ function TaskForm({
 
         {/* Tags */}
         <div>
-          <label className="mb-1 block text-2xs font-semibold uppercase tracking-wide text-muted">
+          <label className="mb-1 block text-xs font-medium text-primary">
             Tags
           </label>
           <div className="flex items-center gap-2">
@@ -559,9 +565,10 @@ export default function TaskBoard({
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs - raised thumb rather than an accent-filled pill, so the tab
+          strip doesn't compete with the primary buttons inside the panel. */}
       <div className="no-scrollbar -mx-1 max-w-full overflow-x-auto px-1">
-        <div className="glass inline-flex min-w-full gap-1 rounded-2xl p-1 sm:min-w-0">
+        <div className="inline-flex min-w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:min-w-0">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -570,17 +577,15 @@ export default function TaskBoard({
                 setEditing(null);
               }}
               aria-pressed={tab === t.key}
-              className={`press flex-1 shrink-0 whitespace-nowrap rounded-xl px-3 py-1.5 text-center text-xs font-medium sm:flex-initial sm:px-4 sm:py-2 sm:text-sm ${
+              className={`press flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial sm:px-4 sm:py-2 ${
                 tab === t.key
-                  ? "bg-accent font-semibold text-white shadow-sm shadow-accent/25"
+                  ? "bg-raised font-medium text-primary shadow-sm"
                   : "text-secondary hover:text-primary"
               }`}
             >
               {t.label}
               {t.count !== null && (
-                <span className="tnum ml-1.5 opacity-70 sm:ml-2">
-                  {t.count}
-                </span>
+                <span className="tnum ml-1.5 text-muted sm:ml-2">{t.count}</span>
               )}
             </button>
           ))}
@@ -593,7 +598,7 @@ export default function TaskBoard({
       {/* Edit overlay */}
       {editing && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          <p className="mb-2 text-3xs font-semibold uppercase tracking-wider text-muted">
             Editing task
           </p>
           <TaskForm

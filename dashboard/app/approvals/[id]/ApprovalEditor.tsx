@@ -188,7 +188,7 @@ export default function ApprovalEditor({
 
             {meta.match_reasons && Array.isArray(meta.match_reasons) && (
               <div className="mt-4 border-t pt-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
+                <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
                   Why this role matched
                 </p>
                 <ul className="mt-2 space-y-1.5 text-xs text-secondary">
@@ -205,7 +205,7 @@ export default function ApprovalEditor({
 
           {meta.poster_image_url && (
             <Card className="overflow-hidden p-3.5 sm:p-4">
-              <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted">
+              <p className="mb-2 text-3xs font-semibold uppercase tracking-wider text-muted">
                 Job Poster Artwork
               </p>
               <div className="overflow-hidden rounded-xl bg-black/5">
@@ -232,29 +232,31 @@ export default function ApprovalEditor({
                 </p>
               </div>
 
-              {/* Mode Selector */}
-              <div className="glass flex w-full rounded-xl p-0.5 sm:w-auto">
+              {/* Mode Selector - same segmented control as the other boards */}
+              <div className="flex w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setMode("email")}
-                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-medium sm:flex-initial ${
+                  aria-pressed={mode === "email"}
+                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
                     mode === "email"
-                      ? "bg-accent text-white shadow-sm"
+                      ? "bg-raised font-medium text-primary shadow-sm"
                       : "text-secondary hover:text-primary"
                   }`}
                 >
-                  Send Email
+                  Send email
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
-                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs font-medium sm:flex-initial ${
+                  aria-pressed={mode === "manual"}
+                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
                     mode === "manual"
-                      ? "bg-accent text-white shadow-sm"
+                      ? "bg-raised font-medium text-primary shadow-sm"
                       : "text-secondary hover:text-primary"
                   }`}
                 >
-                  Website / Portal
+                  Website / portal
                 </button>
               </div>
             </div>
@@ -262,16 +264,16 @@ export default function ApprovalEditor({
             <form onSubmit={handleSubmit} className="mt-5 space-y-4">
               {/* Resume Selector */}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
-                  Resume Version
+                <label className="block text-xs font-medium text-primary">
+                  Resume version
                 </label>
                 <select
                   value={selectedResume}
                   onChange={(e) => setSelectedResume(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2.5 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm [&>option]:bg-chrome [&>option]:text-primary"
+                  className="field select-field mt-1.5"
                 >
                   {resumes.map((r) => (
-                    <option key={r} value={r} className="bg-chrome py-1.5 text-primary">
+                    <option key={r} value={r}>
                       {r} {r === meta.suggested_resume ? "(AI Recommended)" : ""}
                     </option>
                   ))}
@@ -309,7 +311,7 @@ export default function ApprovalEditor({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="block text-xs font-medium text-primary">
                       Application Notes
                     </label>
                     <input
@@ -317,7 +319,7 @@ export default function ApprovalEditor({
                       value={manualNotes}
                       onChange={(e) => setManualNotes(e.target.value)}
                       placeholder="e.g. Submitted on company careers portal with Resume.pdf"
-                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+                      className="field mt-1.5"
                     />
                   </div>
                 </div>
@@ -326,7 +328,7 @@ export default function ApprovalEditor({
                 <div className="space-y-4">
                   <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                      <label className="block text-xs font-medium text-primary">
                         Sender Email
                       </label>
                       <input
@@ -334,12 +336,12 @@ export default function ApprovalEditor({
                         required
                         value={senderEmail}
                         onChange={(e) => setSenderEmail(e.target.value)}
-                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+                        className="field mt-1.5"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                      <label className="block text-xs font-medium text-primary">
                         Recipient (Employer Email)
                       </label>
                       <input
@@ -348,13 +350,13 @@ export default function ApprovalEditor({
                         value={recipientEmail}
                         onChange={(e) => setRecipientEmail(e.target.value)}
                         placeholder="careers@company.com"
-                        className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+                        className="field mt-1.5"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="block text-xs font-medium text-primary">
                       Email Subject
                     </label>
                     <input
@@ -362,12 +364,12 @@ export default function ApprovalEditor({
                       required
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
+                      className="field mt-1.5"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                    <label className="block text-xs font-medium text-primary">
                       Email Body (Cover Letter)
                     </label>
                     <textarea
@@ -375,7 +377,7 @@ export default function ApprovalEditor({
                       required
                       value={emailBody}
                       onChange={(e) => setEmailBody(e.target.value)}
-                      className="mt-1.5 w-full rounded-xl bg-chrome p-3 font-mono text-2xs leading-relaxed text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:p-3.5 sm:text-xs"
+                      className="field mt-1.5 leading-relaxed"
                     />
                   </div>
                 </div>

@@ -25,7 +25,15 @@ export default function ApiKeysCard() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://secondbrain.app";
+  /*
+    Reading window.location during render made the server emit one origin and
+    the client another, so React threw a hydration mismatch and discarded the
+    server HTML for this whole subtree - the settings page visibly re-rendered
+    on load. The origin is only knowable on the client, so it's state that
+    lands after mount, starting from the empty string both sides agree on.
+  */
+  const [baseUrl, setBaseUrl] = useState("");
+  useEffect(() => setBaseUrl(window.location.origin), []);
 
   async function fetchKeys() {
     setLoading(true);
@@ -123,8 +131,8 @@ export default function ApiKeysCard() {
       <div>
         <div className="flex flex-col xs:flex-row xs:items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-bold text-primary sm:text-base">
-              n8n & External Webhook Integrations
+            <h3 className="text-sm font-semibold text-primary sm:text-base">
+              External webhook integrations
             </h3>
             <p className="mt-0.5 text-xs text-secondary leading-relaxed">
               Feed automated job postings from n8n, Make.com, or custom scrapers directly into your workspace.
@@ -148,27 +156,26 @@ export default function ApiKeysCard() {
 
       {/* New Key Revealed Banner */}
       {newlyCreatedKey && (
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-emerald-300">
-              ⚡ New API Key Generated (Copy Now)
+        <div className="space-y-3 rounded-xl bg-ok/[0.08] p-4 text-xs ring-1 ring-inset ring-ok/25">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-medium text-primary">
+              New key generated — copy it now
             </span>
-            <span className="text-2xs text-emerald-400 font-medium">
-              Shown only once
-            </span>
+            <span className="text-2xs font-medium text-ok">Shown only once</span>
           </div>
-          <div className="flex items-center gap-2 rounded-xl bg-black/40 p-2.5 font-mono text-2xs text-emerald-200 break-all border border-emerald-500/20">
+          <div className="flex items-center gap-2 break-all rounded-lg bg-primary/[0.06] p-2.5 font-mono text-2xs text-primary">
             <span className="flex-1 select-all">{newlyCreatedKey}</span>
             <button
               type="button"
               onClick={() => copyToClipboard(newlyCreatedKey, setCopiedKey)}
-              className="press rounded-lg bg-emerald-500/20 px-2.5 py-1 text-2xs font-semibold text-emerald-200 hover:bg-emerald-500/30 shrink-0"
+              className="press shrink-0 rounded-md bg-ok/15 px-2.5 py-1 text-2xs font-medium text-ok hover:bg-ok/25"
             >
-              {copiedKey ? "Copied! ✓" : "Copy Key"}
+              {copiedKey ? "Copied ✓" : "Copy"}
             </button>
           </div>
-          <p className="text-2xs text-emerald-300/80">
-            Keep this key safe. You can use it in n8n&apos;s HTTP Request node header <code>x-api-key</code> or query param <code>?api_key=</code>.
+          <p className="text-2xs leading-relaxed text-secondary">
+            Keep this safe. Send it as the <code>x-api-key</code> header, or as
+            an <code>?api_key=</code> query parameter.
           </p>
         </div>
       )}
@@ -177,8 +184,8 @@ export default function ApiKeysCard() {
       {showCreateForm && (
         <form onSubmit={handleCreateKey} className="rounded-2xl border border-hairline/20 bg-primary/[0.02] p-4 space-y-3.5">
           <div className="space-y-1">
-            <label htmlFor="key-name" className="text-xs font-semibold text-primary">
-              Key Description / Name
+            <label htmlFor="key-name" className="block text-xs font-medium text-primary">
+              Key name
             </label>
             <input
               id="key-name"
@@ -186,7 +193,7 @@ export default function ApiKeysCard() {
               placeholder="e.g. n8n Job Search Workflow"
               value={keyName}
               onChange={(e) => setKeyName(e.target.value)}
-              className="w-full min-h-[40px] rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary outline-none ring-1 ring-inset ring-hairline/15 focus:ring-2 focus:ring-accent"
+              className="field"
               required
             />
           </div>
@@ -244,7 +251,7 @@ export default function ApiKeysCard() {
           <p className="text-2xs text-secondary">
             Configure your n8n <strong>HTTP Request</strong> node with <code>POST</code> to your webhook URL, passing this JSON body:
           </p>
-          <pre className="rounded-xl bg-black/50 p-3 font-mono text-2xs text-emerald-300 overflow-x-auto border border-hairline/10">
+          <pre className="overflow-x-auto rounded-lg bg-primary/[0.06] p-3 font-mono text-2xs leading-relaxed text-secondary">
             {sampleCurl}
           </pre>
         </div>
@@ -252,8 +259,8 @@ export default function ApiKeysCard() {
 
       {/* Active Keys List */}
       <div className="space-y-2.5">
-        <h4 className="text-2xs font-bold uppercase tracking-wider text-muted">
-          Active API Keys ({keys.length})
+        <h4 className="text-3xs font-semibold uppercase tracking-wider text-muted">
+          Active keys ({keys.length})
         </h4>
 
         {loading ? (

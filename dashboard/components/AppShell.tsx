@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useState, useEffect, type ReactNode } from "react";
-import { useTheme } from "./theme";
+import { ThemeSwitcher } from "./ThemeSwitcher";
 import { withBasePath } from "@/lib/basePath";
 import {
   IconOverview,
@@ -15,9 +15,6 @@ import {
   IconResumes,
   IconModules,
   IconSettings,
-  IconSun,
-  IconMoon,
-  IconAuto,
   IconSignOut,
   IconMenu,
 } from "./icons";
@@ -68,41 +65,6 @@ const ALL_ITEMS = NAV.flatMap((g) => g.items);
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
-}
-
-function ThemeToggle() {
-  const { preference, setPreference } = useTheme();
-  const options = [
-    { key: "light" as const, Icon: IconSun, label: "Light" },
-    { key: "dark" as const, Icon: IconMoon, label: "Dark" },
-    { key: "system" as const, Icon: IconAuto, label: "Match system" },
-  ];
-
-  return (
-    <div
-      className="glass flex items-center justify-between gap-1 rounded-xl p-1 w-full"
-      role="radiogroup"
-      aria-label="Appearance"
-    >
-      {options.map(({ key, Icon, label }) => (
-        <button
-          key={key}
-          role="radio"
-          aria-checked={preference === key}
-          aria-label={label}
-          title={label}
-          onClick={() => setPreference(key)}
-          className={`press flex-1 flex items-center justify-center rounded-lg py-1.5 transition-colors ${
-            preference === key
-              ? "bg-accent text-white shadow-sm shadow-accent/30"
-              : "text-muted hover:text-primary"
-          }`}
-        >
-          <Icon className="h-4 w-4" />
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function NavLink({
@@ -161,7 +123,7 @@ function Brand() {
         <p className="text-sm font-semibold tracking-tight text-primary">
           Second Brain
         </p>
-        <p className="text-2xs uppercase tracking-widest text-muted font-medium">
+        <p className="text-3xs uppercase tracking-wider text-muted">
           Control panel
         </p>
       </div>
@@ -226,7 +188,7 @@ export default function AppShell({
         <nav className="mt-7 flex-1 space-y-6 overflow-y-auto px-3">
           {NAV.map((group) => (
             <div key={group.group}>
-              <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-widest text-muted">
+              <p className="mb-1.5 px-3 text-3xs font-semibold uppercase tracking-wider text-muted">
                 {group.group}
               </p>
               <div className="space-y-0.5">
@@ -238,11 +200,9 @@ export default function AppShell({
           ))}
         </nav>
 
-        <div className="mt-auto space-y-3 border-t px-3 pt-4">
-          <ThemeToggle />
-
-          {/* User Profile Card */}
-          <div className="flex items-center gap-2.5 rounded-xl bg-primary/[0.03] p-2 border border-hairline/10">
+        <div className="mt-auto space-y-1 border-t px-3 pt-3">
+          {/* User identity - flat, not a boxed card inside the boxed rail */}
+          <div className="flex items-center gap-2.5 px-2.5 py-2">
             {userImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -251,27 +211,27 @@ export default function AppShell({
                 className="h-8 w-8 rounded-lg object-cover ring-1 ring-hairline/20"
               />
             ) : (
-              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent text-xs font-bold ring-1 ring-accent/30">
+              <div className="grid h-8 w-8 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-semibold ring-1 ring-accent/25">
                 {userInitials}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-primary">
+              <p className="truncate text-xs font-medium text-primary">
                 {userName}
               </p>
               {userEmail && (
-                <p className="truncate text-2xs text-muted">
-                  {userEmail}
-                </p>
+                <p className="truncate text-2xs text-muted">{userEmail}</p>
               )}
             </div>
           </div>
 
+          <ThemeSwitcher placement="top" showLabel />
+
           <button
             onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-            className="press flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium text-secondary hover:bg-danger/10 hover:text-danger transition-colors"
+            className="press flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-secondary hover:bg-danger/10 hover:text-danger transition-colors"
           >
-            <IconSignOut className="h-4 w-4" />
+            <IconSignOut className="h-[18px] w-[18px] shrink-0" />
             Sign out
           </button>
         </div>
@@ -279,72 +239,85 @@ export default function AppShell({
 
       {/* ---------- Main column ---------- */}
       <div className="flex min-w-0 max-w-full flex-1 flex-col lg:pl-[248px]">
-        {/* Sticky Mobile Top Bar */}
-        <header className="glass-chrome sticky top-0 z-40 flex items-center justify-between gap-3 border-b px-3.5 py-2.5 backdrop-blur-2xl sm:px-4 sm:py-3 lg:hidden">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              aria-expanded={menuOpen}
-              aria-label="Toggle navigation menu"
-              className={`press flex h-9 w-9 items-center justify-center rounded-xl transition-colors focus:outline-none ${
-                menuOpen
-                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
-                  : "text-secondary hover:bg-primary/[0.06] hover:text-primary"
-              }`}
-            >
-              <IconMenu />
-            </button>
-            <p className="truncate text-sm font-semibold tracking-tight text-primary">
-              {current?.label ?? "Second Brain"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {userImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={userImage}
-                alt={userName}
-                className="h-7 w-7 rounded-lg object-cover ring-1 ring-hairline/20"
-              />
-            ) : (
-              <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-bold ring-1 ring-accent/30">
-                {userInitials}
-              </div>
-            )}
-          </div>
-        </header>
-
-        {/* Overlaying Glassmorphism Dropdown Menu */}
+        {/* Backdrop scrim - sits under the header so the panel can anchor to it */}
         {menuOpen && (
-          <>
-            {/* Backdrop Scrim */}
-            <div
-              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-200 lg:hidden"
-              onClick={() => setMenuOpen(false)}
-              aria-hidden="true"
-            />
+          <div
+            className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
+            onClick={() => setMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
 
-            {/* Floating Glassmorphism Menu Panel */}
-            <div className="fixed inset-x-3.5 top-[58px] z-50 rounded-2xl glass-chrome border border-hairline/20 p-4 shadow-2xl backdrop-blur-2xl animate-rise lg:hidden">
-              <div className="flex items-center justify-between border-b pb-2.5">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-2xs font-bold">
+        {/* Sticky Mobile Top Bar */}
+        <header className="glass-chrome sticky top-0 z-50 border-b px-3.5 py-2.5 backdrop-blur-2xl sm:px-4 sm:py-3 lg:hidden">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-expanded={menuOpen}
+                aria-label="Toggle navigation menu"
+                className={`press flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                  menuOpen
+                    ? "bg-accent/15 text-accent"
+                    : "text-secondary hover:bg-primary/[0.06] hover:text-primary"
+                }`}
+              >
+                <IconMenu />
+              </button>
+              <p className="truncate text-sm font-medium tracking-tight text-primary">
+                {current?.label ?? "Second Brain"}
+              </p>
+            </div>
+
+            {/* Appearance stays reachable in one tap, not buried in the menu */}
+            <div className="flex shrink-0 items-center gap-1">
+              <ThemeSwitcher placement="bottom" />
+              {userImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={userImage}
+                  alt={userName}
+                  className="h-7 w-7 rounded-lg object-cover ring-1 ring-hairline/20"
+                />
+              ) : (
+                <div className="grid h-7 w-7 place-items-center rounded-lg bg-accent/15 text-accent text-3xs font-semibold ring-1 ring-accent/25">
+                  {userInitials}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/*
+            Anchored to the header rather than a magic `top-[58px]`, which was
+            only correct at one breakpoint - the header grows at `sm` and the
+            panel used to detach from it.
+          */}
+          {menuOpen && (
+            <div className="animate-rise absolute inset-x-3.5 top-full mt-2 rounded-2xl border border-hairline/15 bg-raised p-3 shadow-2xl sm:inset-x-4">
+              <div className="flex items-center justify-between gap-2 pb-2.5">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-accent/15 text-3xs font-semibold text-accent">
                     {userInitials}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-primary truncate">{userName}</p>
-                    {userEmail && <p className="text-2xs text-muted truncate">{userEmail}</p>}
+                    <p className="truncate text-xs font-medium text-primary">
+                      {userName}
+                    </p>
+                    {userEmail && (
+                      <p className="truncate text-2xs text-muted">{userEmail}</p>
+                    )}
                   </div>
                 </div>
                 <button
                   onClick={() => setMenuOpen(false)}
-                  className="press rounded-lg px-2 py-0.5 text-xs font-medium text-muted hover:text-primary"
+                  aria-label="Close menu"
+                  className="press grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-primary/[0.06] hover:text-primary"
                 >
-                  ✕ Close
+                  ✕
                 </button>
               </div>
 
-              <div className="mt-3 grid grid-cols-1 gap-1 xs:grid-cols-2">
+              <div className="grid grid-cols-1 gap-0.5 border-t pt-2 xs:grid-cols-2">
                 {ALL_ITEMS.map((item) => (
                   <NavLink
                     key={item.href}
@@ -354,21 +327,20 @@ export default function AppShell({
                 ))}
               </div>
 
-              <div className="mt-3.5 border-t pt-3 space-y-2">
-                <ThemeToggle />
+              <div className="mt-2 border-t pt-2">
                 <button
                   onClick={() => signOut({ callbackUrl: withBasePath("/login") })}
-                  className="press flex min-h-[44px] w-full items-center gap-3 rounded-xl border border-hairline/15 bg-primary/[0.04] px-3.5 py-2.5 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger"
+                  className="press flex min-h-[44px] w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-secondary hover:bg-danger/10 hover:text-danger"
                 >
                   <IconSignOut className="h-[18px] w-[18px]" />
                   Sign out
                 </button>
               </div>
             </div>
-          </>
-        )}
+          )}
+        </header>
 
-        <main className="flex-1 min-w-0 max-w-full px-3.5 pb-44 pt-4 sm:px-6 sm:pb-32 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
+        <main className="flex-1 min-w-0 max-w-full px-3.5 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
           <div className="mx-auto w-full max-w-6xl min-w-0">{children}</div>
         </main>
 
@@ -385,15 +357,15 @@ export default function AppShell({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`press relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-xl py-1 text-2xs font-medium transition-colors ${
-                  active ? "font-semibold text-accent" : "text-secondary hover:text-primary"
+                className={`press relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-lg py-1 transition-colors ${
+                  active ? "text-accent" : "text-secondary hover:text-primary"
                 }`}
               >
                 {active && (
-                  <span className="absolute inset-0 -z-10 rounded-xl bg-accent/12" />
+                  <span className="absolute inset-0 -z-10 rounded-lg bg-accent/12" />
                 )}
                 <Icon className={`h-5 w-5 shrink-0 ${active ? "text-accent" : "text-secondary"}`} />
-                <span className="mt-0.5 max-w-full truncate text-center text-[10px] tracking-tight">
+                <span className="mt-0.5 max-w-full truncate text-center text-3xs tracking-tight">
                   {item.label}
                 </span>
               </Link>

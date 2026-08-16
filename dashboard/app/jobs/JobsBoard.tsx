@@ -145,20 +145,20 @@ export default function JobsBoard({
     <div className="space-y-5 sm:space-y-6">
       {/* Top Stats & Tabs - horizontally scrollable with no scrollbars on mobile */}
       <div className="no-scrollbar -mx-1 max-w-full overflow-x-auto px-1">
-        <div className="glass inline-flex min-w-full gap-1 rounded-2xl p-1 sm:min-w-0">
+        <div className="inline-flex min-w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:min-w-0">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               aria-pressed={tab === t.key}
-              className={`press flex-1 shrink-0 whitespace-nowrap rounded-xl px-3 py-1.5 text-center text-xs font-medium sm:flex-initial sm:px-4 sm:py-2 sm:text-sm ${
+              className={`press flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial sm:px-4 sm:py-2 ${
                 tab === t.key
-                  ? "bg-accent font-semibold text-white shadow-sm shadow-accent/25"
+                  ? "bg-raised font-medium text-primary shadow-sm"
                   : "text-secondary hover:text-primary"
               }`}
             >
               {t.label}
-              <span className="tnum ml-1.5 opacity-70 sm:ml-2">{t.count}</span>
+              <span className="tnum ml-1.5 text-muted sm:ml-2">{t.count}</span>
             </button>
           ))}
         </div>

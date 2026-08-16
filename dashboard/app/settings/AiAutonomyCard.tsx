@@ -57,76 +57,73 @@ export default function AiAutonomyCard() {
   return (
     <Card className="p-4 sm:p-6 space-y-5">
       <div className="space-y-1">
-        <div className="flex items-center gap-2.5">
-          <h3 className="text-base font-semibold text-primary">
-            Application Autonomy
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold text-primary sm:text-base">
+            Application autonomy
           </h3>
           <Badge tone={autonomyMode === "safe" ? "ok" : "accent"}>
-            {autonomyMode === "safe" ? "Safe Mode" : "Auto-Apply Active"}
+            {autonomyMode === "safe" ? "Safe mode" : "Auto-apply active"}
           </Badge>
         </div>
-        <p className="text-xs text-secondary">
-          Choose how much control you want when the AI prepares job applications.
+        <p className="text-xs leading-relaxed text-secondary">
+          How much the agent does before checking with you.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-        {/* Option 1: Safe Mode */}
-        <div
+      {/*
+        These were <div onClick> - unreachable by keyboard and invisible to
+        assistive tech. They're a two-way choice, so they're radios.
+      */}
+      <div role="radiogroup" aria-label="Application autonomy" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <button
+          type="button"
+          role="radio"
+          aria-checked={autonomyMode === "safe"}
           onClick={() => handleSelectMode("safe")}
-          className={`press cursor-pointer rounded-xl p-4 border transition-all ${
+          className={`press rounded-xl border p-4 text-left transition-colors ${
             autonomyMode === "safe"
-              ? "border-emerald-500/40 bg-emerald-500/[0.06] ring-1 ring-emerald-500/30"
-              : "border-hairline/15 bg-primary/[0.02] hover:bg-primary/[0.04]"
+              ? "border-ok/40 bg-ok/[0.06]"
+              : "border-hairline/15 hover:bg-primary/[0.03]"
           }`}
         >
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-primary">
-                  🛡️ Safe Mode
-                </span>
-                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-3xs font-bold uppercase tracking-wider text-emerald-400">
-                  Recommended
-                </span>
-              </div>
-              <p className="text-xs text-secondary leading-relaxed pt-1">
-                The AI finds jobs, scores match fit, and drafts custom emails, then waits in your <strong>Approvals</strong> queue for your 1-click review.
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-primary">Safe mode</span>
+            <Badge tone="ok">Recommended</Badge>
           </div>
-        </div>
+          <p className="pt-1.5 text-xs leading-relaxed text-secondary">
+            The agent finds jobs, scores the fit and drafts the email, then
+            waits in your <strong className="font-medium text-primary">Approvals</strong>{" "}
+            queue for a one-tap review.
+          </p>
+        </button>
 
-        {/* Option 2: Autonomous Mode */}
-        <div
+        <button
+          type="button"
+          role="radio"
+          aria-checked={autonomyMode === "auto"}
           onClick={() => handleSelectMode("auto")}
-          className={`press cursor-pointer rounded-xl p-4 border transition-all ${
+          className={`press rounded-xl border p-4 text-left transition-colors ${
             autonomyMode === "auto"
-              ? "border-accent bg-accent/[0.06] ring-1 ring-accent/30"
-              : "border-hairline/15 bg-primary/[0.02] hover:bg-primary/[0.04]"
+              ? "border-accent/40 bg-accent/[0.06]"
+              : "border-hairline/15 hover:bg-primary/[0.03]"
           }`}
         >
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-primary">
-                  ⚡ Auto-Apply Mode
-                </span>
-              </div>
-              <p className="text-xs text-secondary leading-relaxed pt-1">
-                High-confidence job matches (85%+ score) are automatically submitted and emailed on your behalf without manual intervention.
-              </p>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-primary">Auto-apply</span>
           </div>
-        </div>
+          <p className="pt-1.5 text-xs leading-relaxed text-secondary">
+            Matches scoring 85% or higher are submitted and emailed on your
+            behalf, with no stop for review.
+          </p>
+        </button>
       </div>
 
-      <div className="flex items-center gap-2 text-2xs text-muted pt-1">
-        <IconCheck className="h-3.5 w-3.5 text-accent shrink-0" />
+      <div className="flex items-start gap-2 pt-1 text-2xs leading-relaxed text-muted">
+        <IconCheck className="mt-px h-3.5 w-3.5 shrink-0 text-accent" />
         <span>
           {saving
-            ? "Saving preference…"
-            : "You can change your autonomy mode at any time with immediate effect."}
+            ? "Saving…"
+            : "Changes take effect immediately and can be reverted at any time."}
         </span>
       </div>
     </Card>

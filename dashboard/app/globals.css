@@ -21,6 +21,7 @@
 
   --bg-base: 244 247 252; /* #F4F7FC - cool paper, the canvas behind the glass */
   --bg-chrome: 234 239 247; /* #EAEFF7 - sidebar / topbar wash */
+  --surface-raised: 255 255 255; /* segmented-control thumbs, popovers */
 
   --glass-bg: 255 255 255;
   --glass-alpha: 0.72;
@@ -48,6 +49,7 @@
 
   --bg-base: 11 16 32; /* #0B1020 - deep navy, not pure black: glass needs something to refract */
   --bg-chrome: 15 21 40; /* #0F1528 */
+  --surface-raised: 30 38 61; /* #1E263D - lifted, not recessed, above glass */
 
   --glass-bg: 255 255 255;
   --glass-alpha: 0.06;
@@ -102,11 +104,15 @@
     background: rgb(91 141 239 / 0.28);
   }
 
-  /* Quality floor: keyboard focus must always be visible, in both themes. */
+  /*
+    Quality floor: keyboard focus must always be visible, in both themes.
+    No border-radius here - that would *reshape* the focused element (a round
+    avatar button would snap to a rounded square). The outline already follows
+    each element's own radius.
+  */
   :focus-visible {
     outline: 2px solid rgb(91 141 239);
     outline-offset: 2px;
-    border-radius: 8px;
   }
 
   /* Form dropdown options styling for dark/night mode contrast */
@@ -179,6 +185,46 @@
       transparent
     );
     pointer-events: none;
+  }
+
+  /*
+    One definition for every text input, textarea and select in the app. This
+    string was previously copy-pasted into login, onboarding, verify-email and
+    two settings cards, which is how they drifted out of sync.
+  */
+  .field {
+    width: 100%;
+    min-height: 44px; /* the iOS touch-target floor */
+    border-radius: 10px;
+    background-color: rgb(var(--text-primary) / 0.04);
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: rgb(var(--text-primary));
+    outline: none;
+    box-shadow: inset 0 0 0 1px rgb(var(--hairline) / var(--hairline-alpha));
+    transition: box-shadow 0.15s ease;
+  }
+  .field::placeholder {
+    color: rgb(var(--text-muted));
+  }
+  .field:focus {
+    box-shadow: inset 0 0 0 2px rgb(91 141 239);
+  }
+
+  /*
+    Selects get a chevron drawn in. Several were `appearance-none` with no
+    affordance at all, so they read as plain text inputs that mysteriously
+    refused to accept typing.
+  */
+  .select-field {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2.25rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238591A6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
   }
 
   .press {

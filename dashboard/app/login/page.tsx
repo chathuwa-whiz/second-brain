@@ -107,15 +107,12 @@ export default function LoginPage() {
     }
   }
 
-  const field =
-    "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
-
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 pb-safe pt-safe sm:py-12">
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-xl shadow-accent/30 sm:h-14 sm:w-14">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25 sm:h-14 sm:w-14">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -130,32 +127,37 @@ export default function LoginPage() {
               <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
             </svg>
           </div>
-          <h1 className="mt-3.5 text-xl font-bold tracking-tight text-primary sm:mt-4 sm:text-2xl">
+          <h1 className="mt-3.5 text-xl font-semibold tracking-tight text-primary sm:mt-4 sm:text-2xl">
             Second Brain
           </h1>
           <p className="mt-1 text-xs text-secondary sm:text-sm">
             {mode === "signin"
-              ? "Sign in to your autonomous AI workspace"
-              : "Create your personal AI & career copilot workspace"}
+              ? "Sign in to your workspace"
+              : "Create your workspace"}
           </p>
         </div>
 
-        <Card className="p-5 sm:p-7 shadow-2xl">
-          {/* Mode Switcher Tabs */}
-          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-primary/[0.05] p-1 text-xs font-semibold">
+        <Card className="p-5 sm:p-7">
+          {/*
+            The selected tab needs a real surface. `bg-card` was never a token
+            in this project, so it compiled to nothing and the active tab was
+            distinguishable only by a shadow you couldn't see on glass.
+          */}
+          <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-primary/[0.05] p-1 text-xs font-medium">
             <button
               type="button"
               onClick={() => {
                 setMode("signin");
                 setError(null);
               }}
-              className={`rounded-lg py-2 transition-all ${
+              aria-pressed={mode === "signin"}
+              className={`press rounded-lg py-2 transition-colors ${
                 mode === "signin"
-                  ? "bg-card text-primary shadow-sm"
+                  ? "bg-raised text-primary shadow-sm"
                   : "text-secondary hover:text-primary"
               }`}
             >
-              Sign In
+              Sign in
             </button>
             <button
               type="button"
@@ -163,13 +165,14 @@ export default function LoginPage() {
                 setMode("signup");
                 setError(null);
               }}
-              className={`rounded-lg py-2 transition-all ${
+              aria-pressed={mode === "signup"}
+              className={`press rounded-lg py-2 transition-colors ${
                 mode === "signup"
-                  ? "bg-card text-primary shadow-sm"
+                  ? "bg-raised text-primary shadow-sm"
                   : "text-secondary hover:text-primary"
               }`}
             >
-              Create Account
+              Create account
             </button>
           </div>
 
@@ -178,7 +181,7 @@ export default function LoginPage() {
             type="button"
             onClick={handleGoogleSignIn}
             disabled={googleLoading || loading}
-            className="press flex min-h-[44px] w-full items-center justify-center gap-3 rounded-xl border border-hairline/20 bg-primary/[0.03] px-4 py-2.5 text-sm font-medium text-primary shadow-sm hover:bg-primary/[0.07] focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+            className="press flex min-h-[44px] w-full items-center justify-center gap-3 rounded-xl border border-hairline/15 bg-primary/[0.03] px-4 py-2.5 text-sm font-medium text-primary hover:bg-primary/[0.07] disabled:opacity-50"
           >
             <IconGoogle className="h-5 w-5" />
             <span>{googleLoading ? "Connecting to Google…" : "Continue with Google"}</span>
@@ -209,7 +212,7 @@ export default function LoginPage() {
                   id="name"
                   type="text"
                   placeholder="Alex Morgan"
-                  className={field}
+                  className="field"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoComplete="name"
@@ -229,7 +232,7 @@ export default function LoginPage() {
                 id="email"
                 type="email"
                 placeholder="you@company.com"
-                className={field}
+                className="field"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
@@ -253,7 +256,7 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
-                className={field}
+                className="field"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={
@@ -270,7 +273,7 @@ export default function LoginPage() {
               type="submit"
               variant="primary"
               disabled={loading || googleLoading}
-              className="min-h-[44px] w-full text-sm font-semibold mt-2"
+              className="mt-2 min-h-[44px] w-full text-sm font-medium"
             >
               {loading
                 ? mode === "signin"
@@ -278,14 +281,15 @@ export default function LoginPage() {
                   : "Creating account…"
                 : mode === "signin"
                 ? "Sign in"
-                : "Create Account"}
+                : "Create account"}
             </Button>
           </form>
         </Card>
 
         {/* Footer Note */}
-        <p className="mt-6 text-center text-2xs text-muted">
-          By signing in, you agree to Second Brain's Terms of Service and Privacy Policy.
+        <p className="mt-6 text-center text-2xs leading-relaxed text-muted">
+          By signing in, you agree to Second Brain&apos;s Terms of Service and
+          Privacy Policy.
         </p>
       </div>
     </main>

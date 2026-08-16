@@ -35,11 +35,11 @@ export function SectionHeader({
     <div className="mb-3 flex flex-wrap items-end justify-between gap-2 sm:mb-4 sm:gap-4">
       <div className="min-w-0">
         {eyebrow && (
-          <p className="text-2xs font-semibold uppercase tracking-widest text-muted">
+          <p className="text-3xs font-semibold uppercase tracking-wider text-muted">
             {eyebrow}
           </p>
         )}
-        <h2 className="text-base font-semibold tracking-tight text-primary sm:text-lg">
+        <h2 className="text-sm font-semibold tracking-tight text-primary sm:text-base">
           {title}
         </h2>
       </div>
@@ -66,9 +66,16 @@ export function Badge({
   children: ReactNode;
   tone?: Tone;
 }) {
+  /*
+    Deliberately a rounded rectangle, not a pill, and sentence case rather than
+    ALL-CAPS. Badges appear several per card here; as shouty full-round pills
+    they competed with the content they were labelling. `first-letter` rather
+    than `capitalize` so raw enum values ("high") read as "High" without
+    Title-Casing whole sentences ("Ran on its own").
+  */
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-2xs font-semibold uppercase tracking-wide ring-1 ring-inset ${TONES[tone]}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-2xs font-medium ring-1 ring-inset first-letter:uppercase ${TONES[tone]}`}
     >
       {children}
     </span>
@@ -159,16 +166,18 @@ export function StatTile({
         className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentBar} to-transparent`}
       />
       <div className="flex items-center justify-between gap-1">
-        <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted xs:text-2xs">
+        <p className="truncate text-3xs font-semibold uppercase tracking-wide text-muted">
           {label}
         </p>
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
       </div>
-      <p className="tnum mt-1 text-2xl font-bold tracking-tight text-primary xs:mt-1.5 xs:text-3xl">
+      {/* These sit four-up on a 420px screen; text-3xl there was a wall of
+          numerals with no room left for the label under it. */}
+      <p className="tnum mt-1 text-xl font-semibold tracking-tight text-primary xs:mt-1.5 xs:text-2xl sm:text-3xl">
         {value}
       </p>
       {hint && (
-        <p className="mt-0.5 truncate text-[11px] text-secondary/80 sm:text-xs">
+        <p className="mt-0.5 truncate text-2xs text-secondary sm:text-xs">
           {hint}
         </p>
       )}
@@ -249,7 +258,7 @@ export function EmptyState({
 }) {
   return (
     <Card className="p-6 text-center sm:p-10">
-      <p className="text-base font-medium text-primary">{title}</p>
+      <p className="text-sm font-semibold text-primary sm:text-base">{title}</p>
       <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-secondary sm:text-sm">{body}</p>
       {action && <div className="mt-4 flex justify-center sm:mt-5">{action}</div>}
     </Card>
@@ -258,7 +267,7 @@ export function EmptyState({
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-danger/10 px-4 py-3 text-sm text-danger ring-1 ring-inset ring-danger/25">
+    <div className="rounded-xl bg-danger/10 px-3.5 py-2.5 text-xs leading-relaxed text-danger ring-1 ring-inset ring-danger/25 sm:px-4 sm:py-3 sm:text-sm">
       {children}
     </div>
   );

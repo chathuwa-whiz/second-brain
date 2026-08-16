@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { ThemeProvider, themeBootstrapScript } from "@/components/theme";
 import Providers from "@/components/Providers";
-import AppShell from "@/components/AppShell";
+import ShellGate from "@/components/ShellGate";
 import Mesh from "@/components/Mesh";
 import "./globals.css";
 
@@ -42,7 +42,7 @@ export default async function RootLayout({
           <Providers>
             <Mesh />
             {session ? (
-              <AppShell user={session.user}>{children}</AppShell>
+              <ShellGate user={session.user}>{children}</ShellGate>
             ) : (
               children
             )}

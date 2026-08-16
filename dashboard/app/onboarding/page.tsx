@@ -2,10 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Card, ErrorNote } from "@/components/ui";
+import { Button, ErrorNote } from "@/components/ui";
 import { IconCheck, IconResumes, IconSettings, IconJobs } from "@/components/icons";
 import { formatBytes } from "@/lib/format";
 import { withBasePath } from "@/lib/basePath";
+
+/*
+  Onboarding runs before the workspace exists, so it deliberately does not use
+  AppShell (see components/ShellGate) and does not wrap its content in a Card.
+  A panel floating inside a panel inside a sidebar was three frames deep for a
+  form the user has to fill in exactly once. What's left is the standard shape:
+  a thin progress rail, one column of content on the canvas, and a docked
+  action bar that stays in reach on a phone.
+*/
 
 type ResumeItem = {
   name: string;
@@ -40,6 +49,62 @@ const POPULAR_ROLES_BY_CATEGORY: Record<string, string[]> = {
     "Talent Acquisition",
   ],
 };
+
+const STEPS = [
+  { n: 1, label: "Resumes", Icon: IconResumes },
+  { n: 2, label: "Targets", Icon: IconJobs },
+  { n: 3, label: "Autonomy", Icon: IconSettings },
+] as const;
+
+/** Small labelled block. Replaces the ad-hoc label/space markup repeated below. */
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-medium text-primary">{label}</label>
+      {hint && <p className="text-2xs text-muted">{hint}</p>}
+      {children}
+    </div>
+  );
+}
+
+/** Removable token. One shape for titles, locations and skills alike. */
+function Chip({
+  children,
+  onRemove,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  onRemove: () => void;
+  tone?: "neutral" | "accent";
+}) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md py-1 pl-2.5 pr-1 text-2xs font-medium ${
+        tone === "accent"
+          ? "bg-accent/10 text-accent ring-1 ring-inset ring-accent/20"
+          : "bg-primary/[0.05] text-secondary ring-1 ring-inset ring-hairline/15"
+      }`}
+    >
+      {children}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove"
+        className="grid h-4 w-4 place-items-center rounded text-muted transition-colors hover:text-danger"
+      >
+        ✕
+      </button>
+    </span>
+  );
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -114,6 +179,12 @@ export default function OnboardingPage() {
     }
     loadInitialData();
   }, []);
+
+  // Moving between steps should start at the top of the new step, not halfway
+  // down whatever the previous one had scrolled to.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
 
   async function fetchResumes() {
     try {
@@ -283,634 +354,528 @@ export default function OnboardingPage() {
     }
   }
 
-  const field =
-    "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
+  /* ─────────────────────────── Step 4: done ─────────────────────────── */
+
+  if (step === 4) {
+    return (
+      <main className="grid min-h-screen place-items-center px-5 py-12 pb-safe pt-safe">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok ring-1 ring-ok/25">
+            <IconCheck className="h-7 w-7" />
+          </div>
+
+          <h1 className="mt-5 text-xl font-semibold tracking-tight text-primary sm:text-2xl">
+            Your workspace is ready
+          </h1>
+          <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-secondary sm:text-sm">
+            Targets and resumes are saved, and the agent knows when to act on
+            its own and when to ask you first.
+          </p>
+
+          <dl className="mt-7 divide-y divide-hairline/10 border-y border-hairline/10 text-left text-xs">
+            <div className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="text-muted">Resumes</dt>
+              <dd className="tnum font-medium text-primary">{resumes.length} of 5</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="shrink-0 text-muted">Target roles</dt>
+              <dd className="truncate font-medium text-primary">
+                {targetTitles.join(", ") || "—"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="text-muted">Work preference</dt>
+              <dd className="font-medium capitalize text-primary">
+                {remotePref.replace("_", " ")}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="text-muted">Acts alone above</dt>
+              <dd className="tnum font-medium text-accent">
+                {Math.round(confidenceThreshold * 100)}%
+              </dd>
+            </div>
+          </dl>
+
+          <p className="mt-4 text-2xs leading-relaxed text-muted">
+            All of this is editable later under Settings.
+          </p>
+
+          <Button
+            variant="primary"
+            onClick={() => {
+              router.push("/");
+              router.refresh();
+            }}
+            className="mt-6 min-h-[46px] w-full text-sm font-medium"
+          >
+            Go to dashboard
+          </Button>
+        </div>
+      </main>
+    );
+  }
+
+  /* ───────────────────────── Steps 1-3: wizard ──────────────────────── */
+
+  const stepMeta = {
+    1: {
+      title: "Add your resumes",
+      blurb:
+        "Upload up to five versions of your CV. The agent picks whichever one fits each job posting best, so tailored variants are worth adding.",
+    },
+    2: {
+      title: "Tell it what to look for",
+      blurb:
+        "The roles, places and pay you want. These drive every match the agent scores.",
+    },
+    3: {
+      title: "Decide how much it does alone",
+      blurb:
+        "Above the line the agent acts by itself. Below it, the action waits for you in Approvals.",
+    },
+  }[step];
 
   return (
-    <main className="min-h-screen px-4 py-8 pb-safe pt-safe sm:py-12 flex flex-col items-center justify-center">
-      {/* Top Bar / Header */}
-      <div className="w-full max-w-2xl mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/20">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              className="h-5 w-5 text-white"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2a8 8 0 0 0-8 8c0 3.36 2.07 6.24 5 7.42V20a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2.58c2.93-1.18 5-4.06 5-7.42a8 8 0 0 0-8-8z" />
-              <path d="M10 14h4" />
-              <path d="M10 17h4" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-base font-bold text-primary">Second Brain Workspace Setup</h1>
-            <p className="text-2xs text-secondary">
-              {step === 1 && "Step 1 of 3: Resume Management"}
-              {step === 2 && "Step 2 of 3: Job Discovery Targets"}
-              {step === 3 && "Step 3 of 3: AI Trust Layer"}
-              {step === 4 && "Workspace Ready"}
+    <main className="flex min-h-screen flex-col">
+      {/* ── Top bar: identity + escape hatch ── */}
+      <header className="pt-safe sticky top-0 z-20 border-b border-hairline/10 bg-base/80 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-accent to-violet">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-[18px] w-[18px]"
+                aria-hidden="true"
+              >
+                <path d="M12 4.5a3 3 0 0 0-3 3v9a3 3 0 0 0 6 0v-9a3 3 0 0 0-3-3z" />
+                <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
+              </svg>
+            </div>
+            <p className="truncate text-sm font-medium tracking-tight text-primary">
+              Set up Second Brain
             </p>
           </div>
-        </div>
 
-        {step < 4 && (
-          <Button
-            variant="quiet"
+          <button
+            type="button"
             onClick={handleQuickSkip}
             disabled={skipping || loading}
-            className="text-xs font-semibold text-muted hover:text-primary transition-colors"
+            className="press shrink-0 rounded-lg px-2 py-1 text-xs font-medium text-muted transition-colors hover:text-primary disabled:opacity-50"
           >
-            {skipping ? "Skipping…" : "Skip Setup for Now →"}
-          </Button>
-        )}
-      </div>
+            {skipping ? "Skipping…" : "Skip"}
+          </button>
+        </div>
 
-      {/* Wizard Progress Steps Indicator */}
-      {step < 4 && (
-        <div className="w-full max-w-2xl mb-6">
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
-                step === 1
-                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
-                  : step > 1
-                  ? "bg-primary/[0.05] text-primary hover:bg-primary/[0.08]"
-                  : "bg-primary/[0.02] text-muted opacity-60"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
-                1
-              </span>
-              <span className="truncate">Resumes</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStep(2)}
-              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
-                step === 2
-                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
-                  : step > 2
-                  ? "bg-primary/[0.05] text-primary hover:bg-primary/[0.08]"
-                  : "bg-primary/[0.02] text-muted opacity-60"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
-                2
-              </span>
-              <span className="truncate">Career Targets</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStep(3)}
-              className={`flex items-center gap-2 rounded-xl p-2.5 text-xs font-semibold transition-all text-left ${
-                step === 3
-                  ? "bg-accent/15 text-accent ring-1 ring-accent/30"
-                  : "bg-primary/[0.02] text-muted opacity-60"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center rounded-full bg-accent/20 text-accent text-2xs font-bold shrink-0">
-                3
-              </span>
-              <span className="truncate">Trust Layer</span>
-            </button>
+        {/*
+          Progress as a rail rather than three tappable cards. It reports where
+          you are without pretending to be the primary control - Continue is.
+        */}
+        <div className="mx-auto w-full max-w-xl px-5 pb-3">
+          <div className="flex items-center gap-1.5">
+            {STEPS.map(({ n, label }) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setStep(n)}
+                aria-current={step === n ? "step" : undefined}
+                aria-label={`Step ${n}: ${label}`}
+                className="group flex-1 text-left"
+              >
+                <span
+                  className={`block h-[3px] rounded-full transition-colors ${
+                    n <= step
+                      ? "bg-accent"
+                      : "bg-primary/10 group-hover:bg-primary/20"
+                  }`}
+                />
+                <span
+                  className={`mt-1.5 block text-3xs font-medium uppercase tracking-wider transition-colors ${
+                    n === step ? "text-primary" : "text-muted"
+                  }`}
+                >
+                  {label}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
-      )}
+      </header>
 
-      {/* Main Form Card */}
-      <Card className="w-full max-w-2xl p-5 sm:p-8">
-        {/* ================================================================= */}
-        {/* STEP 1: RESUME UPLOAD                                             */}
-        {/* ================================================================= */}
-        {step === 1 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                <IconResumes className="h-5 w-5 text-accent" />
-                Upload Candidate Resumes
-              </h2>
-              <p className="mt-1 text-xs text-secondary leading-relaxed">
-                Upload up to 5 variations of your CV (e.g. Full Stack, Frontend, Executive). Your AI agent selects the most relevant resume dynamically for each job application.
-              </p>
-            </div>
+      {/* ── Step content ── */}
+      <div className="mx-auto w-full max-w-xl flex-1 px-5 py-7 sm:py-10">
+        <h1 className="text-xl font-semibold tracking-tight text-primary sm:text-2xl">
+          {stepMeta.title}
+        </h1>
+        <p className="mt-1.5 max-w-lg text-xs leading-relaxed text-secondary sm:text-sm">
+          {stepMeta.blurb}
+        </p>
 
-            {/* Drop Zone */}
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                handleFileUpload(e.dataTransfer.files);
-              }}
-              onClick={() => fileInputRef.current?.click()}
-              className={`group flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-7 text-center transition-all ${
-                dragging
-                  ? "border-accent bg-accent/10"
-                  : "border-hairline/25 bg-primary/[0.02] hover:border-accent/40 hover:bg-primary/[0.04]"
-              }`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".pdf,.docx,.txt"
-                className="hidden"
-                onChange={(e) => handleFileUpload(e.target.files)}
-              />
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/[0.05] text-primary transition-transform group-hover:scale-105">
-                <IconResumes className="h-6 w-6 text-accent" />
-              </div>
-              <p className="mt-3 text-xs font-semibold text-primary">
-                {uploading ? "Uploading to Cloudflare R2…" : "Click or drag & drop resumes here"}
-              </p>
-              <p className="mt-1 text-2xs text-muted">
-                Supports PDF, DOCX, TXT · Maximum 5 resumes
-              </p>
-            </div>
-
-            {/* Uploaded Resumes List */}
-            {resumes.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-primary">
-                  Uploaded Resumes ({resumes.length}/5)
-                </p>
-                <div className="divide-y divide-hairline/15 rounded-xl border border-hairline/15 bg-primary/[0.02] overflow-hidden">
-                  {resumes.map((file) => (
-                    <div
-                      key={file.name}
-                      className="flex items-center justify-between p-3 text-xs text-secondary"
-                    >
-                      <div className="flex items-center gap-2.5 truncate">
-                        <IconCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-                        <span className="truncate font-medium text-primary">{file.name}</span>
-                        <span className="text-2xs text-muted shrink-0">({formatBytes(file.size)})</span>
-                      </div>
-                      <Button
-                        variant="quiet"
-                        disabled={deleting === file.name}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteResume(file.name);
-                        }}
-                        className="text-2xs text-rose-400 hover:text-rose-300"
-                      >
-                        {deleting === file.name ? "Deleting…" : "Delete"}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {error && <ErrorNote>{error}</ErrorNote>}
-
-            {/* Step 1 Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
-              <Button
-                variant="quiet"
-                onClick={() => {
-                  setError(null);
-                  setStep(2);
+        <div className="mt-7 space-y-7">
+          {/* ══════════════ STEP 1: RESUMES ══════════════ */}
+          {step === 1 && (
+            <>
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
                 }}
-                className="text-xs text-muted hover:text-primary font-medium"
-              >
-                Skip for now →
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  setError(null);
-                  setStep(2);
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  handleFileUpload(e.dataTransfer.files);
                 }}
-                className="min-h-[44px] px-6 text-sm font-semibold"
+                onClick={() => fileInputRef.current?.click()}
+                className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-6 py-9 text-center transition-colors ${
+                  dragging
+                    ? "border-accent bg-accent/[0.06]"
+                    : "border-hairline/25 hover:border-accent/40 hover:bg-primary/[0.02]"
+                }`}
               >
-                Continue to Targets →
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* ================================================================= */}
-        {/* STEP 2: CAREER TARGETS & CRITERIA                                 */}
-        {/* ================================================================= */}
-        {step === 2 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                <IconJobs className="h-5 w-5 text-accent" />
-                Target Career Roles & Criteria
-              </h2>
-              <p className="mt-1 text-xs text-secondary leading-relaxed">
-                Define the roles you want your agent to hunt for across TopJobs and career feeds.
-              </p>
-            </div>
-
-            {/* Quick Presets by Industry */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-primary">
-                Quick Category Suggestions
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {Object.entries(POPULAR_ROLES_BY_CATEGORY).flatMap(([cat, roles]) =>
-                  roles.slice(0, 2).map((role) => (
-                    <button
-                      key={role}
-                      type="button"
-                      onClick={() => addTitle(role)}
-                      className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-2xs font-medium border transition-colors ${
-                        targetTitles.includes(role)
-                          ? "bg-accent/15 border-accent/30 text-accent"
-                          : "bg-primary/[0.03] border-hairline/15 text-secondary hover:bg-primary/[0.08]"
-                      }`}
-                    >
-                      + {role}
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Target Job Titles Input */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-primary">
-                Target Job Titles
-              </label>
-              <div className="flex gap-2">
                 <input
-                  type="text"
-                  placeholder="e.g. Software Engineer, Accountant, Marketing Lead"
-                  value={targetTitleInput}
-                  onChange={(e) => setTargetTitleInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTitle())}
-                  className={field}
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,.txt"
+                  className="hidden"
+                  onChange={(e) => handleFileUpload(e.target.files)}
                 />
-                <Button type="button" variant="quiet" onClick={() => addTitle()} className="text-xs font-semibold">
-                  Add
-                </Button>
+                <IconResumes className="h-6 w-6 text-muted" />
+                <p className="mt-3 text-sm font-medium text-primary">
+                  {uploading ? "Uploading…" : "Drop a resume, or click to browse"}
+                </p>
+                <p className="mt-1 text-2xs text-muted">
+                  PDF, DOCX or TXT · up to 5 files
+                </p>
               </div>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {targetTitles.map((t) => (
-                  <span
-                    key={t}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-semibold text-accent border border-accent/20"
+
+              {resumes.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-primary">
+                    Uploaded{" "}
+                    <span className="tnum text-muted">
+                      ({resumes.length}/5)
+                    </span>
+                  </p>
+                  <ul className="mt-2 divide-y divide-hairline/10 border-y border-hairline/10">
+                    {resumes.map((file) => (
+                      <li
+                        key={file.name}
+                        className="flex items-center justify-between gap-3 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <IconCheck className="h-4 w-4 shrink-0 text-ok" />
+                          <span className="truncate text-xs font-medium text-primary">
+                            {file.name}
+                          </span>
+                          <span className="shrink-0 text-2xs text-muted">
+                            {formatBytes(file.size)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={deleting === file.name}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteResume(file.name);
+                          }}
+                          className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-muted transition-colors hover:text-danger disabled:opacity-50"
+                        >
+                          {deleting === file.name ? "Removing…" : "Remove"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ══════════════ STEP 2: TARGETS ══════════════ */}
+          {step === 2 && (
+            <>
+              <Field
+                label="Target job titles"
+                hint="Add your own, or tap a suggestion below."
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Software Engineer"
+                    value={targetTitleInput}
+                    onChange={(e) => setTargetTitleInput(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && (e.preventDefault(), addTitle())
+                    }
+                    className="field"
+                  />
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    onClick={() => addTitle()}
+                    className="shrink-0"
                   >
-                    {t}
-                    <button
-                      type="button"
-                      onClick={() => removeTitle(t)}
-                      className="hover:text-primary"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
+                    Add
+                  </Button>
+                </div>
 
-            {/* Location & Remote Preference */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-primary">
-                  Work Preference
-                </label>
-                <select
-                  value={remotePref}
-                  onChange={(e) => setRemotePref(e.target.value as any)}
-                  className={field}
-                >
-                  <option value="remote_only">Remote Only</option>
-                  <option value="hybrid">Hybrid</option>
-                  <option value="onsite">On-site</option>
-                  <option value="any">Any / Flexible</option>
-                </select>
+                {targetTitles.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {targetTitles.map((t) => (
+                      <Chip key={t} tone="accent" onRemove={() => removeTitle(t)}>
+                        {t}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-1.5 pt-1.5">
+                  {Object.values(POPULAR_ROLES_BY_CATEGORY)
+                    .flatMap((roles) => roles.slice(0, 2))
+                    .filter((role) => !targetTitles.includes(role))
+                    .map((role) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => addTitle(role)}
+                        className="press rounded-md px-2.5 py-1 text-2xs font-medium text-secondary ring-1 ring-inset ring-hairline/15 transition-colors hover:text-primary hover:ring-accent/30"
+                      >
+                        + {role}
+                      </button>
+                    ))}
+                </div>
+              </Field>
+
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Field label="Work preference">
+                  <select
+                    value={remotePref}
+                    onChange={(e) => setRemotePref(e.target.value as any)}
+                    className="field select-field"
+                  >
+                    <option value="remote_only">Remote only</option>
+                    <option value="hybrid">Hybrid</option>
+                    <option value="onsite">On-site</option>
+                    <option value="any">Any / flexible</option>
+                  </select>
+                </Field>
+
+                <Field label="Experience level">
+                  <select
+                    value={experienceLevel}
+                    onChange={(e) => setExperienceLevel(e.target.value)}
+                    className="field select-field"
+                  >
+                    <option value="junior">Junior (1–2 yrs)</option>
+                    <option value="mid">Mid-level (3–5 yrs)</option>
+                    <option value="senior">Senior (5–8 yrs)</option>
+                    <option value="lead">Lead / Staff (8+ yrs)</option>
+                    <option value="executive">Executive / VP</option>
+                  </select>
+                </Field>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-primary">
-                  Experience Level
-                </label>
-                <select
-                  value={experienceLevel}
-                  onChange={(e) => setExperienceLevel(e.target.value)}
-                  className={field}
-                >
-                  <option value="junior">Junior (1–2 yrs)</option>
-                  <option value="mid">Mid-Level (3–5 yrs)</option>
-                  <option value="senior">Senior (5–8 yrs)</option>
-                  <option value="lead">Lead / Staff (8+ yrs)</option>
-                  <option value="executive">Executive / VP</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Target Salary & Locations */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-primary">
-                  Minimum Target Salary (Annual USD)
-                </label>
+              <Field label="Minimum salary" hint="Annual, in USD.">
                 <input
                   type="number"
+                  inputMode="numeric"
                   placeholder="80000"
                   value={minSalary}
                   onChange={(e) => setMinSalary(e.target.value)}
-                  className={field}
+                  className="field"
                 />
-              </div>
+              </Field>
 
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-primary">
-                  Target Locations
-                </label>
+              <Field label="Target locations">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     placeholder="e.g. Remote, Sri Lanka, UK"
                     value={locationInput}
                     onChange={(e) => setLocationInput(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addLocation())}
-                    className={field}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && (e.preventDefault(), addLocation())
+                    }
+                    className="field"
                   />
-                  <Button type="button" variant="quiet" onClick={addLocation} className="text-xs">
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    onClick={addLocation}
+                    className="shrink-0"
+                  >
                     Add
                   </Button>
                 </div>
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {locations.map((loc) => (
-                    <span
-                      key={loc}
-                      className="inline-flex items-center gap-1 rounded-lg bg-primary/[0.05] px-2 py-0.5 text-2xs font-medium text-secondary"
-                    >
-                      {loc}
-                      <button
-                        type="button"
-                        onClick={() => removeLocation(loc)}
-                        className="hover:text-primary ml-1"
-                      >
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
+                {locations.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {locations.map((loc) => (
+                      <Chip key={loc} onRemove={() => removeLocation(loc)}>
+                        {loc}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+              </Field>
 
-            {/* Core Skills */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold text-primary">
-                Core Skills & Domain Expertise
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="e.g. React, Financial Accounting, CRM, SEO, SQL"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSkill())}
-                  className={field}
-                />
-                <Button type="button" variant="quiet" onClick={addSkill} className="text-xs">
-                  Add
-                </Button>
-              </div>
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {skills.map((s) => (
-                  <span
-                    key={s}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary/[0.06] px-2.5 py-1 text-2xs font-medium text-secondary border border-hairline/20"
+              <Field
+                label="Core skills"
+                hint="Used to score how well you fit each posting."
+              >
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. React, SQL, SEO"
+                    value={skillInput}
+                    onChange={(e) => setSkillInput(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && (e.preventDefault(), addSkill())
+                    }
+                    className="field"
+                  />
+                  <Button
+                    type="button"
+                    variant="quiet"
+                    onClick={addSkill}
+                    className="shrink-0"
                   >
-                    {s}
-                    <button
-                      type="button"
-                      onClick={() => removeSkill(s)}
-                      className="hover:text-primary"
-                    >
-                      ✕
-                    </button>
+                    Add
+                  </Button>
+                </div>
+                {skills.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {skills.map((s) => (
+                      <Chip key={s} onRemove={() => removeSkill(s)}>
+                        {s}
+                      </Chip>
+                    ))}
+                  </div>
+                )}
+              </Field>
+            </>
+          )}
+
+          {/* ══════════════ STEP 3: AUTONOMY ══════════════ */}
+          {step === 3 && (
+            <>
+              <div className="space-y-4">
+                <div className="flex items-baseline justify-between gap-3">
+                  <label
+                    htmlFor="confidence"
+                    className="text-xs font-medium text-primary"
+                  >
+                    Acts on its own above
+                  </label>
+                  <span className="tnum text-2xl font-semibold tracking-tight text-accent">
+                    {Math.round(confidenceThreshold * 100)}%
                   </span>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {error && <ErrorNote>{error}</ErrorNote>}
+                <input
+                  id="confidence"
+                  type="range"
+                  min="0.5"
+                  max="0.95"
+                  step="0.05"
+                  value={confidenceThreshold}
+                  onChange={(e) =>
+                    setConfidenceThreshold(parseFloat(e.target.value))
+                  }
+                  className="w-full cursor-pointer accent-accent"
+                />
 
-            {/* Step 2 Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
-              <Button
-                variant="quiet"
-                onClick={() => setStep(1)}
-                className="text-xs font-medium"
-              >
-                ← Back
-              </Button>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="quiet"
-                  onClick={() => {
-                    setError(null);
-                    setStep(3);
-                  }}
-                  className="text-xs text-muted hover:text-primary font-medium"
-                >
-                  Skip for now →
-                </Button>
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    setError(null);
-                    setStep(3);
-                  }}
-                  className="min-h-[44px] px-6 text-sm font-semibold"
-                >
-                  Continue to Trust Layer →
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+                <div className="flex justify-between text-3xs text-muted">
+                  <span>50% · permissive</span>
+                  <span>75% · recommended</span>
+                  <span>95% · strict</span>
+                </div>
 
-        {/* ================================================================= */}
-        {/* STEP 3: TRUST LAYER & CONFIDENCE THRESHOLD                        */}
-        {/* ================================================================= */}
-        {step === 3 && (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold text-primary flex items-center gap-2">
-                <IconSettings className="h-5 w-5 text-accent" />
-                AI Agent & Trust Layer Tuning
-              </h2>
-              <p className="mt-1 text-xs text-secondary leading-relaxed">
-                Control the autonomy of your Second Brain agent. High-confidence actions auto-execute; lower confidence actions stop for your review.
-              </p>
-            </div>
-
-            {/* Confidence Slider */}
-            <div className="rounded-2xl border border-hairline/20 bg-primary/[0.02] p-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-primary">
-                  Auto-Execute Confidence Threshold
-                </span>
-                <span className="rounded-lg bg-accent/15 px-2.5 py-0.5 text-xs font-bold text-accent">
-                  {Math.round(confidenceThreshold * 100)}%
-                </span>
-              </div>
-
-              <input
-                type="range"
-                min="0.5"
-                max="0.95"
-                step="0.05"
-                value={confidenceThreshold}
-                onChange={(e) => setConfidenceThreshold(parseFloat(e.target.value))}
-                className="w-full accent-accent cursor-pointer"
-              />
-
-              <div className="flex justify-between text-2xs text-muted font-medium">
-                <span>50% (Permissive)</span>
-                <span>75% (Recommended)</span>
-                <span>95% (Strict Review)</span>
-              </div>
-
-              <div className="rounded-xl bg-accent/10 border border-accent/20 p-3 text-xs text-accent space-y-1">
-                <p className="font-semibold">How this works:</p>
-                <p className="text-2xs leading-relaxed text-secondary">
-                  Actions scored ≥ <strong>{Math.round(confidenceThreshold * 100)}%</strong> will be automatically executed by your agent. Actions below this score will wait in your <strong>Approvals Queue</strong> for 1-click human authorization.
+                <p className="text-xs leading-relaxed text-secondary">
+                  Anything the agent scores at{" "}
+                  <span className="tnum font-medium text-primary">
+                    {Math.round(confidenceThreshold * 100)}%
+                  </span>{" "}
+                  or higher runs automatically. Everything below waits in your{" "}
+                  <span className="font-medium text-primary">Approvals</span>{" "}
+                  queue for a one-tap decision.
                 </p>
               </div>
-            </div>
 
-            {/* Notifications */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-primary">
-                Pending Approval Notification Mode
-              </label>
-              <select
-                value={notificationFreq}
-                onChange={(e) => setNotificationFreq(e.target.value as any)}
-                className={field}
-              >
-                <option value="instant">Instant Email Alert (When an action needs approval)</option>
-                <option value="daily_digest">Daily Summary Digest</option>
-                <option value="manual">Dashboard Review Only (No emails)</option>
-              </select>
-            </div>
+              <Field label="When something needs your approval">
+                <select
+                  value={notificationFreq}
+                  onChange={(e) => setNotificationFreq(e.target.value as any)}
+                  className="field select-field"
+                >
+                  <option value="instant">Email me right away</option>
+                  <option value="daily_digest">Send one daily summary</option>
+                  <option value="manual">Don&apos;t email — I&apos;ll check the dashboard</option>
+                </select>
+              </Field>
 
-            {/* 7-Day Free Trial Notice */}
-            <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-xs text-emerald-300 flex items-start gap-3">
-              <div className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-emerald-300 font-bold shrink-0">
-                🎉
-              </div>
-              <div className="space-y-0.5">
-                <p className="font-bold text-emerald-200">7-Day Full Access Trial Included</p>
-                <p className="text-2xs text-emerald-300/90 leading-relaxed">
-                  Your account includes 7 days of free unlimited job scraping, resume matching, and autonomous agent executions. Later only $1.00/month.
+              <div className="flex items-start gap-2.5 rounded-xl bg-ok/[0.08] p-3.5 ring-1 ring-inset ring-ok/20">
+                <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" />
+                <p className="text-xs leading-relaxed text-secondary">
+                  <span className="font-medium text-primary">
+                    Everything is included, free.
+                  </span>{" "}
+                  Unlimited job scanning, resume matching and autonomous
+                  actions — no trial clock, no card required.
                 </p>
               </div>
-            </div>
+            </>
+          )}
 
-            {error && <ErrorNote>{error}</ErrorNote>}
+          {error && <ErrorNote>{error}</ErrorNote>}
+        </div>
+      </div>
 
-            {/* Step 3 Actions */}
-            <div className="flex items-center justify-between pt-4 border-t border-hairline/15">
-              <Button
-                variant="quiet"
-                onClick={() => setStep(2)}
-                className="text-xs font-medium"
-              >
-                ← Back
-              </Button>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="quiet"
-                  onClick={handleQuickSkip}
-                  disabled={skipping || loading}
-                  className="text-xs text-muted hover:text-primary font-medium"
-                >
-                  {skipping ? "Skipping…" : "Skip & Launch →"}
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={loading}
-                  onClick={handleFinishOnboarding}
-                  className="min-h-[44px] px-7 text-sm font-semibold"
-                >
-                  {loading ? "Activating Workspace…" : "Complete Setup & Launch ⚡"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* ── Docked action bar ── */}
+      <div className="pb-safe sticky bottom-0 z-20 border-t border-hairline/10 bg-base/80 backdrop-blur-xl">
+        <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 py-3">
+          {step > 1 ? (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setError(null);
+                setStep((s) => (s - 1) as 1 | 2 | 3);
+              }}
+            >
+              Back
+            </Button>
+          ) : (
+            <span />
+          )}
 
-        {/* ================================================================= */}
-        {/* STEP 4: CELEBRATION & WORKSPACE READY                             */}
-        {/* ================================================================= */}
-        {step === 4 && (
-          <div className="py-6 text-center space-y-5">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-emerald-400 ring-8 ring-emerald-500/10">
-              <IconCheck className="h-8 w-8" />
-            </div>
-
-            <div className="space-y-1.5">
-              <h2 className="text-xl font-bold text-primary">
-                Your Second Brain Workspace is Ready!
-              </h2>
-              <p className="text-xs text-secondary max-w-md mx-auto leading-relaxed">
-                Your career targets and resumes are synchronized, and your autonomous trust layer is active.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-hairline/15 bg-primary/[0.02] p-4 text-left text-xs max-w-md mx-auto space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted">Resumes Indexed:</span>
-                <span className="font-semibold text-primary">{resumes.length} / 5</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Target Roles:</span>
-                <span className="font-semibold text-primary truncate max-w-[200px]">
-                  {targetTitles.join(", ")}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Work Preference:</span>
-                <span className="font-semibold text-primary capitalize">{remotePref.replace("_", " ")}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">Auto-Execute Gate:</span>
-                <span className="font-semibold text-accent">{Math.round(confidenceThreshold * 100)}%</span>
-              </div>
-            </div>
-
-            <div className="rounded-xl bg-accent/10 border border-accent/20 p-3 text-xs text-accent max-w-md mx-auto">
-              💡 Tip: You can adjust all target roles, add resumes, and change thresholds anytime in <strong>Settings</strong>.
-            </div>
-
-            <div className="pt-3">
-              <Button
-                variant="primary"
-                onClick={() => {
-                  router.push("/");
-                  router.refresh();
-                }}
-                className="min-h-[46px] w-full max-w-sm text-sm font-semibold"
-              >
-                Go to Control Panel Dashboard →
-              </Button>
-            </div>
-          </div>
-        )}
-      </Card>
+          {step < 3 ? (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setError(null);
+                setStep((s) => (s + 1) as 2 | 3);
+              }}
+              className="min-h-[44px] px-6 text-sm font-medium"
+            >
+              Continue
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              disabled={loading || skipping}
+              onClick={handleFinishOnboarding}
+              className="min-h-[44px] px-6 text-sm font-medium"
+            >
+              {loading ? "Finishing…" : "Finish setup"}
+            </Button>
+          )}
+        </div>
+      </div>
     </main>
   );
 }

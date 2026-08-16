@@ -103,7 +103,7 @@ export default function ApprovalQueue({
 
       {settled.length > 0 && (
         <section>
-          <p className="mb-3 text-2xs font-semibold uppercase tracking-widest text-muted">
+          <p className="mb-3 text-3xs font-semibold uppercase tracking-wider text-muted">
             Just decided
           </p>
           <div className="space-y-3">

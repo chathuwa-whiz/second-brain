@@ -89,9 +89,6 @@ function VerifyEmailContent() {
     }
   }
 
-  const field =
-    "w-full min-h-[44px] rounded-xl bg-primary/[0.04] px-3.5 py-2.5 text-sm text-primary outline-none ring-1 ring-inset ring-hairline/15 transition-shadow placeholder:text-muted focus:ring-2 focus:ring-accent";
-
   return (
     <main className="grid min-h-screen place-items-center px-4 py-8 pb-safe pt-safe sm:py-12">
       <div className="w-full max-w-md">
@@ -111,7 +108,7 @@ function VerifyEmailContent() {
               <path d="M9 8.5H6.5a2.5 2.5 0 0 0 0 5H9M15 8.5h2.5a2.5 2.5 0 0 1 0 5H15" />
             </svg>
           </div>
-          <h1 className="mt-3.5 text-xl font-bold tracking-tight text-primary sm:mt-4 sm:text-2xl">
+          <h1 className="mt-3.5 text-xl font-semibold tracking-tight text-primary sm:mt-4 sm:text-2xl">
             Second Brain
           </h1>
           <p className="mt-1 text-xs text-secondary sm:text-sm">
@@ -119,7 +116,7 @@ function VerifyEmailContent() {
           </p>
         </div>
 
-        <Card className="p-6 sm:p-8 text-center shadow-2xl">
+        <Card className="p-6 text-center sm:p-8">
           {loading && (
             <div className="py-6 space-y-4">
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-accent border-t-transparent" />
@@ -134,19 +131,19 @@ function VerifyEmailContent() {
 
           {!loading && success && (
             <div className="py-4 space-y-4">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-500/15 text-emerald-400 ring-8 ring-emerald-500/10">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-ok/12 text-ok ring-1 ring-ok/25">
                 <IconCheck className="h-7 w-7" />
               </div>
-              <h2 className="text-lg font-bold text-primary">
-                Email Verified Successfully!
+              <h2 className="text-lg font-semibold text-primary">
+                Email verified
               </h2>
               <p className="text-xs text-secondary leading-relaxed">
                 Your Second Brain workspace is now active and ready for use.
               </p>
               <div className="pt-3">
-                <Link href="/login" className="w-full block">
-                  <Button variant="primary" className="min-h-[44px] w-full text-sm font-semibold">
-                    Sign In to Your Workspace
+                <Link href="/login" className="block w-full">
+                  <Button variant="primary" className="min-h-[44px] w-full text-sm font-medium">
+                    Sign in to your workspace
                   </Button>
                 </Link>
               </div>
@@ -183,7 +180,7 @@ function VerifyEmailContent() {
                     id="resend-email"
                     type="email"
                     placeholder="you@company.com"
-                    className={field}
+                    className="field"
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
                     required
@@ -198,9 +195,9 @@ function VerifyEmailContent() {
                   type="submit"
                   variant="primary"
                   disabled={resending}
-                  className="min-h-[44px] w-full text-sm font-semibold"
+                  className="min-h-[44px] w-full text-sm font-medium"
                 >
-                  {resending ? "Sending link…" : "Send Verification Email"}
+                  {resending ? "Sending link…" : "Send verification email"}
                 </Button>
               </form>
 
