@@ -223,3 +223,274 @@ export async function recordJobApplication(app: {
     return { success: false, error: err instanceof Error ? err.message : "MongoDB error" };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Tasks (Daily Tasks module)
+// ---------------------------------------------------------------------------
+
+export type Task = {
+  id: string;
+  user_id: string | null;
+  title: string;
+  description: string;
+  priority: "low" | "medium" | "high";
+  status: "open" | "done";
+  due_date: string | null;
+  recurrence: string | null;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+function formatTask(doc: any): Task {
+  return {
+    id: String(doc._id),
+    user_id: doc.user_id ? String(doc.user_id) : null,
+    title: doc.title ?? "",
+    description: doc.description ?? "",
+    priority: doc.priority ?? "medium",
+    status: doc.status ?? "open",
+    due_date: doc.due_date ?? null,
+    recurrence: doc.recurrence ?? null,
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    created_at: iso(doc.created_at),
+    updated_at: iso(doc.updated_at),
+  };
+}
+
+export async function fetchTasks(
+  options: {
+    status?: string;
+    priority?: string;
+    due?: "today" | "overdue" | "upcoming";
+    limit?: number;
+    userId?: string;
+  } = {}
+): Promise<{ tasks: Task[]; error: string | null }> {
+  try {
+    const db = await getDb();
+    const query: Record<string, any> = {};
+
+    if (options.status) query.status = options.status;
+    if (options.priority) query.priority = options.priority;
+
+    if (options.userId) {
+      query.$or = [
+        { user_id: options.userId },
+        { user_id: { $exists: false } },
+        { user_id: null },
+      ];
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    if (options.due === "today") {
+      query.due_date = today;
+    } else if (options.due === "overdue") {
+      query.due_date = { $lt: today, $ne: null };
+      query.status = "open";
+    } else if (options.due === "upcoming") {
+      const weekOut = new Date(Date.now() + 7 * 86400000)
+        .toISOString()
+        .slice(0, 10);
+      query.due_date = { $gte: today, $lte: weekOut };
+    }
+
+    const sortField = options.due ? "due_date" : "created_at";
+    const sortDir = options.due ? 1 : -1;
+    const limit = options.limit ?? 200;
+
+    const docs = await db
+      .collection("tasks")
+      .find(query)
+      .sort({ [sortField]: sortDir })
+      .limit(limit)
+      .toArray();
+
+    return { tasks: docs.map(formatTask), error: null };
+  } catch (err) {
+    console.error("fetchTasks failed:", err);
+    return {
+      tasks: [],
+      error: err instanceof Error ? err.message : "Could not reach MongoDB.",
+    };
+  }
+}
+
+export async function createTask(task: {
+  userId?: string;
+  title: string;
+  description?: string;
+  priority?: string;
+  due_date?: string | null;
+  recurrence?: string | null;
+  tags?: string[];
+}): Promise<{ success: boolean; task?: Task; error?: string }> {
+  try {
+    const db = await getDb();
+    const now = new Date();
+    const doc = {
+      user_id: task.userId || null,
+      title: task.title.trim(),
+      description: (task.description || "").trim(),
+      priority: task.priority || "medium",
+      status: "open",
+      due_date: task.due_date || null,
+      recurrence: task.recurrence || null,
+      tags: Array.isArray(task.tags) ? task.tags : [],
+      created_at: now,
+      updated_at: now,
+    };
+    const res = await db.collection("tasks").insertOne(doc);
+    return {
+      success: true,
+      task: formatTask({ ...doc, _id: res.insertedId }),
+    };
+  } catch (err) {
+    console.error("createTask error:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "MongoDB error",
+    };
+  }
+}
+
+export async function updateTask(
+  id: string,
+  updates: Partial<
+    Pick<Task, "title" | "description" | "priority" | "status" | "due_date" | "recurrence" | "tags">
+  >,
+  userId?: string
+): Promise<Task | null> {
+  const db = await getDb();
+  const filter: Record<string, any> = { _id: new ObjectId(id) };
+  if (userId) {
+    filter.$or = [
+      { user_id: userId },
+      { user_id: { $exists: false } },
+      { user_id: null },
+    ];
+  }
+
+  const $set: Record<string, any> = { updated_at: new Date() };
+  if (updates.title !== undefined) $set.title = updates.title.trim();
+  if (updates.description !== undefined)
+    $set.description = updates.description.trim();
+  if (updates.priority !== undefined) $set.priority = updates.priority;
+  if (updates.status !== undefined) $set.status = updates.status;
+  if (updates.due_date !== undefined) $set.due_date = updates.due_date;
+  if (updates.recurrence !== undefined) $set.recurrence = updates.recurrence;
+  if (updates.tags !== undefined) $set.tags = updates.tags;
+
+  const result = await db
+    .collection("tasks")
+    .findOneAndUpdate(filter, { $set }, { returnDocument: "after" });
+
+  const d = result && "value" in result ? result.value : result;
+  if (!d) return null;
+  return formatTask(d);
+}
+
+export async function deleteTask(
+  id: string,
+  userId?: string
+): Promise<boolean> {
+  const db = await getDb();
+  const filter: Record<string, any> = { _id: new ObjectId(id) };
+  if (userId) {
+    filter.$or = [
+      { user_id: userId },
+      { user_id: { $exists: false } },
+      { user_id: null },
+    ];
+  }
+
+  const res = await db.collection("tasks").deleteOne(filter);
+  return res.deletedCount > 0;
+}
+
+/** Calculate the next due date for a recurring task. */
+function nextDueDate(current: string, recurrence: string): string {
+  const d = new Date(current + "T00:00:00Z");
+
+  switch (recurrence) {
+    case "daily":
+      d.setUTCDate(d.getUTCDate() + 1);
+      break;
+    case "weekdays": {
+      d.setUTCDate(d.getUTCDate() + 1);
+      const day = d.getUTCDay();
+      if (day === 0) d.setUTCDate(d.getUTCDate() + 1); // Sunday → Monday
+      if (day === 6) d.setUTCDate(d.getUTCDate() + 2); // Saturday → Monday
+      break;
+    }
+    case "weekly":
+      d.setUTCDate(d.getUTCDate() + 7);
+      break;
+    case "monthly":
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      break;
+    default:
+      d.setUTCDate(d.getUTCDate() + 1);
+  }
+
+  return d.toISOString().slice(0, 10);
+}
+
+export async function completeTask(
+  id: string,
+  userId?: string
+): Promise<{ task: Task | null; next?: Task; error?: string }> {
+  try {
+    const db = await getDb();
+    const filter: Record<string, any> = { _id: new ObjectId(id) };
+    if (userId) {
+      filter.$or = [
+        { user_id: userId },
+        { user_id: { $exists: false } },
+        { user_id: null },
+      ];
+    }
+
+    const result = await db
+      .collection("tasks")
+      .findOneAndUpdate(
+        filter,
+        { $set: { status: "done", updated_at: new Date() } },
+        { returnDocument: "after" }
+      );
+
+    const d = result && "value" in result ? result.value : result;
+    if (!d) return { task: null, error: "Task not found" };
+
+    const completed = formatTask(d);
+    let next: Task | undefined;
+
+    // If recurring and has a due_date, spawn the next instance
+    if (d.recurrence && d.due_date) {
+      const now = new Date();
+      const nextDoc = {
+        user_id: d.user_id || null,
+        title: d.title,
+        description: d.description || "",
+        priority: d.priority || "medium",
+        status: "open",
+        due_date: nextDueDate(d.due_date, d.recurrence),
+        recurrence: d.recurrence,
+        tags: Array.isArray(d.tags) ? d.tags : [],
+        created_at: now,
+        updated_at: now,
+      };
+      const ins = await db.collection("tasks").insertOne(nextDoc);
+      next = formatTask({ ...nextDoc, _id: ins.insertedId });
+    }
+
+    return { task: completed, next };
+  } catch (err) {
+    console.error("completeTask error:", err);
+    return {
+      task: null,
+      error: err instanceof Error ? err.message : "MongoDB error",
+    };
+  }
+}

@@ -47,8 +47,8 @@ export const MODULES: ModuleDef[] = [
     id: "tasks",
     name: "Daily Tasks",
     logKey: "tasks",
-    state: "building",
-    href: null,
+    state: "live",
+    href: "/tasks",
     summary:
       "Captures what needs doing and when, so routines and one-offs live in the same place the agent can act on.",
     server: "task-mcp",

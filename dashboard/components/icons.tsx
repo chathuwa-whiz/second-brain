@@ -120,6 +120,16 @@ export const IconMail = (p: P) => (
   </S>
 );
 
+export const IconTasks = (p: P) => (
+  <S {...p}>
+    <rect x="3" y="5" width="4" height="4" rx="1" />
+    <path d="M10 7h10" />
+    <rect x="3" y="15" width="4" height="4" rx="1" />
+    <path d="M10 17h10" />
+    <path d="M4.5 11 5.5 12 7.5 9.5" />
+  </S>
+);
+
 export const IconCheck = (p: P) => (
   <S {...p}>
     <polyline points="20 6 9 17 4 12" />

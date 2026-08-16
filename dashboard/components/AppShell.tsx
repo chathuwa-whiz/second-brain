@@ -11,6 +11,7 @@ import {
   IconApprovals,
   IconActivity,
   IconJobs,
+  IconTasks,
   IconResumes,
   IconModules,
   IconSettings,
@@ -50,6 +51,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: "Modules",
     items: [
       { href: "/jobs", label: "Jobs", Icon: IconJobs, primary: true },
+      { href: "/tasks", label: "Tasks", Icon: IconTasks, primary: true },
       { href: "/resumes", label: "Resumes", Icon: IconResumes },
     ],
   },
