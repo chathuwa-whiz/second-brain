@@ -18,26 +18,21 @@ export default function ApprovalEditor({
   const router = useRouter();
   const meta = (action.metadata || {}) as Record<string, any>;
 
-  const [resumes, setResumes] = useState<string[]>([
-    "CHATHUSHKA_W.pdf",
-    "CHATHUSHKA_M.pdf",
-    "CHATHUSHKA NAVOD RESUME.pdf",
-    "Chathushka_Navod_Resume_SoftwareEngineer.pdf",
-  ]);
+  const [resumes, setResumes] = useState<string[]>([]);
   const [selectedResume, setSelectedResume] = useState<string>(
-    meta.suggested_resume || "Chathushka_Navod_Resume_SoftwareEngineer.pdf"
+    meta.suggested_resume || ""
   );
   const [mode, setMode] = useState<"email" | "manual">(
     meta.recipient_email || meta.how_to_apply_email ? "email" : "manual"
   );
   const [senderEmail, setSenderEmail] = useState<string>(
-    meta.sender_email || defaultSender || "chathushkanavod11@gmail.com"
+    meta.sender_email || defaultSender || ""
   );
   const [recipientEmail, setRecipientEmail] = useState<string>(
     meta.recipient_email || meta.how_to_apply_email || ""
   );
   const [subject, setSubject] = useState<string>(
-    meta.email_subject || `Application for ${meta.job_title || "Role"} - Chathushka Navod`
+    meta.email_subject || (meta.job_title ? `Application for ${meta.job_title}` : "Job Application")
   );
   const [emailBody, setEmailBody] = useState<string>(
     meta.email_body || ""
@@ -321,7 +316,7 @@ export default function ApprovalEditor({
                       type="text"
                       value={manualNotes}
                       onChange={(e) => setManualNotes(e.target.value)}
-                      placeholder="e.g. Submitted on company careers portal with CHATHUSHKA_W.pdf"
+                      placeholder="e.g. Submitted on company careers portal with Resume.pdf"
                       className="mt-1.5 w-full rounded-xl bg-chrome px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
                     />
                   </div>

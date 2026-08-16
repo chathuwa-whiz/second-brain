@@ -9,10 +9,10 @@ export default function EmailSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
 
-  const [defaultSender, setDefaultSender] = useState("chathushkanavod11@gmail.com");
+  const [defaultSender, setDefaultSender] = useState("");
   const [smtpHost, setSmtpHost] = useState("smtp.gmail.com");
   const [smtpPort, setSmtpPort] = useState(465);
-  const [smtpUser, setSmtpUser] = useState("chathushkanavod11@gmail.com");
+  const [smtpUser, setSmtpUser] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
 
   useEffect(() => {
@@ -22,10 +22,10 @@ export default function EmailSettingsCard() {
         if (res.ok) {
           const data = await res.json();
           if (data.settings) {
-            setDefaultSender(data.settings.default_sender_email || "chathushkanavod11@gmail.com");
+            setDefaultSender(data.settings.default_sender_email || "");
             setSmtpHost(data.settings.smtp_host || "smtp.gmail.com");
             setSmtpPort(data.settings.smtp_port || 465);
-            setSmtpUser(data.settings.smtp_user || "chathushkanavod11@gmail.com");
+            setSmtpUser(data.settings.smtp_user || "");
             setSmtpPassword(data.settings.smtp_password || "");
           }
         }
@@ -117,7 +117,7 @@ export default function EmailSettingsCard() {
             required
             value={defaultSender}
             onChange={(e) => setDefaultSender(e.target.value)}
-            placeholder="chathushkanavod11@gmail.com"
+            placeholder="you@gmail.com"
             className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
           />
           <p className="mt-1 text-2xs text-muted">
@@ -164,7 +164,7 @@ export default function EmailSettingsCard() {
               required
               value={smtpUser}
               onChange={(e) => setSmtpUser(e.target.value)}
-              placeholder="chathushkanavod11@gmail.com"
+              placeholder="you@gmail.com"
               className="mt-1.5 w-full rounded-xl bg-primary/[0.04] px-3.5 py-2 text-xs text-primary ring-1 ring-inset ring-primary/10 placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent sm:text-sm"
             />
           </div>

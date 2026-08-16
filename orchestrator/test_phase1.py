@@ -35,7 +35,7 @@ from mcp_client import list_tools, call_tool, find_server_for_tool
 # draft_cover_letter if select_best_resume isn't configured/available, and
 # as the reference text for the job description throughout.
 RESUME_TEXT = """
-CHATHUSHKA NAVOD — Undergraduate, BSc (Hons) Information Technology, SLIIT.
+ALEX MORGAN — Full Stack Software Engineer, BSc (Hons) Computer Science.
 
 WORK EXPERIENCE
 Full Stack Developer Intern, Webminds, Malabe (12/2024 - 06/2025)
