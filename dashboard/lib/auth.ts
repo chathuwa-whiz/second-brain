@@ -6,7 +6,6 @@ import { getUserByEmail, getOrCreateOAuthUser } from "./db";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  trustHost: true,
   pages: {
     signIn: "/login",
     error: "/login",
