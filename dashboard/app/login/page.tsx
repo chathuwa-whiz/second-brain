@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button, Card, ErrorNote } from "@/components/ui";
 import { IconGoogle, IconMail, IconCheck } from "@/components/icons";
+import { withBasePath } from "@/lib/basePath";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -79,7 +80,7 @@ export default function LoginPage() {
     setResendStatus(null);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(withBasePath("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email, password }),
@@ -112,7 +113,7 @@ export default function LoginPage() {
     setResending(true);
     setResendStatus(null);
     try {
-      const res = await fetch("/api/auth/verify-email", {
+      const res = await fetch(withBasePath("/api/auth/verify-email"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: targetEmail }),

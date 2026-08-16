@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button, Card } from "@/components/ui";
 import { IconCheck, IconMail } from "@/components/icons";
+import { withBasePath } from "@/lib/basePath";
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -29,7 +30,9 @@ function VerifyEmailContent() {
 
     async function verify() {
       try {
-        const res = await fetch(`/api/auth/verify-email?token=${encodeURIComponent(token!)}`);
+        const res = await fetch(
+          withBasePath(`/api/auth/verify-email?token=${encodeURIComponent(token!)}`)
+        );
         const data = await res.json();
 
         if (!isMounted) return;
@@ -67,7 +70,7 @@ function VerifyEmailContent() {
     setResendMessage(null);
 
     try {
-      const res = await fetch("/api/auth/verify-email", {
+      const res = await fetch(withBasePath("/api/auth/verify-email"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: emailInput }),

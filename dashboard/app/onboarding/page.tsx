@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, ErrorNote } from "@/components/ui";
 import { IconCheck, IconResumes, IconSettings, IconJobs } from "@/components/icons";
 import { formatBytes } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 type ResumeItem = {
   name: string;
@@ -54,7 +55,7 @@ export default function OnboardingPage() {
   // Fetch initial resumes if any exist
   async function fetchResumes() {
     try {
-      const res = await fetch("/api/resumes");
+      const res = await fetch(withBasePath("/api/resumes"));
       const data = await res.json();
       if (res.ok && data.files) {
         setResumes(data.files);
@@ -80,7 +81,7 @@ export default function OnboardingPage() {
         }
         const formData = new FormData();
         formData.append("file", file);
-        const res = await fetch("/api/resumes", {
+        const res = await fetch(withBasePath("/api/resumes"), {
           method: "POST",
           body: formData,
         });
@@ -102,7 +103,7 @@ export default function OnboardingPage() {
     setDeleting(name);
     setError(null);
     try {
-      const res = await fetch(`/api/resumes/${encodeURIComponent(name)}`, {
+      const res = await fetch(withBasePath(`/api/resumes/${encodeURIComponent(name)}`), {
         method: "DELETE",
       });
       if (res.ok) {
@@ -156,7 +157,7 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/user/onboarding", {
+      const res = await fetch(withBasePath("/api/user/onboarding"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

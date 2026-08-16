@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button, Card, ErrorNote } from "@/components/ui";
 import { relativeTime } from "@/lib/format";
+import { withBasePath } from "@/lib/basePath";
 
 type ApiKey = {
   id: string;
@@ -30,7 +31,7 @@ export default function ApiKeysCard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/settings/keys");
+      const res = await fetch(withBasePath("/api/settings/keys"));
       const data = await res.json();
       if (res.ok) {
         setKeys(data.keys || []);
@@ -53,7 +54,7 @@ export default function ApiKeysCard() {
     setCreating(true);
     setError(null);
     try {
-      const res = await fetch("/api/settings/keys", {
+      const res = await fetch(withBasePath("/api/settings/keys"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: keyName || "n8n Integration Key" }),
@@ -80,7 +81,7 @@ export default function ApiKeysCard() {
     }
     setRevokingId(id);
     try {
-      const res = await fetch(`/api/settings/keys?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(withBasePath(`/api/settings/keys?id=${encodeURIComponent(id)}`), {
         method: "DELETE",
       });
       if (res.ok) {
@@ -101,9 +102,10 @@ export default function ApiKeysCard() {
     setTimeout(() => setCopied(false), 2000);
   }
 
-  const sampleWebhookUrl = `${baseUrl}/api/webhooks/jobs?api_key=${newlyCreatedKey || (keys[0] ? `${keys[0].key_preview.replace("...", "xxxx")}` : "YOUR_API_KEY")}`;
+  const activeKeyStr = newlyCreatedKey || (keys[0] ? `${keys[0].key_preview.replace("...", "xxxx")}` : "YOUR_API_KEY");
+  const sampleWebhookUrl = `${baseUrl}${withBasePath(`/api/webhooks/jobs?api_key=${activeKeyStr}`)}`;
 
-  const sampleCurl = `curl -X POST "${baseUrl}/api/webhooks/jobs" \\
+  const sampleCurl = `curl -X POST "${baseUrl}${withBasePath("/api/webhooks/jobs")}" \\
   -H "Content-Type: application/json" \\
   -H "x-api-key: ${newlyCreatedKey || "sb_live_xxxxxxxx"}" \\
   -d '{
