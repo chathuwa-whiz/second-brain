@@ -189,7 +189,7 @@ export default function JobsBoard({
         applications.length === 0 && approvedActions.length === 0 ? (
           <EmptyState
             title="No applications sent yet"
-            body="When you approve a job from the queue, Second Brain attaches your selected PDF resume and dispatches the application email through Resend."
+            body="When you approve a job from the queue, Second Brain attaches your selected PDF resume and dispatches the application email through Google SMTP."
           />
         ) : (
           <div className="space-y-3">

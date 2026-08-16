@@ -48,7 +48,7 @@ export default async function SettingsPage() {
       <PageHeader
         eyebrow="System"
         title="Settings"
-        description="How the control panel looks, email delivery credentials, and what it's currently wired up to."
+        description="How the control panel looks, Google SMTP delivery credentials, and what it's currently wired up to."
       />
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
         </section>
 
         <section>
-          <SectionHeader eyebrow="Applications" title="Email & Resend Delivery" />
+          <SectionHeader eyebrow="Applications" title="Email & Google SMTP Delivery" />
           <EmailSettingsCard />
         </section>
 

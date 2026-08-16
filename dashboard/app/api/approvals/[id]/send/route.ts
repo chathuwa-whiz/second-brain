@@ -5,6 +5,7 @@ import { fetchActionById, getEmailSettings, getDb } from "@/lib/db";
 import { recordJobApplication } from "@/lib/mongo";
 import { readFile } from "fs/promises";
 import path from "path";
+import nodemailer from "nodemailer";
 
 const RESUME_DIR = process.env.RESUME_DIR || "D:\\second-brain\\mcp-servers\\job-tracker-mcp\\resumes";
 
@@ -57,7 +58,7 @@ export async function POST(
         marked_at: new Date().toISOString(),
       };
     } else {
-      // 2. Email Application via Resend / SMTP
+      // 2. Email Application via Google SMTP
       if (!recipient_email || !subject || !email_body) {
         return NextResponse.json(
           { error: "recipient_email, subject, and email_body are required for email dispatch" },
@@ -77,61 +78,59 @@ export async function POST(
         }
       }
 
-      if (emailSettings.provider === "resend" && emailSettings.resend_api_key) {
-        // Resend Sandbox / Custom Domain resolution:
-        // Free @gmail.com / @yahoo.com addresses cannot be spoofed directly in the `from` field on Resend.
-        // If sender is gmail/public, we send from onboarding@resend.dev with reply_to set to candidate's email.
-        const isFreeEmail = /@(gmail|yahoo|outlook|hotmail|icloud)\.com/i.test(userSender);
-        const fromHeader = isFreeEmail
-          ? `Chathushka Navod <onboarding@resend.dev>`
-          : userSender.includes("<")
+      const smtpHost = emailSettings.smtp_host || "smtp.gmail.com";
+      const smtpPort = Number(emailSettings.smtp_port) || 465;
+      const smtpUser = emailSettings.smtp_user || userSender;
+      const smtpPass = emailSettings.smtp_password || "";
+
+      if (smtpPass) {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465, // true for 465 (SSL), false for 587 (STARTTLS)
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
+
+        const fromHeader = userSender.includes("<")
           ? userSender
           : `Chathushka Navod <${userSender}>`;
 
-        const resendPayload: Record<string, unknown> = {
+        const mailOptions: nodemailer.SendMailOptions = {
           from: fromHeader,
-          to: [recipient_email],
-          reply_to: userSender,
+          to: recipient_email,
+          replyTo: userSender,
           subject: subject,
           text: email_body,
         };
 
         if (attachmentBuffer && resume_filename) {
-          resendPayload.attachments = [
+          mailOptions.attachments = [
             {
               filename: path.basename(resume_filename),
-              content: attachmentBuffer.toString("base64"),
+              content: attachmentBuffer,
+              contentType: "application/pdf",
             },
           ];
         }
 
-        const resendRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${emailSettings.resend_api_key}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(resendPayload),
-        });
-
-        const resendData = await resendRes.json();
-        if (!resendRes.ok) {
-          throw new Error(resendData.message || resendData.error || "Resend API error");
-        }
-        messageId = resendData.id || "resend-" + Date.now();
+        const info = await transporter.sendMail(mailOptions);
+        messageId = info.messageId || "smtp-" + Date.now();
         executionDetails = {
-          provider: "resend",
+          provider: "google_smtp",
           messageId,
           sent_to: recipient_email,
           from: fromHeader,
-          reply_to: userSender,
+          response: info.response,
           resume_attached: resume_filename || null,
         };
       } else {
         messageId = "simulated-" + Date.now();
         executionDetails = {
           provider: "simulated",
-          notice: "No Resend API key configured in Settings. Action marked approved and application recorded.",
+          notice: "No Google App Password configured in Settings. Action marked approved and application recorded.",
           messageId,
           sent_to: recipient_email,
           from: userSender,

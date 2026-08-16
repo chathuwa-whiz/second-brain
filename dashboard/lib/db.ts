@@ -290,22 +290,20 @@ export async function fetchStats(): Promise<{
 }
 
 export type EmailSettings = {
-  provider: "resend" | "smtp";
+  provider: "smtp";
   default_sender_email: string;
-  resend_api_key: string;
-  smtp_host?: string;
-  smtp_port?: number;
-  smtp_user?: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
   smtp_password?: string;
 };
 
 export const DEFAULT_EMAIL_SETTINGS: EmailSettings = {
-  provider: "resend",
+  provider: "smtp",
   default_sender_email: "chathushkanavod11@gmail.com",
-  resend_api_key: "",
-  smtp_host: "smtp.resend.com",
+  smtp_host: "smtp.gmail.com",
   smtp_port: 465,
-  smtp_user: "resend",
+  smtp_user: "chathushkanavod11@gmail.com",
   smtp_password: "",
 };
 
