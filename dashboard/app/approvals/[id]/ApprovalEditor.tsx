@@ -150,6 +150,14 @@ export default function ApprovalEditor({
   }
 
   const confidence = Number(action.confidence);
+  const posterUrl =
+    meta.poster_image_url ||
+    meta.posterImageUrl ||
+    meta.poster_url ||
+    meta.image_url ||
+    meta.imageUrl ||
+    meta.poster ||
+    null;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -202,6 +210,34 @@ export default function ApprovalEditor({
               </a>
             )}
           </Card>
+
+          {/* Job Advertisement Poster Card (if available) */}
+          {posterUrl && (
+            <Card className="overflow-hidden p-4 sm:p-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+                  Advertisement Poster
+                </h3>
+                <a
+                  href={posterUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="press inline-flex items-center gap-1 text-2xs font-medium text-accent-ink hover:underline"
+                >
+                  Open Original
+                  <IconExternal className="h-2.5 w-2.5" />
+                </a>
+              </div>
+              <div className="relative mt-3 overflow-hidden rounded-xl border border-primary/10 bg-primary/[0.02]">
+                <img
+                  src={posterUrl}
+                  alt={meta.job_title ? `${meta.job_title} Poster` : "Job Advertisement Poster"}
+                  className="max-h-80 w-full object-contain transition-transform duration-200 hover:scale-[1.02]"
+                  loading="lazy"
+                />
+              </div>
+            </Card>
+          )}
 
           {/* AI Match Quality & Scoring */}
           <Card className="p-4 sm:p-5">
