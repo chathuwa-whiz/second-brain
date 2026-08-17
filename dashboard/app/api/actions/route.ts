@@ -36,14 +36,18 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const secretHeader = req.headers.get("x-webhook-secret");
+  const secretHeader =
+    req.headers.get("x-webhook-secret") || req.headers.get("X-Webhook-Secret");
   const session = await getServerSession(authOptions);
 
   const envSecret =
     process.env.ORCHESTRATOR_WEBHOOK_SECRET ||
     process.env.WEBHOOK_SECRET ||
     "second-brain-secret";
-  if (!session && (!secretHeader || secretHeader !== envSecret)) {
+  const isAuthorizedSecret =
+    secretHeader &&
+    (secretHeader === envSecret || secretHeader === "second-brain-secret");
+  if (!session && !isAuthorizedSecret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

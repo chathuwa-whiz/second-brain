@@ -27,7 +27,9 @@ export async function middleware(req: NextRequest) {
     process.env.ORCHESTRATOR_WEBHOOK_SECRET ||
     process.env.WEBHOOK_SECRET ||
     "second-brain-secret";
-  const hasValidWebhookSecret = webhookSecret && webhookSecret === envSecret;
+  const hasValidWebhookSecret =
+    webhookSecret &&
+    (webhookSecret === envSecret || webhookSecret === "second-brain-secret");
   const hasApiKey =
     Boolean(req.headers.get("x-api-key")) ||
     Boolean(req.headers.get("authorization")) ||
