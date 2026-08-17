@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     };
 
     await db.collection("agent_actions").insertOne(doc);
-    const { action: createdAction } = await fetchActionById(id, userId);
+    const { action: createdAction } = await fetchActionById(id, resolvedUserId);
     return NextResponse.json({ success: true, action: createdAction });
   } catch (err) {
     console.error("POST /api/actions error:", err);
