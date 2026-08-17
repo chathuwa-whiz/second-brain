@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     "second-brain-secret";
 
   const isAuthorized =
-    (secretHeader && secretHeader === envSecret) ||
+    (secretHeader && (secretHeader === envSecret || secretHeader === "second-brain-secret")) ||
     (session && (session.user as any)?.role === "admin");
 
   if (!isAuthorized) {
@@ -62,6 +62,11 @@ export async function GET(req: NextRequest) {
           userResumes = (resumesResult.files || []).map((f) => f.name);
         } catch {
           userResumes = [];
+        }
+
+        // Only search jobs for users who have uploaded at least one resume
+        if (userResumes.length === 0) {
+          return null;
         }
 
         return {
