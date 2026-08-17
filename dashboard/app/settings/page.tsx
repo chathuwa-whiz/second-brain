@@ -4,7 +4,6 @@ import { authOptions } from "@/lib/auth";
 import PageHeader from "@/components/PageHeader";
 import { SectionHeader } from "@/components/ui";
 import AppearancePicker from "./AppearancePicker";
-import EmailSettingsCard from "./EmailSettingsCard";
 import BillingCard from "./BillingCard";
 import AiJobSearchCard from "./AiJobSearchCard";
 import AiAutonomyCard from "./AiAutonomyCard";
@@ -22,7 +21,7 @@ export default async function SettingsPage() {
       <PageHeader
         eyebrow="Preferences"
         title="Settings"
-        description="Manage your target job search roles, AI autonomy level, outgoing email delivery, and workspace appearance."
+        description="Manage your target job search roles, AI autonomy level, workspace plan, and appearance."
       />
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-2">
@@ -44,25 +43,19 @@ export default async function SettingsPage() {
           <AiAutonomyCard />
         </section>
 
-        {/* Section 3: Outgoing Email Delivery */}
-        <section className="lg:col-span-2">
-          <SectionHeader eyebrow="Delivery" title="Outgoing Email Account" />
-          <EmailSettingsCard />
-        </section>
-
-        {/* Section 4: Workspace Plan */}
+        {/* Section 3: Workspace Plan */}
         <section>
           <SectionHeader eyebrow="Plan" title="Workspace Access" />
           <BillingCard />
         </section>
 
-        {/* Section 5: Appearance */}
+        {/* Section 4: Appearance */}
         <section>
           <SectionHeader eyebrow="Display" title="Theme & Appearance" />
           <AppearancePicker />
         </section>
 
-        {/* Section 6: Advanced & Developer Tools (Collapsible) */}
+        {/* Section 5: Advanced & Developer Tools (Collapsible) */}
         <section className="lg:col-span-2">
           <SectionHeader eyebrow="Power Users" title="External Automations" />
           <AdvancedDeveloperCard />

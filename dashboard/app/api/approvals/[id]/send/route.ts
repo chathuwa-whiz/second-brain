@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { fetchActionById, getEmailSettings, getDb } from "@/lib/db";
+import { fetchActionById, getDb } from "@/lib/db";
 import { recordJobApplication } from "@/lib/mongo";
-import { getUserResumeBuffer } from "@/lib/storage";
-import path from "path";
-import nodemailer from "nodemailer";
 import { ObjectId } from "mongodb";
 
 export async function POST(
@@ -35,7 +32,7 @@ export async function POST(
 
     const body = await req.json();
     const {
-      mode = "email", // "email" | "manual"
+      mode = "email", // "email" | "manual" | "gmail"
       sender_email,
       recipient_email,
       subject,
@@ -44,152 +41,31 @@ export async function POST(
       notes,
     } = body;
 
-    const emailSettings = await getEmailSettings(userId);
-    const userSender =
-      sender_email || emailSettings.fromEmail || session.user?.email || "user@secondbrain.app";
+    const userSender = sender_email || session.user?.email || "candidate@secondbrain.app";
+    const messageId = (mode === "email" || mode === "gmail" ? "gmail-" : "portal-") + Date.now();
 
-    let messageId = "";
-    let executionDetails: Record<string, unknown> = {};
+    const executionDetails: Record<string, unknown> = {
+      provider: mode === "manual" ? "website_portal" : "gmail_client",
+      mode: mode === "manual" ? "website_portal" : "gmail_application",
+      note:
+        notes ||
+        (mode === "manual"
+          ? "Applied manually via company careers portal / website."
+          : `Sent via Gmail application to ${recipient_email || "employer"}`),
+      recipient_email: recipient_email || undefined,
+      sender_email: userSender,
+      resume_version: resume_filename || null,
+      marked_at: new Date().toISOString(),
+    };
 
-    if (mode === "manual") {
-      // 1. Manual Application
-      messageId = "manual-" + Date.now();
-      executionDetails = {
-        provider: "manual",
-        mode: "website_portal",
-        note: notes || "Applied manually via company careers portal / website.",
-        resume_version: resume_filename || null,
-        marked_at: new Date().toISOString(),
-      };
-    } else {
-      // 2. Email Application via SMTP
-      if (!recipient_email || !subject || !email_body) {
-        return NextResponse.json(
-          {
-            error:
-              "recipient_email, subject, and email_body are required for email dispatch",
-          },
-          { status: 400 }
-        );
-      }
-
-      const rawHost = emailSettings.smtpHost || "smtp.gmail.com";
-      const smtpHost = rawHost.trim();
-      const userFromSetting = emailSettings.smtpUser || emailSettings.fromEmail || emailSettings.default_sender_email || userSender;
-      const smtpUser = userFromSetting.includes("@") ? userFromSetting.trim() : (session.user?.email || userSender).trim();
-      const smtpPass = (emailSettings.smtpPassword || "").replace(/\s+/g, "").trim();
-
-      if (!smtpPass || !smtpUser) {
-        return NextResponse.json(
-          {
-            error:
-              "Outbound email is not configured. Please go to Settings > Outbound Email Account and enter your Gmail address and 16-character Google App Password before sending emails.",
-          },
-          { status: 400 }
-        );
-      }
-
-      let attachmentBuffer: Buffer | null = null;
-      if (resume_filename) {
-        try {
-          attachmentBuffer = await getUserResumeBuffer(userId, resume_filename);
-        } catch (err) {
-          console.warn(`Could not read resume file ${resume_filename}:`, err);
-        }
-      }
-
-      const fromHeader = emailSettings.senderName
-        ? `${emailSettings.senderName} <${smtpUser}>`
-        : smtpUser;
-
-      const mailOptions: nodemailer.SendMailOptions = {
-        from: fromHeader,
-        to: recipient_email,
-        replyTo: emailSettings.replyTo || smtpUser,
-        subject: subject,
-        text: email_body,
-      };
-
-      if (attachmentBuffer && resume_filename) {
-        mailOptions.attachments = [
-          {
-            filename: path.basename(resume_filename),
-            content: attachmentBuffer,
-            contentType: "application/pdf",
-          },
-        ];
-      }
-
-      // Dual-port dispatch: Try configured port / 465, with automatic fallback to 587
-      const primaryPort = Number(emailSettings.smtpPort) || 465;
-      const fallbackPort = primaryPort === 465 ? 587 : 465;
-
-      let info: any = null;
-      let lastErr: any = null;
-
-      // 1. Try Primary Port
-      try {
-        const primaryTransporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: primaryPort,
-          secure: primaryPort === 465,
-          auth: { user: smtpUser, pass: smtpPass },
-          connectionTimeout: 8000,
-          greetingTimeout: 8000,
-          socketTimeout: 12000,
-        });
-        info = await primaryTransporter.sendMail(mailOptions);
-      } catch (err1: any) {
-        lastErr = err1;
-        console.warn(`SMTP dispatch failed on port ${primaryPort}, trying fallback port ${fallbackPort}:`, err1.message);
-
-        // 2. Try Fallback Port
-        try {
-          const fallbackTransporter = nodemailer.createTransport({
-            host: smtpHost,
-            port: fallbackPort,
-            secure: fallbackPort === 465,
-            auth: { user: smtpUser, pass: smtpPass },
-            connectionTimeout: 8000,
-            greetingTimeout: 8000,
-            socketTimeout: 12000,
-          });
-          info = await fallbackTransporter.sendMail(mailOptions);
-        } catch (err2: any) {
-          lastErr = err2;
-          console.error(`SMTP fallback dispatch also failed on port ${fallbackPort}:`, err2);
-        }
-      }
-
-      if (!info) {
-        const msg = lastErr?.message || "Connection timed out connecting to mail server";
-        return NextResponse.json(
-          {
-            error: `Email delivery failed: ${msg}. Please check your Gmail address and 16-character Google App Password in Settings > Outbound Email Account.`,
-          },
-          { status: 400 }
-        );
-      }
-
-      messageId = info.messageId || "smtp-" + Date.now();
-      executionDetails = {
-        provider: "smtp",
-        messageId,
-        sent_to: recipient_email,
-        from: fromHeader,
-        response: info.response,
-        resume_attached: resume_filename || null,
-      };
-    }
-
-    // 3. Update action in MongoDB
+    // 1. Update action metadata & status in MongoDB
     const meta: Record<string, any> = {
       ...((action.metadata as Record<string, any>) || {}),
       application_mode: mode,
-      recipient_email: mode === "email" ? recipient_email : undefined,
+      recipient_email: recipient_email || undefined,
       sender_email: userSender,
-      email_subject: mode === "email" ? subject : undefined,
-      email_body: mode === "email" ? email_body : undefined,
+      email_subject: subject || undefined,
+      email_body: email_body || undefined,
       suggested_resume: resume_filename,
     };
 
@@ -212,7 +88,7 @@ export async function POST(
       },
     });
 
-    // 4. Record application in MongoDB
+    // 2. Record application in job_applications collection
     try {
       await recordJobApplication({
         userId,
@@ -223,7 +99,7 @@ export async function POST(
         notes:
           mode === "manual"
             ? notes || "Applied manually via company website/portal."
-            : `Applied via Second Brain Approvals. Message ID: ${messageId}`,
+            : `Applied via Gmail. Recipient: ${recipient_email || "N/A"}`,
         status: "applied",
       });
     } catch (mongoErr) {

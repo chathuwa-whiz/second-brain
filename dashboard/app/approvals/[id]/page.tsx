@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect, notFound } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { fetchActionById, getEmailSettings } from "@/lib/db";
+import { fetchActionById } from "@/lib/db";
 import PageHeader from "@/components/PageHeader";
 import { ErrorNote } from "@/components/ui";
 import ApprovalEditor from "./ApprovalEditor";
@@ -24,10 +24,10 @@ export default async function ApprovalDetailPage({
   const userId = (session.user as any)?.id;
   const userRole = (session.user as any)?.role;
 
-  const [{ action, error }, emailSettings] = await Promise.all([
-    fetchActionById(id, userRole === "admin" ? undefined : userId),
-    getEmailSettings(userId),
-  ]);
+  const { action, error } = await fetchActionById(
+    id,
+    userRole === "admin" ? undefined : userId
+  );
 
   if (error || !action) {
     return (
@@ -44,27 +44,16 @@ export default async function ApprovalDetailPage({
 
   const meta = action.metadata || {};
 
-  const isEmailConfigured = Boolean(
-    emailSettings.smtpPassword &&
-      (emailSettings.smtpUser || emailSettings.default_sender_email)
-  );
-
   return (
     <>
       <PageHeader
         eyebrow="Job Application Approval"
         title={meta.job_title ? `${meta.job_title} at ${meta.company}` : action.action.replace(/_/g, " ")}
-        description="Review candidate match details, customize your email and resume selection, then approve to send."
+        description="Review candidate match details, customize your email or portal submission, then approve and track."
       />
       <ApprovalEditor
         action={action}
-        isEmailConfigured={isEmailConfigured}
-        defaultSender={
-          emailSettings.default_sender_email ||
-          emailSettings.fromEmail ||
-          session.user?.email ||
-          "user@secondbrain.app"
-        }
+        defaultSender={session.user?.email || "candidate@secondbrain.app"}
       />
     </>
   );

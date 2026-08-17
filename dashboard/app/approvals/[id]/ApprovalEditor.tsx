@@ -11,11 +11,9 @@ import type { AgentAction } from "@/lib/db";
 export default function ApprovalEditor({
   action,
   defaultSender,
-  isEmailConfigured = true,
 }: {
   action: AgentAction;
   defaultSender: string;
-  isEmailConfigured?: boolean;
 }) {
   const router = useRouter();
   const meta = (action.metadata || {}) as Record<string, any>;
@@ -43,6 +41,7 @@ export default function ApprovalEditor({
     "Applied directly via employer website / careers portal."
   );
 
+  const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -63,6 +62,13 @@ export default function ApprovalEditor({
     }
     loadResumes();
   }, []);
+
+  function handleCopyCoverLetter() {
+    if (!emailBody) return;
+    navigator.clipboard.writeText(emailBody);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,9 +96,6 @@ export default function ApprovalEditor({
       try {
         data = JSON.parse(resText);
       } catch {
-        if (res.status === 504) {
-          throw new Error("Mail Gateway Timeout (504): Mail server took too long to respond. Please verify your Gmail address and 16-character Google App Password in Settings > Outbound Email.");
-        }
         throw new Error(`Server returned error (${res.status}): ${resText.slice(0, 120)}`);
       }
 
@@ -103,11 +106,11 @@ export default function ApprovalEditor({
       setSuccessMsg(
         mode === "manual"
           ? "Application approved and recorded as applied via website/portal!"
-          : "Application approved and email successfully dispatched!"
+          : "Application approved and recorded as sent via Gmail!"
       );
       setTimeout(() => {
         router.push("/approvals");
-      }, 1500);
+      }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to process approval");
     } finally {
@@ -138,6 +141,14 @@ export default function ApprovalEditor({
 
   const confidence = Number(action.confidence);
 
+  const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+    recipientEmail
+  )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+  const mailtoUrl = `mailto:${recipientEmail}?subject=${encodeURIComponent(
+    subject
+  )}&body=${encodeURIComponent(emailBody)}`;
+
   return (
     <div className="space-y-5 sm:space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
@@ -160,30 +171,21 @@ export default function ApprovalEditor({
       )}
 
       <div className="grid gap-5 sm:gap-6 lg:grid-cols-3">
-        {/* Left Column: Job Details & AI Match Breakdown */}
-        <div className="space-y-5 sm:space-y-6 lg:col-span-1">
+        {/* Left Column: Job & Match Details */}
+        <div className="space-y-5 lg:col-span-1">
+          {/* Job Overview Card */}
           <Card className="p-4 sm:p-5">
-            <h3 className="break-words text-base font-semibold text-primary">
-              {meta.job_title || "Job Title"}
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              Job Position
             </h3>
-            <p className="mt-0.5 break-words text-sm font-medium text-secondary">
-              {meta.company || "TopJobs Employer"}
+            <p className="mt-2 text-base font-bold text-primary">
+              {meta.job_title || meta.extracted_job_title || "Target Role"}
             </p>
-
-            <div className="mt-4 flex items-center justify-between gap-2 border-t pt-3">
-              <span className="text-xs text-muted">Match Score</span>
-              <div className="flex items-center gap-2">
-                <ConfidenceMeter value={confidence} threshold={0.7} />
-                <span className="tnum text-xs font-semibold text-primary">
-                  {meta.match_score ? `${meta.match_score}%` : `${(confidence * 100).toFixed(0)}%`}
-                </span>
-              </div>
-            </div>
-
-            {meta.closing_date && (
-              <p className="mt-2 text-xs text-muted">
-                Deadline: <span className="font-medium text-secondary">{meta.closing_date}</span>
-              </p>
+            <p className="text-sm font-medium text-secondary">
+              {meta.company || meta.extracted_company || "Target Company"}
+            </p>
+            {meta.location && (
+              <p className="mt-1 text-xs text-muted">📍 {meta.location}</p>
             )}
 
             {meta.job_url && (
@@ -191,47 +193,50 @@ export default function ApprovalEditor({
                 href={meta.job_url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="press mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary/[0.04] px-3 py-1.5 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
+                className="press mt-3.5 inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
               >
-                Open TopJobs Posting
-                <IconExternal className="h-3.5 w-3.5" />
+                View Original Job Posting
+                <IconExternal className="h-3 w-3" />
               </a>
-            )}
-
-            {meta.match_reasons && Array.isArray(meta.match_reasons) && (
-              <div className="mt-4 border-t pt-3">
-                <p className="text-2xs font-semibold uppercase tracking-wider text-muted">
-                  Why this role matched
-                </p>
-                <ul className="mt-2 space-y-1.5 text-xs text-secondary">
-                  {meta.match_reasons.map((r: string, i: number) => (
-                    <li key={i} className="flex items-start gap-1.5">
-                      <span className="shrink-0 text-ok-ink">✓</span>
-                      <span className="break-words">{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
             )}
           </Card>
 
-          {meta.poster_image_url && (
-            <Card className="overflow-hidden p-3.5 sm:p-4">
-              <p className="mb-2 text-2xs font-semibold uppercase tracking-wider text-muted">
-                Job Poster Artwork
-              </p>
-              <div className="overflow-hidden rounded-xl bg-black/5">
-                <img
-                  src={meta.poster_image_url}
-                  alt="Job Poster"
-                  className="max-h-[360px] w-full object-contain sm:max-h-[460px]"
-                />
+          {/* AI Match Quality & Scoring */}
+          <Card className="p-4 sm:p-5">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">
+              AI Match Analysis
+            </h3>
+            <div className="mt-3 flex items-center justify-between">
+              <span className="text-xs font-medium text-secondary">Match Confidence</span>
+              <span className="font-mono text-sm font-bold text-primary">
+                {Math.round(confidence * 100)}%
+              </span>
+            </div>
+            <div className="mt-2">
+              <ConfidenceMeter value={confidence} />
+            </div>
+
+            {meta.match_score && (
+              <div className="mt-3.5 border-t pt-3 text-xs">
+                <div className="flex justify-between text-muted">
+                  <span>Relevance Score:</span>
+                  <span className="font-mono font-semibold text-primary">
+                    {meta.match_score}/100
+                  </span>
+                </div>
               </div>
-            </Card>
-          )}
+            )}
+
+            {meta.fit_reason && (
+              <div className="mt-3 rounded-xl bg-primary/[0.03] p-3 text-xs leading-relaxed text-secondary ring-1 ring-inset ring-primary/10">
+                <p className="font-semibold text-primary">Why this is a strong match:</p>
+                <p className="mt-1">{meta.fit_reason}</p>
+              </div>
+            )}
+          </Card>
         </div>
 
-        {/* Right Column: Application Customizer & Email / Website Action */}
+        {/* Right Column: Application Customizer & Action */}
         <div className="lg:col-span-2">
           <Card className="p-4 sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -240,35 +245,35 @@ export default function ApprovalEditor({
                   Application Method & Review
                 </h3>
                 <p className="mt-0.5 text-xs text-muted">
-                  Choose whether to dispatch an email application or record a direct website submission.
+                  Choose whether to apply via Gmail or submit on the company&apos;s website.
                 </p>
               </div>
 
-              {/* Mode Selector - same segmented control as the other boards */}
+              {/* Mode Selector */}
               <div className="flex w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setMode("email")}
                   aria-pressed={mode === "email"}
-                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
+                  className={`press flex-1 rounded-lg px-3.5 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
                     mode === "email"
                       ? "bg-raised font-medium text-primary shadow-sm"
                       : "text-secondary hover:text-primary"
                   }`}
                 >
-                  Send email
+                  ✉️ Email / Gmail
                 </button>
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
                   aria-pressed={mode === "manual"}
-                  className={`press flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
+                  className={`press flex-1 rounded-lg px-3.5 py-1.5 text-center text-xs transition-colors sm:flex-initial ${
                     mode === "manual"
                       ? "bg-raised font-medium text-primary shadow-sm"
                       : "text-secondary hover:text-primary"
                   }`}
                 >
-                  Website / portal
+                  🌐 Website / Portal
                 </button>
               </div>
             </div>
@@ -277,19 +282,33 @@ export default function ApprovalEditor({
               {/* Resume Selector */}
               <div>
                 <label className="block text-xs font-medium text-primary">
-                  Resume version
+                  Target Resume Version
                 </label>
-                <select
-                  value={selectedResume}
-                  onChange={(e) => setSelectedResume(e.target.value)}
-                  className="field select-field mt-1.5"
-                >
-                  {resumes.map((r) => (
-                    <option key={r} value={r}>
-                      {r} {r === meta.suggested_resume ? "(AI Recommended)" : ""}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedResume}
+                    onChange={(e) => setSelectedResume(e.target.value)}
+                    className="field select-field flex-1"
+                  >
+                    {resumes.map((r) => (
+                      <option key={r} value={r}>
+                        {r} {r === meta.suggested_resume ? "(AI Recommended)" : ""}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedResume && (
+                    <a
+                      href={withBasePath(`/api/resumes/${encodeURIComponent(selectedResume)}`)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="press inline-flex items-center gap-1.5 rounded-xl border border-primary/15 bg-raised px-3.5 py-2 text-xs font-semibold text-primary shadow-xs hover:bg-primary/[0.04]"
+                    >
+                      Download Resume 📥
+                    </a>
+                  )}
+                </div>
+
                 {meta.suggested_resume_reason && (
                   <p className="mt-1 break-words text-2xs text-accent-ink">
                     💡 AI recommendation: {meta.suggested_resume_reason}
@@ -302,11 +321,11 @@ export default function ApprovalEditor({
                 <div className="space-y-3.5 rounded-xl bg-primary/[0.02] p-3.5 ring-1 ring-inset ring-primary/10 sm:space-y-4 sm:p-4">
                   <div className="flex flex-col justify-between gap-2.5 sm:flex-row sm:items-center">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-primary">
-                        Apply via Company Website / Careers Portal
+                      <p className="text-sm font-semibold text-primary">
+                        Apply via Company Careers Portal
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
-                        Use this option when the employer requires applying through their website or portal rather than email.
+                        Click below to open the company&apos;s application portal, attach your downloaded resume, then mark as applied.
                       </p>
                     </div>
                     {meta.job_url && (
@@ -314,9 +333,9 @@ export default function ApprovalEditor({
                         href={meta.job_url}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="press inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent-solid px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:brightness-110"
+                        className="press inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-accent-solid px-4 py-2 text-xs font-semibold text-white shadow-sm hover:brightness-110"
                       >
-                        Open Portal
+                        Open Portal ↗
                         <IconExternal className="h-3.5 w-3.5" />
                       </a>
                     )}
@@ -330,38 +349,57 @@ export default function ApprovalEditor({
                       type="text"
                       value={manualNotes}
                       onChange={(e) => setManualNotes(e.target.value)}
-                      placeholder="e.g. Submitted on company careers portal with Resume.pdf"
+                      placeholder="e.g. Submitted on company careers portal with selected Resume"
                       className="field mt-1.5"
                     />
                   </div>
                 </div>
               ) : (
-                /* Email Dispatch Mode */
+                /* Email Mode */
                 <div className="space-y-4">
-                  {!isEmailConfigured && (
-                    <div className="rounded-xl bg-warn/10 p-3.5 ring-1 ring-inset ring-warn/25">
-                      <div className="flex items-start gap-2.5">
-                        <span className="text-sm">⚠️</span>
-                        <div className="min-w-0 flex-1 text-xs">
-                          <p className="font-semibold text-warn-ink">
-                            Outgoing Email Account Not Configured
-                          </p>
-                          <p className="mt-0.5 text-secondary">
-                            To send application emails directly from Second Brain, enter your Gmail address and 16-character Google App Password in{" "}
-                            <Link href="/settings" className="font-medium text-accent-ink underline">
-                              Settings &gt; Outbound Email Account
-                            </Link>
-                            , or switch above to <strong>Website / portal</strong> mode to apply directly on the employer&apos;s site.
-                          </p>
-                        </div>
+                  {/* 1-Click Dispatch Quick Bar */}
+                  <div className="rounded-2xl bg-gradient-to-r from-accent/10 to-accent/5 p-4 ring-1 ring-inset ring-accent/20">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-primary">
+                          🚀 1-Click Application Dispatch
+                        </p>
+                        <p className="mt-0.5 text-2xs text-secondary">
+                          Opens your pre-filled cover letter and recipient in Gmail or Mail app.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <a
+                          href={gmailComposeUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="press inline-flex items-center gap-1.5 rounded-xl bg-accent-solid px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:brightness-110"
+                        >
+                          Open in Gmail Web ↗
+                        </a>
+
+                        <a
+                          href={mailtoUrl}
+                          className="press inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-raised px-3 py-1.5 text-xs font-medium text-primary shadow-xs hover:bg-primary/[0.04]"
+                        >
+                          Mail App (mailto) ✉️
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyCoverLetter}
+                          className="press inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-raised px-3 py-1.5 text-xs font-medium text-primary shadow-xs hover:bg-primary/[0.04]"
+                        >
+                          {copied ? "Copied! ✓" : "Copy Cover Letter 📋"}
+                        </button>
                       </div>
                     </div>
-                  )}
+                  </div>
 
                   <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-4">
                     <div>
                       <label className="block text-xs font-medium text-primary">
-                        Sender Email
+                        Your Contact Email
                       </label>
                       <input
                         type="email"
@@ -374,7 +412,7 @@ export default function ApprovalEditor({
 
                     <div>
                       <label className="block text-xs font-medium text-primary">
-                        Recipient (Employer Email)
+                        Employer Recipient Email
                       </label>
                       <input
                         type="email"
@@ -401,9 +439,18 @@ export default function ApprovalEditor({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-primary">
-                      Email Body (Cover Letter)
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-medium text-primary">
+                        Email Body (Cover Letter)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleCopyCoverLetter}
+                        className="text-2xs font-semibold text-accent-ink hover:underline"
+                      >
+                        {copied ? "Copied to clipboard! ✓" : "Copy cover letter"}
+                      </button>
+                    </div>
                     <textarea
                       rows={9}
                       required
@@ -415,6 +462,7 @@ export default function ApprovalEditor({
                 </div>
               )}
 
+              {/* Approval Actions */}
               <div className="flex flex-col gap-2.5 border-t pt-4 sm:flex-row sm:items-center sm:gap-3">
                 <Button
                   type="submit"
@@ -423,10 +471,10 @@ export default function ApprovalEditor({
                   className="w-full px-6 py-2 text-xs sm:w-auto sm:text-sm"
                 >
                   {busy
-                    ? "Processing..."
+                    ? "Recording..."
                     : mode === "manual"
-                    ? "Approve & Mark Applied"
-                    : "Approve & Send Application"}
+                    ? "Approve & Mark as Applied"
+                    : "Approve & Mark as Sent"}
                 </Button>
 
                 <Button

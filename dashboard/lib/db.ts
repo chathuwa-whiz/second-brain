@@ -103,18 +103,8 @@ export type AgentAction = {
 
 export type EmailSettings = {
   configured: boolean;
-  source: "default_alias" | "custom_smtp" | "resend_api";
   fromEmail?: string;
-  default_sender_email?: string;
   senderName?: string;
-  smtpHost?: string;
-  smtp_host?: string;
-  smtpPort?: number;
-  smtp_port?: number;
-  smtpUser?: string;
-  smtp_user?: string;
-  smtpPassword?: string;
-  smtp_password?: string;
   replyTo?: string;
   updatedAt?: string;
 };
@@ -640,22 +630,12 @@ export async function getEmailSettings(userId?: string): Promise<EmailSettings> 
 
     const doc = await db.collection("system_settings").findOne(query);
     if (doc && doc.value) {
-      const from = doc.value.fromEmail || doc.value.default_sender_email;
+      const from = doc.value.fromEmail || doc.value.default_sender_email || "";
       return {
-        configured: Boolean(doc.value.configured),
-        source: doc.value.source ?? "default_alias",
+        configured: Boolean(from),
         fromEmail: from,
-        default_sender_email: from,
         senderName: doc.value.senderName,
-        smtpHost: doc.value.smtpHost || doc.value.smtp_host,
-        smtp_host: doc.value.smtpHost || doc.value.smtp_host,
-        smtpPort: doc.value.smtpPort ? Number(doc.value.smtpPort) : undefined,
-        smtp_port: doc.value.smtpPort ? Number(doc.value.smtpPort) : undefined,
-        smtpUser: doc.value.smtpUser || doc.value.smtp_user,
-        smtp_user: doc.value.smtpUser || doc.value.smtp_user,
-        smtpPassword: doc.value.smtpPassword || doc.value.smtp_password,
-        smtp_password: doc.value.smtpPassword || doc.value.smtp_password,
-        replyTo: doc.value.replyTo,
+        replyTo: doc.value.replyTo || from,
         updatedAt: iso(doc.updated_at),
       };
     }
@@ -663,26 +643,11 @@ export async function getEmailSettings(userId?: string): Promise<EmailSettings> 
     console.warn("getEmailSettings error:", err);
   }
 
-  // Fallback to environment variables
-  const envConfigured = Boolean(
-    process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
-  );
-  const fromEmail = process.env.SMTP_FROM || process.env.SMTP_USER;
-  const smtpPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465;
-
+  const envFrom = process.env.SMTP_FROM || process.env.SMTP_USER || "";
   return {
-    configured: envConfigured,
-    source: "custom_smtp",
-    fromEmail,
-    default_sender_email: fromEmail,
-    smtpHost: process.env.SMTP_HOST,
-    smtp_host: process.env.SMTP_HOST,
-    smtpPort,
-    smtp_port: smtpPort,
-    smtpUser: process.env.SMTP_USER,
-    smtp_user: process.env.SMTP_USER,
-    smtpPassword: process.env.SMTP_PASSWORD,
-    smtp_password: process.env.SMTP_PASSWORD,
+    configured: Boolean(envFrom),
+    fromEmail: envFrom,
+    replyTo: envFrom,
   };
 }
 

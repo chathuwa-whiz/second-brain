@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { adminGetPlatformStats, adminListAllActions, getEmailSettings } from "@/lib/db";
+import { adminGetPlatformStats, adminListAllActions } from "@/lib/db";
 import AdminHeader from "@/components/admin/AdminHeader";
 import { Card, SectionHeader, StatTile, Badge } from "@/components/ui";
 import {
@@ -26,10 +26,9 @@ export default async function AdminDashboardPage() {
     redirect("/");
   }
 
-  const [platformStats, recentActionsData, emailSettings] = await Promise.all([
+  const [platformStats, recentActionsData] = await Promise.all([
     adminGetPlatformStats(),
     adminListAllActions({ limit: 8 }),
-    getEmailSettings(),
   ]);
 
   const { users, actions, ecosystem } = platformStats;
@@ -117,31 +116,21 @@ export default async function AdminDashboardPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className={`grid h-8 w-8 place-items-center rounded-lg ${
-                  emailSettings.configured
-                    ? "bg-emerald-500/15 text-emerald-500"
-                    : "bg-amber-500/15 text-amber-500"
-                }`}>
+                <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-500/15 text-blue-500">
                   <IconMail className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-primary">Email Delivery</p>
-                  <p className="text-3xs text-muted">
-                    {emailSettings.smtpHost ? "Custom SMTP" : "Default / Env"}
-                  </p>
+                  <p className="text-xs font-semibold text-primary">Application Dispatch</p>
+                  <p className="text-3xs text-muted">Gmail Web / Portal</p>
                 </div>
               </div>
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-3xs font-medium ${
-                emailSettings.configured
-                  ? "bg-emerald-500/15 text-emerald-500"
-                  : "bg-amber-500/15 text-amber-500"
-              }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${emailSettings.configured ? "bg-emerald-500" : "bg-amber-500"}`} />
-                {emailSettings.configured ? "Configured" : "Needs Setup"}
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-3xs font-medium text-emerald-500">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Active
               </span>
             </div>
             <p className="mt-3 text-2xs text-secondary truncate">
-              {emailSettings.fromEmail || "Sender not configured"}
+              1-Click Gmail Web & Careers Portal
             </p>
           </Card>
 
