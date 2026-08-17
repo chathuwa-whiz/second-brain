@@ -17,14 +17,16 @@ export default async function ApprovalDetailPage({
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const actionId = Number(id);
-  if (!Number.isInteger(actionId)) {
+  if (!id) {
     notFound();
   }
 
+  const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+
   const [{ action, error }, emailSettings] = await Promise.all([
-    fetchActionById(actionId),
-    getEmailSettings(),
+    fetchActionById(id, userRole === "admin" ? undefined : userId),
+    getEmailSettings(userId),
   ]);
 
   if (error || !action) {

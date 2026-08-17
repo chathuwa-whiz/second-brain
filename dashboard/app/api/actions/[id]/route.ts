@@ -27,12 +27,18 @@ export async function PATCH(
   }
 
   try {
+    const userId = (session.user as any)?.id;
+    const userRole = (session.user as any)?.role;
+
     const db = await getDb();
     const filter: any = {
       $or: [{ id: id }, { id: Number(id) ? Number(id) : null }, { _id: id }].filter(Boolean),
     };
     if (ObjectId.isValid(id)) {
       filter.$or.push({ _id: new ObjectId(id) });
+    }
+    if (userRole !== "admin" && userId) {
+      filter.user_id = userId;
     }
 
     const res = await db.collection("agent_actions").updateOne(filter, {
@@ -47,7 +53,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Action not found" }, { status: 404 });
     }
 
-    const { action: updatedAction } = await fetchActionById(id);
+    const { action: updatedAction } = await fetchActionById(id, userRole === "admin" ? undefined : userId);
     return NextResponse.json({ action: updatedAction });
   } catch (err) {
     console.error("PATCH /api/actions/[id] error:", err);

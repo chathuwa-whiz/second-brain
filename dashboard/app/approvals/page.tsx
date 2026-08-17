@@ -16,9 +16,13 @@ export default async function ApprovalsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+
   const { actions, error } = await fetchActions({
     status: "pending",
     limit: 100,
+    userId: userRole === "admin" ? undefined : userId,
   });
 
   return (

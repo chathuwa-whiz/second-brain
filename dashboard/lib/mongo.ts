@@ -82,7 +82,7 @@ export async function fetchJobMatches(
       query.status = status;
     }
     if (userId) {
-      query.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+      query.user_id = userId;
     }
 
     const docs = await db
@@ -126,7 +126,7 @@ export async function fetchApplications(
     const db = await getDb();
     const query: Record<string, any> = {};
     if (userId) {
-      query.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+      query.user_id = userId;
     }
 
     const docs = await db
@@ -167,7 +167,7 @@ export async function setMatchStatus(
   const db = await getDb();
   const filter: Record<string, any> = { _id: new ObjectId(id) };
   if (userId) {
-    filter.$or = [{ user_id: userId }, { user_id: { $exists: false } }, { user_id: null }];
+    filter.user_id = userId;
   }
 
   const result = await db
@@ -275,11 +275,7 @@ export async function fetchTasks(
     if (options.priority) query.priority = options.priority;
 
     if (options.userId) {
-      query.$or = [
-        { user_id: options.userId },
-        { user_id: { $exists: false } },
-        { user_id: null },
-      ];
+      query.user_id = options.userId;
     }
 
     const today = new Date().toISOString().slice(0, 10);
@@ -365,11 +361,7 @@ export async function updateTask(
   const db = await getDb();
   const filter: Record<string, any> = { _id: new ObjectId(id) };
   if (userId) {
-    filter.$or = [
-      { user_id: userId },
-      { user_id: { $exists: false } },
-      { user_id: null },
-    ];
+    filter.user_id = userId;
   }
 
   const $set: Record<string, any> = { updated_at: new Date() };
@@ -398,11 +390,7 @@ export async function deleteTask(
   const db = await getDb();
   const filter: Record<string, any> = { _id: new ObjectId(id) };
   if (userId) {
-    filter.$or = [
-      { user_id: userId },
-      { user_id: { $exists: false } },
-      { user_id: null },
-    ];
+    filter.user_id = userId;
   }
 
   const res = await db.collection("tasks").deleteOne(filter);
@@ -445,11 +433,7 @@ export async function completeTask(
     const db = await getDb();
     const filter: Record<string, any> = { _id: new ObjectId(id) };
     if (userId) {
-      filter.$or = [
-        { user_id: userId },
-        { user_id: { $exists: false } },
-        { user_id: null },
-      ];
+      filter.user_id = userId;
     }
 
     const result = await db

@@ -28,8 +28,12 @@ export async function PATCH(
     );
   }
 
+  const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+  const scopedUserId = userRole === "admin" ? undefined : userId;
+
   try {
-    const match = await setMatchStatus(params.id, status);
+    const match = await setMatchStatus(params.id, status, scopedUserId);
     if (!match) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }

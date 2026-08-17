@@ -488,11 +488,7 @@ export async function fetchActions(options: {
       query.module = options.module;
     }
     if (options.userId) {
-      query.$or = [
-        { user_id: options.userId },
-        { user_id: { $exists: false } },
-        { user_id: null },
-      ];
+      query.user_id = options.userId;
     }
 
     const limit = options.limit ?? 50;
@@ -569,11 +565,7 @@ export async function fetchStats(
     const db = await getDb();
     const query: Record<string, any> = {};
     if (userId) {
-      query.$or = [
-        { user_id: userId },
-        { user_id: { $exists: false } },
-        { user_id: null },
-      ];
+      query.user_id = userId;
     }
 
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);

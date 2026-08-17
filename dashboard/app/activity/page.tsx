@@ -16,7 +16,13 @@ export default async function ActivityPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const { actions, error } = await fetchActions({ limit: 200 });
+  const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+
+  const { actions, error } = await fetchActions({
+    limit: 200,
+    userId: userRole === "admin" ? undefined : userId,
+  });
 
   return (
     <>

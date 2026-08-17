@@ -12,17 +12,21 @@ export default async function JobsPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
+  const userId = (session.user as any)?.id;
+  const userRole = (session.user as any)?.role;
+  const scopedUserId = userRole === "admin" ? undefined : userId;
+
   const [
     { actions: jobActions, error: actionsError },
     mongoMatchesResult,
     mongoAppsResult,
   ] = await Promise.all([
-    fetchActions({ module: "job_finding", limit: 150 }),
+    fetchActions({ module: "job_finding", limit: 150, userId: scopedUserId }),
     mongoConfigured()
-      ? fetchJobMatches(undefined, 150)
+      ? fetchJobMatches(undefined, 150, scopedUserId)
       : Promise.resolve({ matches: [], error: null }),
     mongoConfigured()
-      ? fetchApplications(150)
+      ? fetchApplications(150, scopedUserId)
       : Promise.resolve({ applications: [], error: null }),
   ]);
 
