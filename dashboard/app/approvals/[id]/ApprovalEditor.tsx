@@ -76,6 +76,16 @@ export default function ApprovalEditor({
     setError(null);
     setSuccessMsg(null);
 
+    // Automatically open Gmail compose or Website portal in a new tab upon clicking Approve
+    if (mode === "email") {
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
+        recipientEmail
+      )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+      window.open(gmailUrl, "_blank", "noopener,noreferrer");
+    } else if (mode === "manual" && meta.job_url) {
+      window.open(meta.job_url, "_blank", "noopener,noreferrer");
+    }
+
     try {
       const res = await fetch(withBasePath(`/api/approvals/${action.id}/send`), {
         method: "POST",
@@ -105,8 +115,8 @@ export default function ApprovalEditor({
 
       setSuccessMsg(
         mode === "manual"
-          ? "Application approved and recorded as applied via website/portal!"
-          : "Application approved and recorded as sent via Gmail!"
+          ? "Application recorded! Opened employer careers portal."
+          : "Application recorded! Opened pre-filled email in Gmail."
       );
       setTimeout(() => {
         router.push("/approvals");
@@ -140,14 +150,6 @@ export default function ApprovalEditor({
   }
 
   const confidence = Number(action.confidence);
-
-  const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(
-    recipientEmail
-  )}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-
-  const mailtoUrl = `mailto:${recipientEmail}?subject=${encodeURIComponent(
-    subject
-  )}&body=${encodeURIComponent(emailBody)}`;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -325,7 +327,7 @@ export default function ApprovalEditor({
                         Apply via Company Careers Portal
                       </p>
                       <p className="mt-0.5 text-xs text-muted">
-                        Click below to open the company&apos;s application portal, attach your downloaded resume, then mark as applied.
+                        Clicking Approve will open the company&apos;s application portal in a new tab, ready for you to attach your downloaded resume.
                       </p>
                     </div>
                     {meta.job_url && (
@@ -357,45 +359,6 @@ export default function ApprovalEditor({
               ) : (
                 /* Email Mode */
                 <div className="space-y-4">
-                  {/* 1-Click Dispatch Quick Bar */}
-                  <div className="rounded-2xl bg-gradient-to-r from-accent/10 to-accent/5 p-4 ring-1 ring-inset ring-accent/20">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-xs font-bold text-primary">
-                          🚀 1-Click Application Dispatch
-                        </p>
-                        <p className="mt-0.5 text-2xs text-secondary">
-                          Opens your pre-filled cover letter and recipient in Gmail or Mail app.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <a
-                          href={gmailComposeUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          className="press inline-flex items-center gap-1.5 rounded-xl bg-accent-solid px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:brightness-110"
-                        >
-                          Open in Gmail Web ↗
-                        </a>
-
-                        <a
-                          href={mailtoUrl}
-                          className="press inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-raised px-3 py-1.5 text-xs font-medium text-primary shadow-xs hover:bg-primary/[0.04]"
-                        >
-                          Mail App (mailto) ✉️
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={handleCopyCoverLetter}
-                          className="press inline-flex items-center gap-1.5 rounded-xl border border-primary/20 bg-raised px-3 py-1.5 text-xs font-medium text-primary shadow-xs hover:bg-primary/[0.04]"
-                        >
-                          {copied ? "Copied! ✓" : "Copy Cover Letter 📋"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-4">
                     <div>
                       <label className="block text-xs font-medium text-primary">
@@ -471,7 +434,7 @@ export default function ApprovalEditor({
                   className="w-full px-6 py-2 text-xs sm:w-auto sm:text-sm"
                 >
                   {busy
-                    ? "Recording..."
+                    ? "Opening & Recording..."
                     : mode === "manual"
                     ? "Approve & Mark as Applied"
                     : "Approve & Mark as Sent"}
