@@ -934,18 +934,6 @@ export default function OnboardingPage() {
                 </p>
               </div>
 
-              <Field label="When something needs your approval">
-                <select
-                  value={notificationFreq}
-                  onChange={(e) => setNotificationFreq(e.target.value as any)}
-                  className="field select-field"
-                >
-                  <option value="instant">Email me right away</option>
-                  <option value="daily_digest">Send one daily summary</option>
-                  <option value="manual">Don&apos;t email — I&apos;ll check the dashboard</option>
-                </select>
-              </Field>
-
               <div className="flex items-start gap-2.5 rounded-xl bg-ok/[0.08] p-3.5 ring-1 ring-inset ring-ok/20">
                 <IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok-ink" />
                 <p className="text-xs leading-relaxed text-secondary">
