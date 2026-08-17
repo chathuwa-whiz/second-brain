@@ -85,7 +85,17 @@ export default function ApprovalEditor({
         }),
       });
 
-      const data = await res.json();
+      const resText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(resText);
+      } catch {
+        if (res.status === 504) {
+          throw new Error("Mail Gateway Timeout (504): Mail server took too long to respond. Please verify your Gmail address and 16-character Google App Password in Settings > Outbound Email.");
+        }
+        throw new Error(`Server returned error (${res.status}): ${resText.slice(0, 120)}`);
+      }
+
       if (!res.ok) {
         throw new Error(data.error || "Failed to process application");
       }

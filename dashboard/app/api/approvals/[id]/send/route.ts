@@ -73,10 +73,11 @@ export async function POST(
         );
       }
 
-      const smtpHost = emailSettings.smtpHost || "smtp.gmail.com";
-      const smtpPort = Number(emailSettings.smtpPort) || 465;
-      const smtpUser = emailSettings.smtpUser || emailSettings.fromEmail || userSender;
-      const smtpPass = emailSettings.smtpPassword || "";
+      const rawHost = emailSettings.smtpHost || "smtp.gmail.com";
+      const smtpHost = rawHost.trim();
+      const userFromSetting = emailSettings.smtpUser || emailSettings.fromEmail || emailSettings.default_sender_email || userSender;
+      const smtpUser = userFromSetting.includes("@") ? userFromSetting.trim() : (session.user?.email || userSender).trim();
+      const smtpPass = (emailSettings.smtpPassword || "").replace(/\s+/g, "").trim();
 
       if (!smtpPass || !smtpUser) {
         return NextResponse.json(
@@ -96,16 +97,6 @@ export async function POST(
           console.warn(`Could not read resume file ${resume_filename}:`, err);
         }
       }
-
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: {
-          user: smtpUser,
-          pass: smtpPass,
-        },
-      });
 
       const fromHeader = emailSettings.senderName
         ? `${emailSettings.senderName} <${smtpUser}>`
@@ -129,27 +120,66 @@ export async function POST(
         ];
       }
 
+      // Dual-port dispatch: Try configured port / 465, with automatic fallback to 587
+      const primaryPort = Number(emailSettings.smtpPort) || 465;
+      const fallbackPort = primaryPort === 465 ? 587 : 465;
+
+      let info: any = null;
+      let lastErr: any = null;
+
+      // 1. Try Primary Port
       try {
-        const info = await transporter.sendMail(mailOptions);
-        messageId = info.messageId || "smtp-" + Date.now();
-        executionDetails = {
-          provider: "smtp",
-          messageId,
-          sent_to: recipient_email,
-          from: fromHeader,
-          response: info.response,
-          resume_attached: resume_filename || null,
-        };
-      } catch (smtpErr: any) {
-        console.error("SMTP sendMail error:", smtpErr);
-        const errMsg = smtpErr?.message || "Failed to send email via SMTP server";
+        const primaryTransporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: primaryPort,
+          secure: primaryPort === 465,
+          auth: { user: smtpUser, pass: smtpPass },
+          connectionTimeout: 8000,
+          greetingTimeout: 8000,
+          socketTimeout: 12000,
+        });
+        info = await primaryTransporter.sendMail(mailOptions);
+      } catch (err1: any) {
+        lastErr = err1;
+        console.warn(`SMTP dispatch failed on port ${primaryPort}, trying fallback port ${fallbackPort}:`, err1.message);
+
+        // 2. Try Fallback Port
+        try {
+          const fallbackTransporter = nodemailer.createTransport({
+            host: smtpHost,
+            port: fallbackPort,
+            secure: fallbackPort === 465,
+            auth: { user: smtpUser, pass: smtpPass },
+            connectionTimeout: 8000,
+            greetingTimeout: 8000,
+            socketTimeout: 12000,
+          });
+          info = await fallbackTransporter.sendMail(mailOptions);
+        } catch (err2: any) {
+          lastErr = err2;
+          console.error(`SMTP fallback dispatch also failed on port ${fallbackPort}:`, err2);
+        }
+      }
+
+      if (!info) {
+        const msg = lastErr?.message || "Connection timed out connecting to mail server";
         return NextResponse.json(
           {
-            error: `Email delivery failed: ${errMsg}. Please verify your Gmail address and Google App Password in Settings > Outbound Email Account.`,
+            error: `Email delivery failed: ${msg}. Please check your Gmail address and 16-character Google App Password in Settings > Outbound Email Account.`,
           },
           { status: 400 }
         );
       }
+
+      messageId = info.messageId || "smtp-" + Date.now();
+      executionDetails = {
+        provider: "smtp",
+        messageId,
+        sent_to: recipient_email,
+        from: fromHeader,
+        response: info.response,
+        resume_attached: resume_filename || null,
+      };
     }
 
     // 3. Update action in MongoDB

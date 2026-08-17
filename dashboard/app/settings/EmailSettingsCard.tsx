@@ -49,11 +49,11 @@ export default function EmailSettingsCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           provider: "smtp",
-          default_sender_email: defaultSender,
-          smtp_host: smtpHost,
-          smtp_port: Number(smtpPort),
-          smtp_user: smtpUser || defaultSender,
-          smtp_password: smtpPassword,
+          default_sender_email: defaultSender.trim(),
+          smtp_host: smtpHost.trim(),
+          smtp_port: Number(smtpPort) || 465,
+          smtp_user: (smtpUser && smtpUser.includes("@")) ? smtpUser.trim() : defaultSender.trim(),
+          smtp_password: smtpPassword.replace(/\s+/g, "").trim(),
         }),
       });
 
