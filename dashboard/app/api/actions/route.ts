@@ -47,11 +47,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const userId = (session?.user as any)?.id || null;
-
   try {
     const body = await req.json();
-    const { module, action, reasoning, confidence, status, metadata } = body;
+    const { module, action, reasoning, confidence, status, metadata, user_id, userId: bodyUserId } = body;
+    const resolvedUserId = user_id || bodyUserId || req.headers.get("x-user-id") || (session?.user as any)?.id || null;
 
     const db = await getDb();
     const id = randomUUID();
@@ -59,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const doc = {
       id,
-      user_id: userId,
+      user_id: resolvedUserId,
       module: module || "job_finding",
       action: action || "send_job_application_email",
       reasoning: reasoning || "",

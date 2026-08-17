@@ -20,10 +20,32 @@ export async function middleware(req: NextRequest) {
   const currentPath = req.nextUrl.pathname;
   const currentSearch = req.nextUrl.search;
 
+  // Allow webhook secrets and API keys on /api routes
+  const webhookSecret =
+    req.headers.get("x-webhook-secret") || req.headers.get("X-Webhook-Secret");
+  const envSecret =
+    process.env.ORCHESTRATOR_WEBHOOK_SECRET ||
+    process.env.WEBHOOK_SECRET ||
+    "second-brain-secret";
+  const hasValidWebhookSecret = webhookSecret && webhookSecret === envSecret;
+  const hasApiKey =
+    Boolean(req.headers.get("x-api-key")) ||
+    Boolean(req.headers.get("authorization")) ||
+    req.nextUrl.searchParams.has("api_key");
+
+  if (currentPath.startsWith("/api/")) {
+    if (hasValidWebhookSecret || hasApiKey) {
+      return NextResponse.next();
+    }
+  }
+
   // Unauthenticated users
   if (!token) {
-    if (currentPath.startsWith("/api/admin")) {
-      return NextResponse.json({ error: "Unauthorized. Please sign in." }, { status: 401 });
+    if (currentPath.startsWith("/api/")) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please sign in or provide a valid API key / webhook secret." },
+        { status: 401 }
+      );
     }
     const callbackUrl = encodeURIComponent(`${currentPath}${currentSearch}`);
     const loginUrl = `${proto}://${host}${basePath}/login?callbackUrl=${callbackUrl}`;
