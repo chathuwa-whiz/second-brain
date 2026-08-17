@@ -14,5 +14,8 @@ venv/
 # Node / Next.js (dashboard)
 node_modules/
 .next/
+*.tsbuildinfo
 dashboard/node_modules/
 dashboard/.next/
+dashboard/*.tsbuildinfo
+

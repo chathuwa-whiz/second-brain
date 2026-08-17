@@ -117,6 +117,10 @@ export default function OnboardingPage() {
   const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // AI Target Auto-Fill State
+  const [analyzingResume, setAnalyzingResume] = useState(false);
+  const [aiSuggestedFrom, setAiSuggestedFrom] = useState<string | null>(null);
+
   // Step 2: Career Targets
   const [targetTitleInput, setTargetTitleInput] = useState("");
   const [targetTitles, setTargetTitles] = useState<string[]>([
@@ -126,7 +130,7 @@ export default function OnboardingPage() {
   const [locations, setLocations] = useState<string[]>(["Remote", "Worldwide"]);
   const [locationInput, setLocationInput] = useState("");
   const [remotePref, setRemotePref] = useState<"remote_only" | "hybrid" | "onsite" | "any">("remote_only");
-  const [minSalary, setMinSalary] = useState<string>("80000");
+  const [minSalary, setMinSalary] = useState<string>("250000");
   const [experienceLevel, setExperienceLevel] = useState<string>("mid");
   const [skills, setSkills] = useState<string[]>([
     "TypeScript",
@@ -192,9 +196,40 @@ export default function OnboardingPage() {
       const data = await res.json();
       if (res.ok && data.files) {
         setResumes(data.files);
+        return data.files as ResumeItem[];
       }
     } catch {
       // ignore
+    }
+    return [];
+  }
+
+  async function generateAiTargets(filename?: string) {
+    setAnalyzingResume(true);
+    setError(null);
+    try {
+      const res = await fetch(withBasePath("/api/resumes/suggest-targets"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      });
+      const data = await res.json();
+      if (res.ok && data.suggestions) {
+        const s = data.suggestions;
+        if (s.targetJobTitles?.length) setTargetTitles(s.targetJobTitles);
+        if (s.locations?.length) setLocations(s.locations);
+        if (s.remotePreference) setRemotePref(s.remotePreference);
+        if (s.minSalary) setMinSalary(String(s.minSalary));
+        if (s.experienceLevel) setExperienceLevel(s.experienceLevel);
+        if (s.skills?.length) setSkills(s.skills);
+        setAiSuggestedFrom(s.sourceResumeName || filename || "uploaded resume");
+      } else if (data.error && filename) {
+        console.warn("AI Target Suggestion notice:", data.error);
+      }
+    } catch (err) {
+      console.warn("AI Target Suggestion request failed:", err);
+    } finally {
+      setAnalyzingResume(false);
     }
   }
 
@@ -204,8 +239,9 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
+      const uploadedFiles: string[] = [];
       for (const file of Array.from(fileList)) {
-        if (resumes.length >= 5) {
+        if (resumes.length + uploadedFiles.length >= 5) {
           throw new Error("Maximum limit of 5 resumes reached. Delete one to upload another.");
         }
         const formData = new FormData();
@@ -218,8 +254,15 @@ export default function OnboardingPage() {
         if (!res.ok) {
           throw new Error(data.error || `Failed to upload ${file.name}`);
         }
+        uploadedFiles.push(file.name);
       }
+
       await fetchResumes();
+
+      // Trigger AI parsing on the newly uploaded resume
+      if (uploadedFiles.length > 0) {
+        generateAiTargets(uploadedFiles[0]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -237,6 +280,9 @@ export default function OnboardingPage() {
       });
       if (res.ok) {
         setResumes((prev) => prev.filter((r) => r.name !== name));
+        if (aiSuggestedFrom === name) {
+          setAiSuggestedFrom(null);
+        }
       }
     } catch {
       setError("Failed to delete resume.");
@@ -291,7 +337,7 @@ export default function OnboardingPage() {
       targetJobTitles: targetTitles.length > 0 ? targetTitles : ["Software Developer", "Accountant", "Marketing Executive"],
       locations: locations.length > 0 ? locations : ["Remote", "Worldwide"],
       remotePreference: remotePref,
-      minSalary: minSalary ? Number(minSalary) : 80000,
+      minSalary: minSalary ? Number(minSalary) : 250000,
       experienceLevel,
       skills: skills.length > 0 ? skills : ["General Professional Skills"],
       confidenceThreshold: confidenceThreshold || 0.75,
@@ -384,6 +430,12 @@ export default function OnboardingPage() {
               </dd>
             </div>
             <div className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="text-muted">Minimum salary</dt>
+              <dd className="tnum font-medium text-primary">
+                {minSalary ? `LKR ${Number(minSalary).toLocaleString()}/mo` : "—"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-2.5">
               <dt className="text-muted">Work preference</dt>
               <dd className="font-medium capitalize text-primary">
                 {remotePref.replace("_", " ")}
@@ -422,12 +474,12 @@ export default function OnboardingPage() {
     1: {
       title: "Add your resumes",
       blurb:
-        "Upload up to five versions of your CV. The agent picks whichever one fits each job posting best, so tailored variants are worth adding.",
+        "Upload your CV (PDF or DOCX). Second Brain AI will analyze your experience and automatically infer your job titles, core skills, salary targets, and preferences.",
     },
     2: {
       title: "Tell it what to look for",
       blurb:
-        "The roles, places and pay you want. These drive every match the agent scores.",
+        "The roles, places and pay you want. These are auto-suggested from your resume and can be customized anytime.",
     },
     3: {
       title: "Decide how much it does alone",
@@ -548,21 +600,35 @@ export default function OnboardingPage() {
                 />
                 <IconResumes className="h-6 w-6 text-muted" />
                 <p className="mt-3 text-sm font-medium text-primary">
-                  {uploading ? "Uploading…" : "Drop a resume, or click to browse"}
+                  {uploading ? "Uploading resume…" : "Drop a resume, or click to browse"}
                 </p>
                 <p className="mt-1 text-2xs text-muted">
-                  PDF, DOCX or TXT · up to 5 files
+                  PDF, DOCX or TXT · up to 5 files · AI analyzes your targets automatically
                 </p>
               </div>
 
+              {analyzingResume && (
+                <div className="flex items-center gap-2.5 rounded-xl border border-accent/20 bg-accent/[0.05] p-3 text-xs text-accent-ink">
+                  <span className="inline-block animate-spin text-sm">✨</span>
+                  <span>Analyzing resume with AI to extract your optimal career targets…</span>
+                </div>
+              )}
+
               {resumes.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-primary">
-                    Uploaded{" "}
-                    <span className="tnum text-muted">
-                      ({resumes.length}/5)
-                    </span>
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-primary">
+                      Uploaded{" "}
+                      <span className="tnum text-muted">
+                        ({resumes.length}/5)
+                      </span>
+                    </p>
+                    {aiSuggestedFrom && (
+                      <span className="text-3xs font-medium text-accent-ink">
+                        ✨ Targets suggested from {aiSuggestedFrom}
+                      </span>
+                    )}
+                  </div>
                   <ul className="mt-2 divide-y divide-hairline/10 border-y border-hairline/10">
                     {resumes.map((file) => (
                       <li
@@ -578,17 +644,30 @@ export default function OnboardingPage() {
                             {formatBytes(file.size)}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          disabled={deleting === file.name}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteResume(file.name);
-                          }}
-                          className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-muted transition-colors hover:text-danger-ink disabled:opacity-50"
-                        >
-                          {deleting === file.name ? "Removing…" : "Remove"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={analyzingResume}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              generateAiTargets(file.name);
+                            }}
+                            className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-accent-ink transition-colors hover:bg-accent/10 disabled:opacity-50"
+                          >
+                            Analyze
+                          </button>
+                          <button
+                            type="button"
+                            disabled={deleting === file.name}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteResume(file.name);
+                            }}
+                            className="press shrink-0 rounded-lg px-2 py-1 text-2xs font-medium text-muted transition-colors hover:text-danger-ink disabled:opacity-50"
+                          >
+                            {deleting === file.name ? "Removing…" : "Remove"}
+                          </button>
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -600,9 +679,47 @@ export default function OnboardingPage() {
           {/* ══════════════ STEP 2: TARGETS ══════════════ */}
           {step === 2 && (
             <>
+              {analyzingResume ? (
+                <div className="flex items-center gap-2.5 rounded-xl border border-accent/20 bg-accent/[0.06] p-3 text-xs text-accent-ink animate-pulse">
+                  <span className="text-sm">✨</span>
+                  <span>Analyzing your resume with AI to generate personalized targets…</span>
+                </div>
+              ) : aiSuggestedFrom ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-accent/20 bg-accent/[0.04] p-3 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm shrink-0">✨</span>
+                    <span className="truncate text-secondary">
+                      Auto-filled by AI suggestions from <strong className="font-medium text-primary">{aiSuggestedFrom}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => generateAiTargets()}
+                    disabled={analyzingResume}
+                    className="press shrink-0 text-2xs font-semibold text-accent-ink hover:underline disabled:opacity-50"
+                  >
+                    Re-analyze
+                  </button>
+                </div>
+              ) : resumes.length > 0 ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-hairline/15 bg-primary/[0.02] p-3 text-xs">
+                  <span className="text-secondary">
+                    You uploaded {resumes.length} resume{resumes.length > 1 ? "s" : ""}.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => generateAiTargets()}
+                    disabled={analyzingResume}
+                    className="press shrink-0 inline-flex items-center gap-1 text-2xs font-semibold text-accent-ink hover:underline disabled:opacity-50"
+                  >
+                    ✨ Auto-fill with AI
+                  </button>
+                </div>
+              ) : null}
+
               <Field
                 label="Target job titles"
-                hint="Add your own, or tap a suggestion below."
+                hint="Add your own, or tap an AI/popular suggestion below."
               >
                 <div className="flex gap-2">
                   <input
@@ -681,22 +798,27 @@ export default function OnboardingPage() {
                 </Field>
               </div>
 
-              <Field label="Minimum salary" hint="Annual, in USD.">
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder="80000"
-                  value={minSalary}
-                  onChange={(e) => setMinSalary(e.target.value)}
-                  className="field"
-                />
+              <Field label="Minimum salary (LKR)" hint="Monthly base target in Sri Lankan Rupees.">
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-xs font-semibold text-muted">
+                    LKR
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="250000"
+                    value={minSalary}
+                    onChange={(e) => setMinSalary(e.target.value)}
+                    className="field pl-12"
+                  />
+                </div>
               </Field>
 
               <Field label="Target locations">
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. Remote, Sri Lanka, UK"
+                    placeholder="e.g. Colombo, Remote, Sri Lanka"
                     value={locationInput}
                     onChange={(e) => setLocationInput(e.target.value)}
                     onKeyDown={(e) =>
@@ -731,7 +853,7 @@ export default function OnboardingPage() {
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="e.g. React, SQL, SEO"
+                    placeholder="e.g. React, Node.js, SQL"
                     value={skillInput}
                     onChange={(e) => setSkillInput(e.target.value)}
                     onKeyDown={(e) =>
@@ -858,6 +980,9 @@ export default function OnboardingPage() {
               variant="primary"
               onClick={() => {
                 setError(null);
+                if (step === 1 && resumes.length > 0 && !aiSuggestedFrom && !analyzingResume) {
+                  generateAiTargets();
+                }
                 setStep((s) => (s + 1) as 2 | 3);
               }}
               className="min-h-[44px] px-6 text-sm font-medium"

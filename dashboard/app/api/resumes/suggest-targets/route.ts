@@ -1,0 +1,202 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { listUserResumes, getUserResumeBuffer } from "@/lib/storage";
+import { extractResumeText } from "@/lib/resumeParser";
+
+export interface TargetSuggestions {
+  targetJobTitles: string[];
+  experienceLevel: "junior" | "mid" | "senior" | "lead" | "executive";
+  minSalary: number;
+  locations: string[];
+  skills: string[];
+  remotePreference: "remote_only" | "hybrid" | "onsite" | "any";
+  sourceResumeName?: string;
+}
+
+export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const userId = (session.user as any)?.id || "default_user";
+
+  try {
+    let filename: string | undefined;
+    try {
+      const body = await req.json();
+      filename = body?.filename;
+    } catch {
+      // JSON body is optional
+    }
+
+    // If no specific filename requested, get the latest uploaded resume
+    if (!filename) {
+      const { files } = await listUserResumes(userId);
+      if (!files || files.length === 0) {
+        return NextResponse.json(
+          { error: "No resumes found for this user. Please upload a resume first." },
+          { status: 400 }
+        );
+      }
+      filename = files[0].name;
+    }
+
+    // Retrieve file buffer
+    const buffer = await getUserResumeBuffer(userId, filename);
+    if (!buffer) {
+      return NextResponse.json(
+        { error: `Could not retrieve file content for ${filename}` },
+        { status: 404 }
+      );
+    }
+
+    // Extract text from resume
+    const resumeText = await extractResumeText(buffer, filename);
+    if (!resumeText || resumeText.trim().length < 20) {
+      return NextResponse.json(
+        { error: "Extracted resume content is empty or unreadable." },
+        { status: 422 }
+      );
+    }
+
+    // Limit text length to avoid token overflow
+    const truncatedText = resumeText.slice(0, 12000);
+
+    const prompt = `You are an expert career advisor and technical recruiter analyzing a candidate's resume to configure their automated job search targets.
+Analyze the following resume and infer their optimal job targets in Sri Lanka / global remote market.
+
+RESUME CONTENT:
+"""
+${truncatedText}
+"""
+
+Instructions:
+1. "targetJobTitles": List 3 to 5 specific, high-intent job titles the candidate is qualified for (e.g., ["Senior Full Stack Engineer", "React Developer", "Node.js Architect"]).
+2. "experienceLevel": Choose exactly one of ["junior", "mid", "senior", "lead", "executive"] based on total years of relevant work experience (junior: 1-2 yrs, mid: 3-5 yrs, senior: 5-8 yrs, lead: 8+ yrs, executive: VP/Director/C-level).
+3. "minSalary": Inferred realistic minimum monthly base salary in Sri Lankan Rupees (LKR).
+   Guidelines for Sri Lankan market in LKR:
+   - Junior: 120000 to 200000
+   - Mid: 250000 to 450000
+   - Senior: 500000 to 850000
+   - Lead/Staff: 900000 to 1400000
+   - Executive: 1500000+
+   (Return as a single integer number, e.g. 350000).
+4. "locations": List 2 to 4 target locations relevant to candidate (e.g., ["Colombo", "Remote", "Sri Lanka"]).
+5. "skills": List 6 to 10 key technical and core skills extracted directly from their actual experience and stack.
+6. "remotePreference": Choose exactly one of ["remote_only", "hybrid", "onsite", "any"] (default to "remote_only" or "hybrid" for modern knowledge/tech workers).
+
+You MUST return ONLY a valid, single JSON object with no markdown formatting or backticks:
+{
+  "targetJobTitles": ["Job Title 1", "Job Title 2"],
+  "experienceLevel": "mid",
+  "minSalary": 350000,
+  "locations": ["Remote", "Colombo", "Sri Lanka"],
+  "skills": ["Skill 1", "Skill 2"],
+  "remotePreference": "remote_only"
+}`;
+
+    const llmBaseUrl =
+      process.env.LLM_BASE_URL || "http://62.171.163.6:20128/v1";
+    const llmModel = process.env.LLM_MODEL || "GeminiALL";
+    const llmApiKey =
+      process.env.LLM_API_KEY ||
+      "Bearer sk-02aebea5bd06e96f-avyk7j-64c88030".replace("Bearer ", "");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+    const authHeader = llmApiKey.startsWith("Bearer ")
+      ? llmApiKey
+      : `Bearer ${llmApiKey}`;
+
+    const llmRes = await fetch(`${llmBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: authHeader,
+      },
+      body: JSON.stringify({
+        model: llmModel,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a strict JSON generator. You only reply with raw, valid JSON. Never output markdown code blocks, backticks, or explanatory text.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.1,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!llmRes.ok) {
+      const errText = await llmRes.text();
+      console.error("LLM Gateway error response:", llmRes.status, errText);
+      throw new Error(`LLM Gateway responded with status ${llmRes.status}`);
+    }
+
+    const data = await llmRes.json();
+    const rawContent = data?.choices?.[0]?.message?.content || "";
+
+    // Sanitize any potential markdown fences
+    const cleanJsonStr = rawContent
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+
+    let suggestions: TargetSuggestions;
+    try {
+      suggestions = JSON.parse(cleanJsonStr);
+    } catch (parseErr) {
+      console.error("Failed to parse LLM JSON response:", rawContent);
+      throw new Error("Could not parse AI response as valid JSON.");
+    }
+
+    // Validate and enforce fallback shapes
+    const validExpLevels = ["junior", "mid", "senior", "lead", "executive"];
+    const validRemotePrefs = ["remote_only", "hybrid", "onsite", "any"];
+
+    const normalizedSuggestions: TargetSuggestions = {
+      targetJobTitles: Array.isArray(suggestions.targetJobTitles) && suggestions.targetJobTitles.length > 0
+        ? suggestions.targetJobTitles.map(String).slice(0, 8)
+        : ["Software Engineer", "Full Stack Developer"],
+      experienceLevel: validExpLevels.includes(suggestions.experienceLevel)
+        ? suggestions.experienceLevel
+        : "mid",
+      minSalary: typeof suggestions.minSalary === "number" && suggestions.minSalary > 0
+        ? Math.round(suggestions.minSalary)
+        : 250000,
+      locations: Array.isArray(suggestions.locations) && suggestions.locations.length > 0
+        ? suggestions.locations.map(String).slice(0, 6)
+        : ["Remote", "Colombo", "Sri Lanka"],
+      skills: Array.isArray(suggestions.skills) && suggestions.skills.length > 0
+        ? suggestions.skills.map(String).slice(0, 15)
+        : ["Problem Solving", "Communication", "Teamwork"],
+      remotePreference: validRemotePrefs.includes(suggestions.remotePreference)
+        ? suggestions.remotePreference
+        : "remote_only",
+      sourceResumeName: filename,
+    };
+
+    return NextResponse.json({
+      success: true,
+      suggestions: normalizedSuggestions,
+    });
+  } catch (err) {
+    console.error("POST /api/resumes/suggest-targets error:", err);
+    return NextResponse.json(
+      {
+        error: err instanceof Error ? err.message : "Failed to suggest targets",
+      },
+      { status: 500 }
+    );
+  }
+}
