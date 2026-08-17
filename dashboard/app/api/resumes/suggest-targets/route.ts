@@ -14,6 +14,8 @@ export interface TargetSuggestions {
   sourceResumeName?: string;
 }
 
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {

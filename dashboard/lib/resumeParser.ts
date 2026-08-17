@@ -15,11 +15,15 @@ export async function extractResumeText(
 
   if (ext === ".pdf") {
     try {
-      // Lazy import pdf-parse to avoid loading binary dependencies if unused
-      // pdf-parse is a CommonJS module
-      const pdfParse = require("pdf-parse");
-      const data = await pdfParse(buffer);
-      return data.text || "";
+      const { getDocumentProxy, extractText } = require("unpdf");
+      const uint8 = new Uint8Array(
+        buffer.buffer,
+        buffer.byteOffset,
+        buffer.byteLength
+      );
+      const pdf = await getDocumentProxy(uint8);
+      const { text } = await extractText(pdf, { mergePages: true });
+      return text || "";
     } catch (err) {
       console.error("PDF parsing error:", err);
       throw new Error(
