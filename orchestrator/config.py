@@ -2,7 +2,7 @@ import os
 
 # LLM gateway (reuses the same self-hosted 9router pattern as your n8n workflows)
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://62.171.163.6:20128/v1")
-LLM_MODEL = os.environ.get("LLM_MODEL", "GeminiALL")
+LLM_MODEL = os.environ.get("LLM_MODEL", "secondbrain")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 
 # MCP servers the orchestrator can route to, each launched as a local

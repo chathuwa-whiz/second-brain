@@ -82,7 +82,7 @@ if not MONGO_URL:
 DB_NAME = os.environ.get("MONGO_DB", "second_brain")
 
 LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://62.171.163.6:20128/v1")
-LLM_MODEL = os.environ.get("LLM_MODEL", "GeminiALL")
+LLM_MODEL = os.environ.get("LLM_MODEL", "secondbrain")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "not-needed")
 
 # Optional: your name, used to sign cover letter drafts. Falls back to a

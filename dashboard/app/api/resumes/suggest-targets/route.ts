@@ -207,7 +207,7 @@ You MUST return ONLY a valid, single JSON object with no markdown formatting or 
 
     const llmBaseUrl =
       process.env.LLM_BASE_URL || "http://62.171.163.6:20128/v1";
-    const llmModel = process.env.LLM_MODEL || "GeminiALL";
+    const llmModel = process.env.LLM_MODEL || "secondbrain";
     const llmApiKey =
       process.env.LLM_API_KEY ||
       "Bearer sk-02aebea5bd06e96f-avyk7j-64c88030".replace("Bearer ", "");

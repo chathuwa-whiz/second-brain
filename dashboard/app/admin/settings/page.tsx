@@ -210,6 +210,7 @@ export default function AdminSettingsPage() {
                     }
                     className="w-full rounded-xl border border-hairline/20 bg-base px-3 py-2 text-xs text-primary focus:border-accent focus:outline-none"
                   >
+                    <option value="secondbrain">secondbrain (Default Gateway)</option>
                     <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
                     <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
                     <option value="gpt-4o">GPT-4o</option>
