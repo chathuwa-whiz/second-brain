@@ -29,15 +29,19 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = await getDb();
-    const users = await db.collection("users").find({}).toArray();
+    const [users, profileDocs] = await Promise.all([
+      db.collection("users").find({}).toArray(),
+      db.collection("system_settings").find({ key: "user_profile" }).toArray(),
+    ]);
 
-    const userIds = users.map((u) => String(u.id || u._id));
-
-    // Fetch all user profiles from system_settings
-    const profileDocs = await db
-      .collection("system_settings")
-      .find({ key: "user_profile", user_id: { $in: userIds } })
-      .toArray();
+    const userMap = new Map<string, any>();
+    for (const u of users) {
+      const uid = String(u.id || u._id);
+      userMap.set(uid, u);
+      if (u.email) {
+        userMap.set(String(u.email).toLowerCase(), u);
+      }
+    }
 
     const profileMap = new Map<string, any>();
     for (const doc of profileDocs) {
@@ -46,9 +50,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const candidateUserIds = Array.from(
+      new Set([
+        ...users.map((u) => String(u.id || u._id)),
+        ...profileDocs.map((doc) => String(doc.user_id)).filter(Boolean),
+      ])
+    );
+
     const activeUsers = await Promise.all(
-      users.map(async (userDoc) => {
-        const userId = String(userDoc.id || userDoc._id);
+      candidateUserIds.map(async (userId) => {
+        const userDoc = userMap.get(userId);
         const rawProfile = profileMap.get(userId) || {};
 
         // Skip user if explicitly disabled job discovery
@@ -69,10 +80,19 @@ export async function GET(req: NextRequest) {
           return null;
         }
 
+        const candidateName =
+          userDoc?.name ||
+          rawProfile.name ||
+          (userDoc?.email ? userDoc.email.split("@")[0] : "Candidate");
+        const candidateEmail =
+          userDoc?.email ||
+          rawProfile.email ||
+          "candidate@secondbrain.app";
+
         return {
           id: userId,
-          name: userDoc.name || userDoc.email.split("@")[0],
-          email: userDoc.email,
+          name: candidateName,
+          email: candidateEmail,
           targetJobTitles: Array.isArray(rawProfile.targetJobTitles)
             ? rawProfile.targetJobTitles
             : [],
