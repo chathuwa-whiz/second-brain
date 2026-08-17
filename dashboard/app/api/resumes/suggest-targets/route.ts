@@ -16,6 +16,76 @@ export interface TargetSuggestions {
 
 export const runtime = "nodejs";
 
+/**
+ * Robustly parses model response regardless of whether it returned raw JSON,
+ * an OpenAI JSON response, an SSE stream (data: {...}), or Markdown-wrapped JSON.
+ */
+function parseModelJson(textResponse: string): any {
+  let rawContent = "";
+
+  // 1. Try parsing directly as OpenAI chat completion JSON response
+  try {
+    const data = JSON.parse(textResponse);
+    if (data?.choices?.[0]?.message?.content) {
+      rawContent = data.choices[0].message.content;
+    } else if (data && typeof data === "object" && !data.choices) {
+      // Direct raw JSON payload
+      return data;
+    }
+  } catch {
+    // 2. If parsing direct JSON failed, check for Server-Sent Events (SSE) stream format
+    if (textResponse.includes("data:")) {
+      const lines = textResponse.split("\n");
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
+        if (trimmed.startsWith("data:")) {
+          try {
+            const chunk = JSON.parse(trimmed.slice(5).trim());
+            const delta =
+              chunk?.choices?.[0]?.delta?.content ||
+              chunk?.choices?.[0]?.message?.content ||
+              "";
+            rawContent += delta;
+          } catch {
+            // ignore unparseable SSE line
+          }
+        }
+      }
+    } else {
+      rawContent = textResponse;
+    }
+  }
+
+  if (!rawContent) {
+    rawContent = textResponse;
+  }
+
+  // 3. Clean any markdown code fences (```json ... ```)
+  const cleanJsonStr = rawContent
+    .replace(/^```(?:json)?\s*/im, "")
+    .replace(/\s*```$/m, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleanJsonStr);
+  } catch {
+    // 4. Fallback: extract the first outermost {...} JSON block
+    const firstBrace = rawContent.indexOf("{");
+    const lastBrace = rawContent.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const candidate = rawContent.slice(firstBrace, lastBrace + 1);
+      return JSON.parse(candidate);
+    }
+    throw new Error(
+      `Could not parse model response as JSON. Content preview: ${rawContent.slice(
+        0,
+        200
+      )}`
+    );
+  }
+}
+
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -133,6 +203,7 @@ You MUST return ONLY a valid, single JSON object with no markdown formatting or 
           },
         ],
         temperature: 0.1,
+        stream: false,
       }),
       signal: controller.signal,
     });
@@ -145,43 +216,34 @@ You MUST return ONLY a valid, single JSON object with no markdown formatting or 
       throw new Error(`LLM Gateway responded with status ${llmRes.status}`);
     }
 
-    const data = await llmRes.json();
-    const rawContent = data?.choices?.[0]?.message?.content || "";
-
-    // Sanitize any potential markdown fences
-    const cleanJsonStr = rawContent
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/\s*```$/i, "")
-      .trim();
-
-    let suggestions: TargetSuggestions;
-    try {
-      suggestions = JSON.parse(cleanJsonStr);
-    } catch (parseErr) {
-      console.error("Failed to parse LLM JSON response:", rawContent);
-      throw new Error("Could not parse AI response as valid JSON.");
-    }
+    const textResponse = await llmRes.text();
+    const suggestions: TargetSuggestions = parseModelJson(textResponse);
 
     // Validate and enforce fallback shapes
     const validExpLevels = ["junior", "mid", "senior", "lead", "executive"];
     const validRemotePrefs = ["remote_only", "hybrid", "onsite", "any"];
 
     const normalizedSuggestions: TargetSuggestions = {
-      targetJobTitles: Array.isArray(suggestions.targetJobTitles) && suggestions.targetJobTitles.length > 0
-        ? suggestions.targetJobTitles.map(String).slice(0, 8)
-        : ["Software Engineer", "Full Stack Developer"],
+      targetJobTitles:
+        Array.isArray(suggestions.targetJobTitles) &&
+        suggestions.targetJobTitles.length > 0
+          ? suggestions.targetJobTitles.map(String).slice(0, 8)
+          : ["Software Engineer", "Full Stack Developer"],
       experienceLevel: validExpLevels.includes(suggestions.experienceLevel)
         ? suggestions.experienceLevel
         : "mid",
-      minSalary: typeof suggestions.minSalary === "number" && suggestions.minSalary > 0
-        ? Math.round(suggestions.minSalary)
-        : 250000,
-      locations: Array.isArray(suggestions.locations) && suggestions.locations.length > 0
-        ? suggestions.locations.map(String).slice(0, 6)
-        : ["Remote", "Colombo", "Sri Lanka"],
-      skills: Array.isArray(suggestions.skills) && suggestions.skills.length > 0
-        ? suggestions.skills.map(String).slice(0, 15)
-        : ["Problem Solving", "Communication", "Teamwork"],
+      minSalary:
+        typeof suggestions.minSalary === "number" && suggestions.minSalary > 0
+          ? Math.round(suggestions.minSalary)
+          : 250000,
+      locations:
+        Array.isArray(suggestions.locations) && suggestions.locations.length > 0
+          ? suggestions.locations.map(String).slice(0, 6)
+          : ["Remote", "Colombo", "Sri Lanka"],
+      skills:
+        Array.isArray(suggestions.skills) && suggestions.skills.length > 0
+          ? suggestions.skills.map(String).slice(0, 15)
+          : ["Problem Solving", "Communication", "Teamwork"],
       remotePreference: validRemotePrefs.includes(suggestions.remotePreference)
         ? suggestions.remotePreference
         : "remote_only",
