@@ -16,7 +16,7 @@ export default function AiAutonomyCard() {
         const res = await fetch(withBasePath("/api/user/profile"));
         if (res.ok) {
           const data = await res.json();
-          const threshold = Number(data.profile?.confidenceThreshold ?? 0.75);
+          const threshold = Number(data.profile?.confidenceThreshold ?? 0.50);
           setAutonomyMode(threshold >= 0.85 ? "auto" : "safe");
         }
       } catch (err) {
@@ -31,7 +31,7 @@ export default function AiAutonomyCard() {
   async function handleSelectMode(mode: "safe" | "auto") {
     setAutonomyMode(mode);
     setSaving(true);
-    const confidenceThreshold = mode === "auto" ? 0.85 : 0.75;
+    const confidenceThreshold = mode === "auto" ? 0.85 : 0.50;
     try {
       await fetch(withBasePath("/api/user/profile"), {
         method: "PUT",

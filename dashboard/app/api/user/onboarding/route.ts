@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       minSalary: body.minSalary ? Number(body.minSalary) : null,
       experienceLevel: body.experienceLevel || "mid",
       skills: Array.isArray(body.skills) ? body.skills : [],
-      confidenceThreshold: Number(body.confidenceThreshold || 0.75),
+      confidenceThreshold: Number(body.confidenceThreshold || 0.50),
       notificationFrequency: body.notificationFrequency || "instant",
       jobDiscoveryActive: true,
       onboardingCompleted: true,

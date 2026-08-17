@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
           remotePreference: rawProfile.remotePreference || "any",
           experienceLevel: rawProfile.experienceLevel || "mid",
           minSalary: rawProfile.minSalary || null,
-          confidenceThreshold: Number(rawProfile.confidenceThreshold || 0.70),
+          confidenceThreshold: Number(rawProfile.confidenceThreshold || 0.50),
           onboardingCompleted: Boolean(rawProfile.onboardingCompleted),
           resumes: userResumes,
         };

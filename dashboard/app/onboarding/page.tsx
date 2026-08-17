@@ -141,7 +141,7 @@ export default function OnboardingPage() {
   const [skillInput, setSkillInput] = useState("");
 
   // Step 3: AI Trust Layer
-  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.75);
+  const [confidenceThreshold, setConfidenceThreshold] = useState<number>(0.50);
   const [notificationFreq, setNotificationFreq] = useState<"instant" | "daily_digest" | "manual">("instant");
 
   // Form State
@@ -340,7 +340,7 @@ export default function OnboardingPage() {
       minSalary: minSalary ? Number(minSalary) : 250000,
       experienceLevel,
       skills: skills.length > 0 ? skills : ["General Professional Skills"],
-      confidenceThreshold: confidenceThreshold || 0.75,
+      confidenceThreshold: confidenceThreshold || 0.50,
       notificationFrequency: notificationFreq || "instant",
       onboardingCompleted: true,
     };
@@ -918,8 +918,8 @@ export default function OnboardingPage() {
                 />
 
                 <div className="flex justify-between text-3xs text-muted">
-                  <span>50% · permissive</span>
-                  <span>75% · recommended</span>
+                  <span>50% · recommended</span>
+                  <span>75% · standard</span>
                   <span>95% · strict</span>
                 </div>
 
