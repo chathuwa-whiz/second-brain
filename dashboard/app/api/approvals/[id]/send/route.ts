@@ -3,14 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { fetchActionById, getEmailSettings, getDb } from "@/lib/db";
 import { recordJobApplication } from "@/lib/mongo";
-import { readFile } from "fs/promises";
+import { getUserResumeBuffer } from "@/lib/storage";
 import path from "path";
 import nodemailer from "nodemailer";
 import { ObjectId } from "mongodb";
-
-const RESUME_DIR =
-  process.env.RESUME_DIR ||
-  "D:\\second-brain\\mcp-servers\\job-tracker-mcp\\resumes";
 
 export async function POST(
   req: NextRequest,
@@ -77,55 +73,63 @@ export async function POST(
         );
       }
 
+      const smtpHost = emailSettings.smtpHost || "smtp.gmail.com";
+      const smtpPort = Number(emailSettings.smtpPort) || 465;
+      const smtpUser = emailSettings.smtpUser || emailSettings.fromEmail || userSender;
+      const smtpPass = emailSettings.smtpPassword || "";
+
+      if (!smtpPass || !smtpUser) {
+        return NextResponse.json(
+          {
+            error:
+              "Outbound email is not configured. Please go to Settings > Outbound Email Account and enter your Gmail address and 16-character Google App Password before sending emails.",
+          },
+          { status: 400 }
+        );
+      }
+
       let attachmentBuffer: Buffer | null = null;
       if (resume_filename) {
         try {
-          const cleanName = path.basename(resume_filename);
-          const resumePath = path.join(RESUME_DIR, cleanName);
-          attachmentBuffer = await readFile(resumePath);
+          attachmentBuffer = await getUserResumeBuffer(userId, resume_filename);
         } catch (err) {
           console.warn(`Could not read resume file ${resume_filename}:`, err);
         }
       }
 
-      const smtpHost = emailSettings.smtpHost || "smtp.gmail.com";
-      const smtpPort = Number(emailSettings.smtpPort) || 465;
-      const smtpUser = emailSettings.smtpUser || userSender;
-      const smtpPass = emailSettings.smtpPassword || "";
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: {
+          user: smtpUser,
+          pass: smtpPass,
+        },
+      });
 
-      if (smtpPass) {
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: smtpPort,
-          secure: smtpPort === 465,
-          auth: {
-            user: smtpUser,
-            pass: smtpPass,
+      const fromHeader = emailSettings.senderName
+        ? `${emailSettings.senderName} <${smtpUser}>`
+        : smtpUser;
+
+      const mailOptions: nodemailer.SendMailOptions = {
+        from: fromHeader,
+        to: recipient_email,
+        replyTo: emailSettings.replyTo || smtpUser,
+        subject: subject,
+        text: email_body,
+      };
+
+      if (attachmentBuffer && resume_filename) {
+        mailOptions.attachments = [
+          {
+            filename: path.basename(resume_filename),
+            content: attachmentBuffer,
+            contentType: "application/pdf",
           },
-        });
+        ];
+      }
 
-        const fromHeader = emailSettings.senderName
-          ? `${emailSettings.senderName} <${userSender}>`
-          : userSender;
-
-        const mailOptions: nodemailer.SendMailOptions = {
-          from: fromHeader,
-          to: recipient_email,
-          replyTo: emailSettings.replyTo || userSender,
-          subject: subject,
-          text: email_body,
-        };
-
-        if (attachmentBuffer && resume_filename) {
-          mailOptions.attachments = [
-            {
-              filename: path.basename(resume_filename),
-              content: attachmentBuffer,
-              contentType: "application/pdf",
-            },
-          ];
-        }
-
+      try {
         const info = await transporter.sendMail(mailOptions);
         messageId = info.messageId || "smtp-" + Date.now();
         executionDetails = {
@@ -136,17 +140,15 @@ export async function POST(
           response: info.response,
           resume_attached: resume_filename || null,
         };
-      } else {
-        messageId = "simulated-" + Date.now();
-        executionDetails = {
-          provider: "simulated",
-          notice:
-            "No SMTP password configured in Settings. Action marked approved and application recorded.",
-          messageId,
-          sent_to: recipient_email,
-          from: userSender,
-          resume_attached: resume_filename || null,
-        };
+      } catch (smtpErr: any) {
+        console.error("SMTP sendMail error:", smtpErr);
+        const errMsg = smtpErr?.message || "Failed to send email via SMTP server";
+        return NextResponse.json(
+          {
+            error: `Email delivery failed: ${errMsg}. Please verify your Gmail address and Google App Password in Settings > Outbound Email Account.`,
+          },
+          { status: 400 }
+        );
       }
     }
 

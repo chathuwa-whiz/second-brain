@@ -11,9 +11,11 @@ import type { AgentAction } from "@/lib/db";
 export default function ApprovalEditor({
   action,
   defaultSender,
+  isEmailConfigured = true,
 }: {
   action: AgentAction;
   defaultSender: string;
+  isEmailConfigured?: boolean;
 }) {
   const router = useRouter();
   const meta = (action.metadata || {}) as Record<string, any>;
@@ -326,6 +328,26 @@ export default function ApprovalEditor({
               ) : (
                 /* Email Dispatch Mode */
                 <div className="space-y-4">
+                  {!isEmailConfigured && (
+                    <div className="rounded-xl bg-warn/10 p-3.5 ring-1 ring-inset ring-warn/25">
+                      <div className="flex items-start gap-2.5">
+                        <span className="text-sm">⚠️</span>
+                        <div className="min-w-0 flex-1 text-xs">
+                          <p className="font-semibold text-warn-ink">
+                            Outgoing Email Account Not Configured
+                          </p>
+                          <p className="mt-0.5 text-secondary">
+                            To send application emails directly from Second Brain, enter your Gmail address and 16-character Google App Password in{" "}
+                            <Link href="/settings" className="font-medium text-accent-ink underline">
+                              Settings &gt; Outbound Email Account
+                            </Link>
+                            , or switch above to <strong>Website / portal</strong> mode to apply directly on the employer&apos;s site.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid gap-3.5 sm:grid-cols-2 sm:gap-4">
                     <div>
                       <label className="block text-xs font-medium text-primary">

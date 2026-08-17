@@ -44,6 +44,11 @@ export default async function ApprovalDetailPage({
 
   const meta = action.metadata || {};
 
+  const isEmailConfigured = Boolean(
+    emailSettings.smtpPassword &&
+      (emailSettings.smtpUser || emailSettings.default_sender_email)
+  );
+
   return (
     <>
       <PageHeader
@@ -53,6 +58,7 @@ export default async function ApprovalDetailPage({
       />
       <ApprovalEditor
         action={action}
+        isEmailConfigured={isEmailConfigured}
         defaultSender={
           emailSettings.default_sender_email ||
           emailSettings.fromEmail ||
