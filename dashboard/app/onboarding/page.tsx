@@ -259,9 +259,9 @@ export default function OnboardingPage() {
 
       await fetchResumes();
 
-      // Trigger AI parsing on the newly uploaded resume
+      // Trigger AI parsing synthesized across all uploaded resumes
       if (uploadedFiles.length > 0) {
-        generateAiTargets(uploadedFiles[0]);
+        generateAiTargets();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
@@ -689,7 +689,12 @@ export default function OnboardingPage() {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="text-sm shrink-0">✨</span>
                     <span className="truncate text-secondary">
-                      Auto-filled by AI suggestions from <strong className="font-medium text-primary">{aiSuggestedFrom}</strong>
+                      Auto-filled by AI suggestions{" "}
+                      <strong className="font-medium text-primary">
+                        {aiSuggestedFrom.includes("resumes")
+                          ? `synthesized from ${aiSuggestedFrom}`
+                          : `from ${aiSuggestedFrom}`}
+                      </strong>
                     </span>
                   </div>
                   <button
@@ -698,7 +703,7 @@ export default function OnboardingPage() {
                     disabled={analyzingResume}
                     className="press shrink-0 text-2xs font-semibold text-accent-ink hover:underline disabled:opacity-50"
                   >
-                    Re-analyze
+                    Re-analyze all
                   </button>
                 </div>
               ) : resumes.length > 0 ? (

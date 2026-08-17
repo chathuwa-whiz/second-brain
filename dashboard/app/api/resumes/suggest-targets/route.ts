@@ -95,16 +95,39 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any)?.id || "default_user";
 
   try {
-    let filename: string | undefined;
+    let requestedFilename: string | undefined;
     try {
       const body = await req.json();
-      filename = body?.filename;
+      requestedFilename = body?.filename;
     } catch {
       // JSON body is optional
     }
 
-    // If no specific filename requested, get the latest uploaded resume
-    if (!filename) {
+    let promptContent = "";
+    let sourceLabel = "";
+
+    if (requestedFilename && requestedFilename !== "all") {
+      // Single specific resume analysis
+      const buffer = await getUserResumeBuffer(userId, requestedFilename);
+      if (!buffer) {
+        return NextResponse.json(
+          { error: `Could not retrieve file content for ${requestedFilename}` },
+          { status: 404 }
+        );
+      }
+
+      const text = await extractResumeText(buffer, requestedFilename);
+      if (!text || text.trim().length < 20) {
+        return NextResponse.json(
+          { error: `Resume ${requestedFilename} is empty or unreadable.` },
+          { status: 422 }
+        );
+      }
+
+      promptContent = `RESUME (${requestedFilename}):\n"""\n${text.slice(0, 12000)}\n"""`;
+      sourceLabel = requestedFilename;
+    } else {
+      // Multi-resume synthesis: load and combine all uploaded resumes
       const { files } = await listUserResumes(userId);
       if (!files || files.length === 0) {
         return NextResponse.json(
@@ -112,41 +135,54 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-      filename = files[0].name;
+
+      const extractedEntries: { name: string; text: string }[] = [];
+      for (const file of files) {
+        const buffer = await getUserResumeBuffer(userId, file.name);
+        if (!buffer) continue;
+        try {
+          const text = await extractResumeText(buffer, file.name);
+          if (text && text.trim().length >= 20) {
+            extractedEntries.push({
+              name: file.name,
+              text: text.slice(0, 7000), // Allocate per-resume token space
+            });
+          }
+        } catch (err) {
+          console.warn(`Could not extract text from ${file.name}:`, err);
+        }
+      }
+
+      if (extractedEntries.length === 0) {
+        return NextResponse.json(
+          { error: "Could not extract text from any of the uploaded resumes." },
+          { status: 422 }
+        );
+      }
+
+      if (extractedEntries.length === 1) {
+        promptContent = `RESUME (${extractedEntries[0].name}):\n"""\n${extractedEntries[0].text}\n"""`;
+        sourceLabel = extractedEntries[0].name;
+      } else {
+        const combinedTexts = extractedEntries
+          .map(
+            (e, i) =>
+              `--- RESUME ${i + 1} (${e.name}) ---\n${e.text}`
+          )
+          .join("\n\n");
+        promptContent = `MULTIPLE RESUMES (${extractedEntries.length} documents provided by candidate):\n"""\n${combinedTexts}\n"""`;
+        sourceLabel = `${extractedEntries.length} resumes synthesized`;
+      }
     }
 
-    // Retrieve file buffer
-    const buffer = await getUserResumeBuffer(userId, filename);
-    if (!buffer) {
-      return NextResponse.json(
-        { error: `Could not retrieve file content for ${filename}` },
-        { status: 404 }
-      );
-    }
+    const prompt = `You are an expert career advisor and technical recruiter analyzing a candidate's resume data to configure their automated job search targets.
+Analyze the following resume content (synthesizing across all provided documents if multiple) and infer their optimal unified career targets in Sri Lanka / global remote market.
 
-    // Extract text from resume
-    const resumeText = await extractResumeText(buffer, filename);
-    if (!resumeText || resumeText.trim().length < 20) {
-      return NextResponse.json(
-        { error: "Extracted resume content is empty or unreadable." },
-        { status: 422 }
-      );
-    }
-
-    // Limit text length to avoid token overflow
-    const truncatedText = resumeText.slice(0, 12000);
-
-    const prompt = `You are an expert career advisor and technical recruiter analyzing a candidate's resume to configure their automated job search targets.
-Analyze the following resume and infer their optimal job targets in Sri Lanka / global remote market.
-
-RESUME CONTENT:
-"""
-${truncatedText}
-"""
+${promptContent}
 
 Instructions:
-1. "targetJobTitles": List 3 to 5 specific, high-intent job titles the candidate is qualified for (e.g., ["Senior Full Stack Engineer", "React Developer", "Node.js Architect"]).
-2. "experienceLevel": Choose exactly one of ["junior", "mid", "senior", "lead", "executive"] based on total years of relevant work experience (junior: 1-2 yrs, mid: 3-5 yrs, senior: 5-8 yrs, lead: 8+ yrs, executive: VP/Director/C-level).
+1. "targetJobTitles": List 3 to 6 specific, high-intent job titles the candidate is qualified for across their experience and variants (e.g., ["Senior Full Stack Engineer", "React Developer", "Node.js Architect", "Engineering Lead"]).
+2. "experienceLevel": Choose exactly one of ["junior", "mid", "senior", "lead", "executive"] based on their overall highest level of relevant work experience (junior: 1-2 yrs, mid: 3-5 yrs, senior: 5-8 yrs, lead: 8+ yrs, executive: VP/Director/C-level).
 3. "minSalary": Inferred realistic minimum monthly base salary in Sri Lankan Rupees (LKR).
    Guidelines for Sri Lankan market in LKR:
    - Junior: 120000 to 200000
@@ -156,16 +192,16 @@ Instructions:
    - Executive: 1500000+
    (Return as a single integer number, e.g. 350000).
 4. "locations": List 2 to 4 target locations relevant to candidate (e.g., ["Colombo", "Remote", "Sri Lanka"]).
-5. "skills": List 6 to 10 key technical and core skills extracted directly from their actual experience and stack.
+5. "skills": List 8 to 14 key technical and core skills synthesizing their actual experience and stack across all documents.
 6. "remotePreference": Choose exactly one of ["remote_only", "hybrid", "onsite", "any"] (default to "remote_only" or "hybrid" for modern knowledge/tech workers).
 
 You MUST return ONLY a valid, single JSON object with no markdown formatting or backticks:
 {
-  "targetJobTitles": ["Job Title 1", "Job Title 2"],
+  "targetJobTitles": ["Job Title 1", "Job Title 2", "Job Title 3"],
   "experienceLevel": "mid",
   "minSalary": 350000,
   "locations": ["Remote", "Colombo", "Sri Lanka"],
-  "skills": ["Skill 1", "Skill 2"],
+  "skills": ["Skill 1", "Skill 2", "Skill 3"],
   "remotePreference": "remote_only"
 }`;
 
@@ -177,7 +213,7 @@ You MUST return ONLY a valid, single JSON object with no markdown formatting or 
       "Bearer sk-02aebea5bd06e96f-avyk7j-64c88030".replace("Bearer ", "");
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 25000);
+    const timeoutId = setTimeout(() => controller.abort(), 28000);
 
     const authHeader = llmApiKey.startsWith("Bearer ")
       ? llmApiKey
@@ -242,12 +278,12 @@ You MUST return ONLY a valid, single JSON object with no markdown formatting or 
           : ["Remote", "Colombo", "Sri Lanka"],
       skills:
         Array.isArray(suggestions.skills) && suggestions.skills.length > 0
-          ? suggestions.skills.map(String).slice(0, 15)
+          ? suggestions.skills.map(String).slice(0, 16)
           : ["Problem Solving", "Communication", "Teamwork"],
       remotePreference: validRemotePrefs.includes(suggestions.remotePreference)
         ? suggestions.remotePreference
         : "remote_only",
-      sourceResumeName: filename,
+      sourceResumeName: sourceLabel,
     };
 
     return NextResponse.json({
