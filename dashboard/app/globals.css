@@ -19,24 +19,31 @@
 [data-theme="light"] {
   color-scheme: light;
 
-  --bg-base: 244 247 252; /* #F4F7FC - cool paper, the canvas behind the glass */
-  --bg-chrome: 234 239 247; /* #EAEFF7 - sidebar / topbar wash */
-  --surface-raised: 255 255 255; /* segmented-control thumbs, popovers */
+  --bg-base: 252 252 252; /* #FCFCFC - the new theme's --background */
+  --bg-chrome: 237 237 237; /* #EDEDED - the new theme's --muted/--accent, sidebar / topbar wash */
+  --surface-raised: 252 252 252; /* #FCFCFC - --card/--popover; identical to base in this theme, so raised surfaces read via shadow, not fill */
 
   --glass-bg: 255 255 255;
   --glass-alpha: 0.72;
   --glass-border: 255 255 255;
   --glass-border-alpha: 0.9;
-  --glass-shadow: 16 24 40;
+  --glass-shadow: 0 0 0; /* the new theme's --shadow-color is pure black */
   --glass-shadow-alpha: 0.08;
 
-  --text-primary: 22 28 40; /* #161C28 - near-black, softened off pure #000 */
-  --text-secondary: 78 90 112; /* #4E5A70 */
-  /* #66707F - was #8591A6, which measured 2.96:1 on the canvas and 3.12:1 on
-     a glass card. Muted is used for labels and hints at 10-12px, where AA
-     wants 4.5:1; this clears it (4.6 / 4.9) and still reads as recessive. */
-  --text-muted: 102 112 132;
+  --text-primary: 23 23 23; /* #171717 - the new theme's --foreground */
+  --text-secondary: 82 82 82; /* #525252 - --popover-foreground */
+  /* #707070 - the new theme's --sidebar-foreground. Measures 4.8:1 on the
+     canvas, clearing the 4.5:1 AA floor small labels/hints need. */
+  --text-muted: 112 112 112;
 
+  /*
+    Kept as a dark anchor composited at low alpha (not the new theme's flat
+    --border hex) on purpose: every consumer in this app applies its own
+    opacity modifier on top (border-hairline/15, ring-hairline/25, ...), so
+    the anchor needs to stay strong at full strength for those to still read.
+    This anchor at the default 10% alpha already composites to ~#E4E5E7,
+    which is a near-exact match for the new theme's --border (#DFDFDF).
+  */
   --hairline: 16 24 40;
   --hairline-alpha: 0.1;
 
@@ -47,14 +54,14 @@
     that reads well as a solid button is only ~3.5:1 as 11px type on a tinted
     chip. These shift per theme; the fills never do.
   */
-  --accent-ink: 47 94 189; /* #2F5EBD on light paper */
-  --violet-ink: 82 68 204; /* #5244CC */
+  --accent-ink: 4 120 87; /* #047857 - darkened from the new theme's #72E3AD mint, which is only ~1.5:1 as text on this canvas */
+  --violet-ink: 109 40 217; /* #6D28D9 */
   --ok-ink: 13 116 79; /* #0D744F  - #30C88F was 2.1:1 as text here */
   --warn-ink: 140 84 0; /* #8C5400  - #F5A524 was 2.0:1 */
-  --danger-ink: 193 32 42; /* #C1202A  - #F2545B was 3.3:1 */
+  --danger-ink: 202 50 20; /* #CA3214 - the new theme's --destructive, measures 5.1:1 as text here */
 
   /* Ambient mesh orbs - the light theme keeps them faint so the canvas stays calm */
-  --mesh-1: 91 141 239;
+  --mesh-1: 114 227 173; /* #72E3AD - the new theme's brand mint, used vivid (not the ink) since this is decorative, not text */
   --mesh-2: 124 107 245;
   --mesh-3: 48 200 143;
   --mesh-alpha: 0.16;
@@ -63,9 +70,9 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg-base: 11 16 32; /* #0B1020 - deep navy, not pure black: glass needs something to refract */
-  --bg-chrome: 15 21 40; /* #0F1528 */
-  --surface-raised: 30 38 61; /* #1E263D - lifted, not recessed, above glass */
+  --bg-base: 18 18 18; /* #121212 - the new theme's --background */
+  --bg-chrome: 23 23 23; /* #171717 - the new theme's --card, a subtle wash just above base */
+  --surface-raised: 36 36 36; /* #242424 - the new theme's --popover, lifted above chrome for thumbs/popovers */
 
   --glass-bg: 255 255 255;
   --glass-alpha: 0.06;
@@ -74,23 +81,26 @@
   --glass-shadow: 0 0 0;
   --glass-shadow-alpha: 0.4;
 
-  --text-primary: 237 241 249; /* #EDF1F9 - off-white, never #FFF */
-  --text-secondary: 160 172 194; /* #A0ACC2 */
-  /* #94A0B6 - was #6F7C94, which fell to 3.92:1 once a glass card lifted the
-     background. Matches the light theme's muted contrast (6.3:1 on card). */
-  --text-muted: 148 160 182;
+  --text-primary: 226 232 240; /* #E2E8F0 - the new theme's --foreground (unchanged from before) */
+  --text-secondary: 169 169 169; /* #A9A9A9 - --popover-foreground */
+  /* #898989 - the new theme's --sidebar-foreground. Measures 5.4:1 on the
+     canvas, matching the light theme's muted contrast. */
+  --text-muted: 137 137 137;
 
+  /* Same alpha-composited-anchor technique as light - see note above.
+     White at 10% alpha over this base composites to ~#2A2A2A, already an
+     almost exact match for the new theme's dark --border (#292929). */
   --hairline: 255 255 255;
   --hairline-alpha: 0.1;
 
   /* Same hues lifted for dark surfaces - see the light-theme note above. */
-  --accent-ink: 154 187 250; /* #9ABBFA */
+  --accent-ink: 74 222 128; /* #4ADE80 - the new theme's dark --ring/--chart-1, measures 10.75:1 on this canvas */
   --violet-ink: 178 168 250; /* #B2A8FA */
   --ok-ink: 74 214 160; /* #4AD6A0 */
   --warn-ink: 245 176 66; /* #F5B042 */
   --danger-ink: 249 128 133; /* #F98085 */
 
-  --mesh-1: 91 141 239;
+  --mesh-1: 114 227 173; /* #72E3AD - see light-theme note above */
   --mesh-2: 124 107 245;
   --mesh-3: 48 200 143;
   --mesh-alpha: 0.28;
@@ -110,8 +120,9 @@
     background-color: rgb(var(--bg-base));
     color: rgb(var(--text-primary));
     font-family:
-      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter,
-      system-ui, sans-serif;
+      var(--font-outfit), -apple-system, BlinkMacSystemFont, "SF Pro Text",
+      "Segoe UI", Inter, system-ui, sans-serif;
+    letter-spacing: 0.025em;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100vh;
@@ -126,17 +137,19 @@
   }
 
   ::selection {
-    background: rgb(91 141 239 / 0.28);
+    background: rgb(var(--accent-ink) / 0.28);
   }
 
   /*
     Quality floor: keyboard focus must always be visible, in both themes.
     No border-radius here - that would *reshape* the focused element (a round
     avatar button would snap to a rounded square). The outline already follows
-    each element's own radius.
+    each element's own radius. Uses --accent-ink (not the raw brand mint,
+    which is only ~1.5:1 on the light canvas) so the ring clears the 3:1
+    non-text contrast floor in both themes.
   */
   :focus-visible {
-    outline: 2px solid rgb(91 141 239);
+    outline: 2px solid rgb(var(--accent-ink));
     outline-offset: 2px;
   }
 
@@ -234,7 +247,7 @@
     color: rgb(var(--text-muted));
   }
   .field:focus {
-    box-shadow: inset 0 0 0 2px rgb(91 141 239);
+    box-shadow: inset 0 0 0 2px rgb(var(--accent-ink));
   }
 
   /*
@@ -252,10 +265,10 @@
     /* Light chevron. One fixed colour can't clear the 3:1 non-text floor
        against both a near-white canvas and a near-black one, so the dark
        theme overrides it below rather than sharing a muddy compromise. */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2366707F' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
   [data-theme="dark"] .select-field {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A0B6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23898989' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
 
   .press {

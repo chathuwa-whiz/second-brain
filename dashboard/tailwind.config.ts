@@ -45,17 +45,25 @@ const config: Config = {
         // Fixed accents - identical in both themes so status colors stay
         // learnable. Only their surrounding surfaces change.
         accent: {
-          DEFAULT: "#5B8DEF",
-          soft: "#8AB0F5",
-          deep: "#3D6FD1",
+          /*
+            The new theme's brand color is #72E3AD, a light mint that's only
+            ~1.5:1 against white as text and unreadable under the "text-white"
+            this app hardcodes on solid accent buttons/nav pills. DEFAULT is
+            darkened to emerald-700, which still reads as "the new green
+            brand" while clearing 4.5:1 under white text everywhere it's used
+            at full opacity (nav active states, admin buttons).
+          */
+          DEFAULT: "#047857",
+          soft: "#34D399",
+          deep: "#065F46",
           // Theme-aware; use for accent-coloured TEXT, not fills.
           ink: v("--accent-ink"),
           /*
             `solid` = the fill under WHITE label text, e.g. a primary button.
-            The DEFAULT hue is only 3.23:1 against white, so it's fine as a
-            tint, a bar or a dot, but not as a button someone has to read.
+            One step darker than DEFAULT for CTA hierarchy (measures 7.7:1
+            against white).
           */
-          solid: "#3565CB",
+          solid: "#065F46",
         },
         violet: {
           DEFAULT: "#7C6BF5",
@@ -66,7 +74,9 @@ const config: Config = {
         // `solid` is the darker variant used under white button text (see accent).
         ok: { DEFAULT: "#30C88F", ink: v("--ok-ink"), solid: "#12855E" },
         warn: { DEFAULT: "#F5A524", ink: v("--warn-ink"), solid: "#8C5400" },
-        danger: { DEFAULT: "#F2545B", ink: v("--danger-ink"), solid: "#CE2F37" },
+        // The new theme's --destructive; measures 5.3:1 against white, so
+        // DEFAULT and solid can share one value instead of needing two shades.
+        danger: { DEFAULT: "#CA3214", ink: v("--danger-ink"), solid: "#CA3214" },
       },
       /*
         Deliberately tighter than Tailwind's defaults. The interface nests
