@@ -12,6 +12,7 @@ import {
   IconActivity,
   IconJobs,
   IconTasks,
+  IconResearch,
   IconResumes,
   IconModules,
   IconSettings,
@@ -52,6 +53,7 @@ const BASE_NAV: { group: string; items: NavItem[] }[] = [
     items: [
       { href: "/jobs", label: "Jobs", Icon: IconJobs, primary: true },
       { href: "/tasks", label: "Tasks", Icon: IconTasks, primary: true },
+      { href: "/research", label: "Research", Icon: IconResearch },
       { href: "/resumes", label: "Resumes", Icon: IconResumes },
     ],
   },

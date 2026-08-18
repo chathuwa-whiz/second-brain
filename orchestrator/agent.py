@@ -204,6 +204,24 @@ def _keyword_fallback(request: str, tools: list[dict]) -> dict:
                 "reasoning": "Keyword fallback matched follow-up phrasing.",
                 "confidence": 0.4,
             }
+    if any(w in lowered for w in ("what did i save", "ask knowledge base", "from my notes", "from my research", "search research", "knowledge base")):
+        name = next((t["name"] for t in tools if t["name"] == "ask_knowledge_base"), None)
+        if name:
+            return {
+                "tool_name": name,
+                "tool_args": {"question": request},
+                "reasoning": "Keyword fallback matched research knowledge base query phrasing.",
+                "confidence": 0.45,
+            }
+    if any(w in lowered for w in ("save article", "save research", "save note", "save url", "bookmark")):
+        name = next((t["name"] for t in tools if t["name"] == "save_research_source"), None)
+        if name:
+            return {
+                "tool_name": name,
+                "tool_args": {"content": request},
+                "reasoning": "Keyword fallback matched research save phrasing.",
+                "confidence": 0.35,
+            }
     return {
         "tool_name": None,
         "tool_args": {},

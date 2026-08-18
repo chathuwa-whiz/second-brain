@@ -28,6 +28,14 @@ MCP_SERVERS = [
             "JOB_TRACKER_MCP_ARGS", "../mcp-servers/job-tracker-mcp/server.py"
         ).split(),
     },
+    {
+        "name": "research-mcp",
+        "module": "research",
+        "command": os.environ.get("RESEARCH_MCP_COMMAND", "python"),
+        "args": os.environ.get(
+            "RESEARCH_MCP_ARGS", "../mcp-servers/research-mcp/server.py"
+        ).split(),
+    },
 ]
 
 # Below this confidence, the planner's decision is logged as "pending" instead

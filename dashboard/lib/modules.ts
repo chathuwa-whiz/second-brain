@@ -58,12 +58,16 @@ export const MODULES: ModuleDef[] = [
     id: "research",
     name: "Research",
     logKey: "research",
-    state: "planned",
-    href: null,
+    state: "live",
+    href: "/research",
     summary:
-      "Saves what you read and answers questions from it later, with citations back to the source.",
-    server: null,
-    capabilities: ["Document ingestion", "Vector search over saved material"],
+      "Saves what you read and answers questions from it later, with vector search and citations back to the source.",
+    server: "research-mcp",
+    capabilities: [
+      "URL article & document ingestion",
+      "Vector chunking and hybrid semantic search",
+      "Grounded RAG synthesis with source citations",
+    ],
   },
   {
     id: "lectures",

@@ -59,6 +59,21 @@ export const IconResumes = (p: P) => (
   </S>
 );
 
+export const IconResearch = (p: P) => (
+  <S {...p}>
+    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
+    <path d="M6 6h10" />
+    <path d="M6 10h10" />
+    <path d="M6 14h6" />
+  </S>
+);
+
+export const IconSparkles = (p: P) => (
+  <S {...p}>
+    <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />
+  </S>
+);
+
 export const IconModules = (p: P) => (
   <S {...p}>
     <path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z" />
