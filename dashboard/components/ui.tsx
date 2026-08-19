@@ -7,19 +7,11 @@ import type { ReactNode } from "react";
 export function Card({
   children,
   className = "",
-  sheen = true,
 }: {
   children: ReactNode;
   className?: string;
-  sheen?: boolean;
 }) {
-  return (
-    <div
-      className={`glass ${sheen ? "glass-sheen" : ""} rounded-2xl ${className}`}
-    >
-      {children}
-    </div>
-  );
+  return <div className={`glass rounded-2xl ${className}`}>{children}</div>;
 }
 
 export function SectionHeader({
@@ -151,12 +143,12 @@ export function StatTile({
   href?: string;
 }) {
   const accentBar = {
-    neutral: "from-muted/40",
-    accent: "from-accent",
-    ok: "from-ok",
-    warn: "from-warn",
-    danger: "from-danger",
-    violet: "from-violet",
+    neutral: "bg-muted/40",
+    accent: "bg-accent",
+    ok: "bg-ok",
+    warn: "bg-warn",
+    danger: "bg-danger",
+    violet: "bg-violet",
   }[tone];
 
   const dotColor = {
@@ -170,9 +162,7 @@ export function StatTile({
 
   const body = (
     <Card className="relative overflow-hidden p-3 transition-all xs:p-3.5 sm:p-5">
-      <div
-        className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${accentBar} to-transparent`}
-      />
+      <div className={`absolute inset-x-0 top-0 h-0.5 ${accentBar}`} />
       <div className="flex items-center justify-between gap-1">
         <p className="truncate text-2xs font-semibold uppercase tracking-wide text-muted">
           {label}
@@ -223,10 +213,10 @@ export function ConfidenceMeter({
   const pct = Math.max(0, Math.min(1, value)) * 100;
   const cleared = value >= threshold;
   const fill = cleared
-    ? "from-ok/70 to-ok"
+    ? "bg-ok"
     : value >= threshold * 0.7
-      ? "from-warn/70 to-warn"
-      : "from-danger/70 to-danger";
+      ? "bg-warn"
+      : "bg-danger";
 
   return (
     <div className="flex shrink-0 items-center gap-1.5 xs:gap-2">
@@ -239,7 +229,7 @@ export function ConfidenceMeter({
         aria-label={`Planner confidence ${value.toFixed(2)}, auto-execute threshold ${threshold}`}
       >
         <div
-          className={`h-full rounded-full bg-gradient-to-r ${fill}`}
+          className={`h-full rounded-full ${fill}`}
           style={{ width: `${pct}%` }}
         />
         {/* The threshold tick - the whole point of the component */}

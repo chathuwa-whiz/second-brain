@@ -193,7 +193,7 @@ export default async function OverviewPage() {
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-accent to-violet"
+                          className="h-full rounded-full bg-accent-solid"
                           style={{ width: `${pct}%` }}
                         />
                       </div>

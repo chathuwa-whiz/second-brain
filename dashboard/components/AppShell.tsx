@@ -123,8 +123,8 @@ function Brand({ isAdminRoute }: { isAdminRoute?: boolean }) {
     <div className="flex items-center gap-3 px-3">
       <div className={`relative grid h-9 w-9 place-items-center rounded-xl shadow-lg ${
         isAdminRoute
-          ? "bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/25"
-          : "bg-gradient-to-br from-accent to-violet shadow-accent/25"
+          ? "bg-amber-600 shadow-amber-500/25"
+          : "bg-accent-solid shadow-accent/25"
       }`}>
         {isAdminRoute ? (
           <svg

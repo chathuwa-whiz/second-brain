@@ -112,7 +112,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="mb-6 flex flex-col items-center text-center sm:mb-8">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-violet shadow-lg shadow-accent/25 sm:h-14 sm:w-14">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent-solid shadow-lg shadow-accent/25 sm:h-14 sm:w-14">
             <svg
               viewBox="0 0 24 24"
               fill="none"

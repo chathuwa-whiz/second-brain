@@ -49,7 +49,7 @@
 
   /*
     "Ink" = the accent/violet hue when it is used as TEXT rather than a fill.
-    The fills (bg-accent, the meter gradients, status dots) stay byte-identical
+    The fills (bg-accent, the meter bars, status dots) stay byte-identical
     across themes so the colour coding stays learnable - but the same mid-blue
     that reads well as a solid button is only ~3.5:1 as 11px type on a tinted
     chip. These shift per theme; the fills never do.
@@ -59,12 +59,6 @@
   --ok-ink: 13 116 79; /* #0D744F  - #30C88F was 2.1:1 as text here */
   --warn-ink: 140 84 0; /* #8C5400  - #F5A524 was 2.0:1 */
   --danger-ink: 202 50 20; /* #CA3214 - the new theme's --destructive, measures 5.1:1 as text here */
-
-  /* Ambient mesh orbs - the light theme keeps them faint so the canvas stays calm */
-  --mesh-1: 114 227 173; /* #72E3AD - the new theme's brand mint, used vivid (not the ink) since this is decorative, not text */
-  --mesh-2: 124 107 245;
-  --mesh-3: 48 200 143;
-  --mesh-alpha: 0.16;
 }
 
 [data-theme="dark"] {
@@ -99,11 +93,6 @@
   --ok-ink: 74 214 160; /* #4AD6A0 */
   --warn-ink: 245 176 66; /* #F5B042 */
   --danger-ink: 249 128 133; /* #F98085 */
-
-  --mesh-1: 114 227 173; /* #72E3AD - see light-theme note above */
-  --mesh-2: 124 107 245;
-  --mesh-3: 48 200 143;
-  --mesh-alpha: 0.28;
 }
 
 @layer base {
@@ -207,24 +196,6 @@
     border-color: rgb(var(--hairline) / var(--hairline-alpha));
   }
 
-  /* Specular top edge - the detail that sells "pane of glass" over "grey box" */
-  .glass-sheen {
-    position: relative;
-  }
-  .glass-sheen::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgb(255 255 255 / 0.5),
-      transparent
-    );
-    pointer-events: none;
-  }
-
   /*
     One definition for every text input, textarea and select in the app. This
     string was previously copy-pasted into login, onboarding, verify-email and
@@ -299,7 +270,7 @@
   }
 }
 
-/* Respect the OS setting - no exceptions, including the ambient mesh drift. */
+/* Respect the OS setting - no exceptions. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -307,19 +278,6 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-  }
-}
-
-@keyframes mesh-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  33% {
-    transform: translate3d(4%, -6%, 0) scale(1.08);
-  }
-  66% {
-    transform: translate3d(-5%, 4%, 0) scale(0.95);
   }
 }
 

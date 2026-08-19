@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth";
 import { ThemeProvider, themeBootstrapScript } from "@/components/theme";
 import Providers from "@/components/Providers";
 import ShellGate from "@/components/ShellGate";
-import Mesh from "@/components/Mesh";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -47,7 +46,6 @@ export default async function RootLayout({
       <body>
         <ThemeProvider>
           <Providers>
-            <Mesh />
             {session ? (
               <ShellGate user={session.user}>{children}</ShellGate>
             ) : (

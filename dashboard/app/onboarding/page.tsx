@@ -494,7 +494,7 @@ export default function OnboardingPage() {
       <header className="pt-safe sticky top-0 z-20 border-b border-hairline/10 bg-canvas/80 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between gap-3 px-5 py-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-accent to-violet">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-solid">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"

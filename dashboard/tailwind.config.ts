@@ -95,9 +95,6 @@ const config: Config = {
         "3xs": ["0.625rem", { lineHeight: "0.875rem", letterSpacing: "0.03em" }],
         "2xs": ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.02em" }],
       },
-      animation: {
-        "mesh-drift": "mesh-drift 26s ease-in-out infinite",
-      },
     },
   },
   plugins: [],
