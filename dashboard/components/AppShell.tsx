@@ -6,14 +6,13 @@ import { signOut } from "next-auth/react";
 import { useState, useEffect, type ReactNode } from "react";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { withBasePath } from "@/lib/basePath";
+import { LIVE_MODULES } from "@/lib/modules";
 import {
   IconOverview,
-  IconApprovals,
   IconActivity,
   IconJobs,
   IconTasks,
   IconResearch,
-  IconResumes,
   IconModules,
   IconSettings,
   IconSignOut,
@@ -34,28 +33,42 @@ type NavItem = {
   adminOnly?: boolean;
 };
 
+/*
+  Icons live here, not in lib/modules.ts - the registry is plain data (a
+  future mobile client reads it too), and icons are React components. Keying
+  off module id keeps this in sync automatically when a module's state flips
+  to "live"; only genuinely new modules need an entry added here.
+*/
+const MODULE_ICONS: Record<string, NavItem["Icon"]> = {
+  "job-finding": IconJobs,
+  tasks: IconTasks,
+  research: IconResearch,
+};
+
+/* Which live modules earn a slot in the mobile bottom tab bar - that's
+   precious real estate, so this is a deliberate curation, not "all of them". */
+const MOBILE_PRIMARY_MODULE_IDS = new Set(["job-finding", "tasks"]);
+
+const MODULE_NAV_ITEMS: NavItem[] = LIVE_MODULES.filter(
+  (m) => m.href && MODULE_ICONS[m.id]
+).map((m) => ({
+  href: m.href as string,
+  label: m.name,
+  Icon: MODULE_ICONS[m.id],
+  primary: MOBILE_PRIMARY_MODULE_IDS.has(m.id),
+}));
+
 const BASE_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Oversight",
     items: [
       { href: "/", label: "Overview", Icon: IconOverview, primary: true },
-      {
-        href: "/approvals",
-        label: "Approvals",
-        Icon: IconApprovals,
-        primary: true,
-      },
       { href: "/activity", label: "Activity", Icon: IconActivity, primary: true },
     ],
   },
   {
     group: "Modules",
-    items: [
-      { href: "/jobs", label: "Jobs", Icon: IconJobs, primary: true },
-      { href: "/tasks", label: "Tasks", Icon: IconTasks, primary: true },
-      { href: "/research", label: "Research", Icon: IconResearch },
-      { href: "/resumes", label: "Resumes", Icon: IconResumes },
-    ],
+    items: MODULE_NAV_ITEMS,
   },
   {
     group: "System",

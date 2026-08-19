@@ -91,7 +91,7 @@ function PendingApprovalRow({ action }: { action: AgentAction }) {
 
           <div className="mt-3.5 flex flex-col gap-2 border-t pt-3 xs:flex-row xs:flex-wrap xs:items-center xs:gap-3">
             <Link
-              href={`/approvals/${action.id}`}
+              href={`/jobs/approvals/${action.id}`}
               className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
             >
               Review & Send Application

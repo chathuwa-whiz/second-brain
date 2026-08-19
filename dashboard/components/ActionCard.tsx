@@ -147,7 +147,7 @@ export default function ActionCard({
           <div className="mt-4 flex flex-col gap-2.5 border-t pt-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:pt-4">
             {action.action === "send_job_application_email" ? (
               <Link
-                href={`/approvals/${action.id}`}
+                href={`/jobs/approvals/${action.id}`}
                 className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
               >
                 Review & Edit Application

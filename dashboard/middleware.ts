@@ -79,10 +79,8 @@ export const config = {
   matcher: [
     "/",
     "/onboarding",
-    "/approvals/:path*",
     "/activity/:path*",
     "/jobs/:path*",
-    "/resumes/:path*",
     "/tasks/:path*",
     "/modules/:path*",
     "/settings/:path*",

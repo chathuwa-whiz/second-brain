@@ -28,6 +28,16 @@ const nextConfig = {
   output: "standalone",
   basePath,
   skipTrailingSlashRedirect: true,
+  // Approvals and Resumes moved under /jobs when the Jobs module became
+  // self-contained (its own tab strip: Board/Approvals/Resumes/Settings).
+  // These keep old bookmarks and browser history working.
+  async redirects() {
+    return [
+      { source: "/approvals", destination: "/jobs/approvals", permanent: true },
+      { source: "/approvals/:id", destination: "/jobs/approvals/:id", permanent: true },
+      { source: "/resumes", destination: "/jobs/resumes", permanent: true },
+    ];
+  },
 };
 
 module.exports = nextConfig;

@@ -73,14 +73,24 @@ export default async function ModulesPage() {
                     ? `${count} action${count === 1 ? "" : "s"} logged`
                     : "not logging yet"}
                 </span>
-                {m.href && (
-                  <Link
-                    href={m.href}
-                    className="press inline-flex items-center text-xs font-medium text-accent-ink hover:underline"
-                  >
-                    Open {m.name}
-                  </Link>
-                )}
+                <div className="flex items-center gap-3">
+                  {m.settingsHref && (
+                    <Link
+                      href={m.settingsHref}
+                      className="press inline-flex items-center text-xs font-medium text-secondary hover:text-primary hover:underline"
+                    >
+                      Settings
+                    </Link>
+                  )}
+                  {m.href && (
+                    <Link
+                      href={m.href}
+                      className="press inline-flex items-center text-xs font-medium text-accent-ink hover:underline"
+                    >
+                      Open {m.name}
+                    </Link>
+                  )}
+                </div>
               </div>
             </Card>
           );
