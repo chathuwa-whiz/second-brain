@@ -300,11 +300,13 @@ export default function AppShell({
                   item.children ? (
                     <div key={item.href}>
                       <NavLink item={item} />
-                      <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-hairline/15 pl-3">
-                        {item.children.map((child) => (
-                          <NavLink key={child.href} item={child} nested />
-                        ))}
-                      </div>
+                      {isActive(pathname, item.href, item.exact) && (
+                        <div className="animate-rise ml-[18px] mt-0.5 space-y-0.5 border-l border-hairline/15 pl-3">
+                          {item.children.map((child) => (
+                            <NavLink key={child.href} item={child} nested />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <NavLink key={item.href} item={item} />
