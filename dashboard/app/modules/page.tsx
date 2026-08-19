@@ -79,7 +79,7 @@ export default async function ModulesPage() {
                       href={m.settingsHref}
                       className="press inline-flex items-center text-xs font-medium text-secondary hover:text-primary hover:underline"
                     >
-                      Settings
+                      Preferences
                     </Link>
                   )}
                   {m.href && (

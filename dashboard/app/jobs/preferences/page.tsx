@@ -9,7 +9,7 @@ import AiAutonomyCard from "./AiAutonomyCard";
 
 export const dynamic = "force-dynamic";
 
-export default async function JobsSettingsPage() {
+export default async function JobsPreferencesPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
@@ -17,7 +17,7 @@ export default async function JobsSettingsPage() {
     <>
       <PageHeader
         eyebrow="Jobs"
-        title="Job Search Settings"
+        title="Preferences"
         description="Manage your target job search roles, AI autonomy level, and the onboarding wizard."
       />
 

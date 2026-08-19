@@ -6,11 +6,13 @@ import { signOut } from "next-auth/react";
 import { useState, useEffect, type ReactNode } from "react";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { withBasePath } from "@/lib/basePath";
-import { LIVE_MODULES } from "@/lib/modules";
+import { MODULES, LIVE_MODULES } from "@/lib/modules";
 import {
   IconOverview,
   IconActivity,
   IconJobs,
+  IconApprovals,
+  IconResumes,
   IconTasks,
   IconResearch,
   IconModules,
@@ -31,6 +33,11 @@ type NavItem = {
   /** Shown in the mobile tab bar - the rest live behind the menu. */
   primary?: boolean;
   adminOnly?: boolean;
+  /** Only "/" and "/admin" needed this before Board - see isActive(). */
+  exact?: boolean;
+  /** Rendered indented under this item in the desktop rail; Jobs is the only
+      module with sub-pages mature enough to need this today. */
+  children?: NavItem[];
 };
 
 /*
@@ -40,23 +47,41 @@ type NavItem = {
   to "live"; only genuinely new modules need an entry added here.
 */
 const MODULE_ICONS: Record<string, NavItem["Icon"]> = {
-  "job-finding": IconJobs,
   tasks: IconTasks,
   research: IconResearch,
 };
 
 /* Which live modules earn a slot in the mobile bottom tab bar - that's
-   precious real estate, so this is a deliberate curation, not "all of them". */
-const MOBILE_PRIMARY_MODULE_IDS = new Set(["job-finding", "tasks"]);
+   precious real estate, so this is a deliberate curation, not "all of them".
+   Jobs always gets a slot (set directly on JOBS_NAV_ITEM below). */
+const MOBILE_PRIMARY_MODULE_IDS = new Set(["tasks"]);
 
-const MODULE_NAV_ITEMS: NavItem[] = LIVE_MODULES.filter(
-  (m) => m.href && MODULE_ICONS[m.id]
-).map((m) => ({
-  href: m.href as string,
-  label: m.name,
-  Icon: MODULE_ICONS[m.id],
-  primary: MOBILE_PRIMARY_MODULE_IDS.has(m.id),
-}));
+const JOBS_MODULE = MODULES.find((m) => m.id === "job-finding")!;
+
+const JOBS_NAV_ITEM: NavItem = {
+  href: JOBS_MODULE.href!,
+  label: JOBS_MODULE.name,
+  Icon: IconJobs,
+  primary: true,
+  children: [
+    { href: "/jobs", label: "Board", Icon: IconJobs, exact: true },
+    { href: "/jobs/approvals", label: "Approvals", Icon: IconApprovals },
+    { href: "/jobs/resumes", label: "Resumes", Icon: IconResumes },
+    { href: JOBS_MODULE.settingsHref!, label: "Preferences", Icon: IconSettings },
+  ],
+};
+
+const MODULE_NAV_ITEMS: NavItem[] = [
+  JOBS_NAV_ITEM,
+  ...LIVE_MODULES.filter(
+    (m) => m.id !== "job-finding" && m.href && MODULE_ICONS[m.id]
+  ).map((m) => ({
+    href: m.href as string,
+    label: m.name,
+    Icon: MODULE_ICONS[m.id],
+    primary: MOBILE_PRIMARY_MODULE_IDS.has(m.id),
+  })),
+];
 
 const BASE_NAV: { group: string; items: NavItem[] }[] = [
   {
@@ -91,21 +116,24 @@ const ADMIN_GROUP: { group: string; items: NavItem[] } = {
   ],
 };
 
-function isActive(pathname: string, href: string): boolean {
+function isActive(pathname: string, href: string, exact?: boolean): boolean {
   if (href === "/") return pathname === "/";
   if (href === "/admin") return pathname === "/admin";
+  if (exact) return pathname === href;
   return pathname.startsWith(href);
 }
 
 function NavLink({
   item,
   onNavigate,
+  nested,
 }: {
   item: NavItem;
   onNavigate?: () => void;
+  nested?: boolean;
 }) {
   const pathname = usePathname();
-  const active = isActive(pathname, item.href);
+  const active = isActive(pathname, item.href, item.exact);
   const { Icon } = item;
 
   return (
@@ -113,19 +141,23 @@ function NavLink({
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      className={`press group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium ${
+      className={`press group relative flex items-center font-medium ${
+        nested ? "gap-2.5 rounded-lg px-2.5 py-1.5 text-xs" : "gap-3 rounded-xl px-3 py-2 text-sm"
+      } ${
         active
           ? "bg-accent/12 text-primary font-semibold"
           : "text-secondary hover:bg-primary/[0.05] hover:text-primary"
       }`}
     >
       {/* Active marker reads as an iOS selection pill edge rather than a border */}
-      <span
-        className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent transition-opacity ${
-          active ? "opacity-100" : "opacity-0"
-        }`}
-      />
-      <Icon className={`h-[18px] w-[18px] ${active ? "text-accent-ink" : ""}`} />
+      {!nested && (
+        <span
+          className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent transition-opacity ${
+            active ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
+      <Icon className={`shrink-0 ${nested ? "h-4 w-4" : "h-[18px] w-[18px]"} ${active ? "text-accent-ink" : ""}`} />
       {item.label}
     </Link>
   );
@@ -212,8 +244,16 @@ export default function AppShell({
   const isOnAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
   const navGroups = isAdmin ? [...BASE_NAV, ADMIN_GROUP] : BASE_NAV;
-  const allItems = navGroups.flatMap((g) => g.items);
-  const current = allItems.find((i) => isActive(pathname, i.href));
+  // Parents only - drives the mobile bottom tab bar, which has room for one
+  // "Jobs" slot, not four.
+  const topLevelItems = navGroups.flatMap((g) => g.items);
+  // Every actually-reachable destination: a parent with children is replaced
+  // by its children (Board stands in for Jobs) so nothing needs two rows for
+  // the same page, and every sub-page still gets its own mobile menu tile.
+  const allReachableItems = navGroups.flatMap((g) =>
+    g.items.flatMap((i) => (i.children && i.children.length > 0 ? i.children : [i]))
+  );
+  const current = allReachableItems.find((i) => isActive(pathname, i.href, i.exact));
 
   const userName = typeof user === "string" ? user : user?.name || user?.email?.split("@")[0] || "User";
   const userEmail = typeof user === "object" ? user?.email : null;
@@ -256,9 +296,20 @@ export default function AppShell({
                 {group.group}
               </p>
               <div className="space-y-0.5">
-                {group.items.map((item) => (
-                  <NavLink key={item.href} item={item} />
-                ))}
+                {group.items.map((item) =>
+                  item.children ? (
+                    <div key={item.href}>
+                      <NavLink item={item} />
+                      <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-hairline/15 pl-3">
+                        {item.children.map((child) => (
+                          <NavLink key={child.href} item={child} nested />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <NavLink key={item.href} item={item} />
+                  )
+                )}
               </div>
             </div>
           ))}
@@ -392,7 +443,7 @@ export default function AppShell({
               </div>
 
               <div className="grid grid-cols-1 gap-0.5 border-t pt-2 xs:grid-cols-2">
-                {allItems.map((item) => (
+                {allReachableItems.map((item) => (
                   <NavLink
                     key={item.href}
                     item={item}
@@ -423,8 +474,8 @@ export default function AppShell({
           aria-label="Mobile navigation"
           className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl border border-hairline/15 bg-chrome/85 px-1.5 py-1.5 shadow-2xl backdrop-blur-2xl lg:hidden"
         >
-          {allItems.filter((i) => i.primary).map((item) => {
-            const active = isActive(pathname, item.href);
+          {topLevelItems.filter((i) => i.primary).map((item) => {
+            const active = isActive(pathname, item.href, item.exact);
             const { Icon } = item;
             return (
               <Link

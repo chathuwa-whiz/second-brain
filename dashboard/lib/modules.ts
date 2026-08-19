@@ -35,7 +35,7 @@ export const MODULES: ModuleDef[] = [
     logKey: "job_finding",
     state: "live",
     href: "/jobs",
-    settingsHref: "/jobs/settings",
+    settingsHref: "/jobs/preferences",
     summary:
       "Finds openings daily, scores them against your resumes, and tracks every application through to an offer or a no.",
     server: "job-tracker-mcp",
