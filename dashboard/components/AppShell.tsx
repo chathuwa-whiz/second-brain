@@ -30,13 +30,11 @@ type NavItem = {
   href: string;
   label: string;
   Icon: (p: { className?: string }) => JSX.Element;
-  /** Shown in the mobile tab bar - the rest live behind the menu. */
-  primary?: boolean;
   adminOnly?: boolean;
   /** Only "/" and "/admin" needed this before Board - see isActive(). */
   exact?: boolean;
-  /** Rendered indented under this item in the desktop rail; Jobs is the only
-      module with sub-pages mature enough to need this today. */
+  /** Rendered indented under this item; Jobs is the only module with
+      sub-pages mature enough to need this today. */
   children?: NavItem[];
 };
 
@@ -51,18 +49,12 @@ const MODULE_ICONS: Record<string, NavItem["Icon"]> = {
   research: IconResearch,
 };
 
-/* Which live modules earn a slot in the mobile bottom tab bar - that's
-   precious real estate, so this is a deliberate curation, not "all of them".
-   Jobs always gets a slot (set directly on JOBS_NAV_ITEM below). */
-const MOBILE_PRIMARY_MODULE_IDS = new Set(["tasks"]);
-
 const JOBS_MODULE = MODULES.find((m) => m.id === "job-finding")!;
 
 const JOBS_NAV_ITEM: NavItem = {
   href: JOBS_MODULE.href!,
   label: JOBS_MODULE.name,
   Icon: IconJobs,
-  primary: true,
   children: [
     { href: "/jobs", label: "Board", Icon: IconJobs, exact: true },
     { href: "/jobs/approvals", label: "Approvals", Icon: IconApprovals },
@@ -79,7 +71,6 @@ const MODULE_NAV_ITEMS: NavItem[] = [
     href: m.href as string,
     label: m.name,
     Icon: MODULE_ICONS[m.id],
-    primary: MOBILE_PRIMARY_MODULE_IDS.has(m.id),
   })),
 ];
 
@@ -87,8 +78,8 @@ const BASE_NAV: { group: string; items: NavItem[] }[] = [
   {
     group: "Oversight",
     items: [
-      { href: "/", label: "Overview", Icon: IconOverview, primary: true },
-      { href: "/activity", label: "Activity", Icon: IconActivity, primary: true },
+      { href: "/", label: "Overview", Icon: IconOverview },
+      { href: "/activity", label: "Activity", Icon: IconActivity },
     ],
   },
   {
@@ -160,6 +151,51 @@ function NavLink({
       <Icon className={`shrink-0 ${nested ? "h-4 w-4" : "h-[18px] w-[18px]"} ${active ? "text-accent-ink" : ""}`} />
       {item.label}
     </Link>
+  );
+}
+
+/*
+  The nav tree, shared verbatim between the desktop rail and the mobile
+  slideout - mobile gets the same grouped/nested structure instead of its own
+  flattened menu, so there's exactly one nav hierarchy to keep in sync.
+*/
+function NavGroupList({
+  navGroups,
+  pathname,
+  onNavigate,
+}: {
+  navGroups: { group: string; items: NavItem[] }[];
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  return (
+    <>
+      {navGroups.map((group) => (
+        <div key={group.group}>
+          <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-wider text-muted">
+            {group.group}
+          </p>
+          <div className="space-y-0.5">
+            {group.items.map((item) =>
+              item.children ? (
+                <div key={item.href}>
+                  <NavLink item={item} onNavigate={onNavigate} />
+                  {isActive(pathname, item.href, item.exact) && (
+                    <div className="animate-rise ml-[18px] mt-0.5 space-y-0.5 border-l border-hairline/15 pl-3">
+                      {item.children.map((child) => (
+                        <NavLink key={child.href} item={child} nested onNavigate={onNavigate} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <NavLink key={item.href} item={item} onNavigate={onNavigate} />
+              )
+            )}
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -244,9 +280,6 @@ export default function AppShell({
   const isOnAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
   const navGroups = isAdmin ? [...BASE_NAV, ADMIN_GROUP] : BASE_NAV;
-  // Parents only - drives the mobile bottom tab bar, which has room for one
-  // "Jobs" slot, not four.
-  const topLevelItems = navGroups.flatMap((g) => g.items);
   // Every actually-reachable destination: a parent with children is replaced
   // by its children (Board stands in for Jobs) so nothing needs two rows for
   // the same page, and every sub-page still gets its own mobile menu tile.
@@ -290,31 +323,7 @@ export default function AppShell({
         <Brand isAdminRoute={isOnAdminRoute} />
 
         <nav className="mt-7 flex-1 space-y-6 overflow-y-auto px-3">
-          {navGroups.map((group) => (
-            <div key={group.group}>
-              <p className="mb-1.5 px-3 text-2xs font-semibold uppercase tracking-wider text-muted">
-                {group.group}
-              </p>
-              <div className="space-y-0.5">
-                {group.items.map((item) =>
-                  item.children ? (
-                    <div key={item.href}>
-                      <NavLink item={item} />
-                      {isActive(pathname, item.href, item.exact) && (
-                        <div className="animate-rise ml-[18px] mt-0.5 space-y-0.5 border-l border-hairline/15 pl-3">
-                          {item.children.map((child) => (
-                            <NavLink key={child.href} item={child} nested />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <NavLink key={item.href} item={item} />
-                  )
-                )}
-              </div>
-            </div>
-          ))}
+          <NavGroupList navGroups={navGroups} pathname={pathname} />
         </nav>
 
         <div className="mt-auto space-y-1 border-t px-3 pt-3">
@@ -444,14 +453,12 @@ export default function AppShell({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-0.5 border-t pt-2 xs:grid-cols-2">
-                {allReachableItems.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    item={item}
-                    onNavigate={() => setMenuOpen(false)}
-                  />
-                ))}
+              <div className="max-h-[60vh] space-y-5 overflow-y-auto border-t pt-2.5">
+                <NavGroupList
+                  navGroups={navGroups}
+                  pathname={pathname}
+                  onNavigate={() => setMenuOpen(false)}
+                />
               </div>
 
               <div className="mt-2 border-t pt-2">
@@ -467,38 +474,9 @@ export default function AppShell({
           )}
         </header>
 
-        <main className="flex-1 min-w-0 max-w-full px-3.5 pb-24 pt-4 sm:px-6 sm:pb-24 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
+        <main className="flex-1 min-w-0 max-w-full px-3.5 pb-[max(1.5rem,env(safe-area-inset-bottom,0px))] pt-4 sm:px-6 sm:pb-10 sm:pt-6 lg:px-10 lg:pb-12 lg:pt-9">
           <div className="mx-auto w-full max-w-6xl min-w-0">{children}</div>
         </main>
-
-        {/* Mobile tab bar - floats over content, iOS-style with safe area support */}
-        <nav
-          aria-label="Mobile navigation"
-          className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom,0px))] z-30 flex items-center justify-around rounded-2xl border border-hairline/15 bg-chrome/85 px-1.5 py-1.5 shadow-2xl backdrop-blur-2xl lg:hidden"
-        >
-          {topLevelItems.filter((i) => i.primary).map((item) => {
-            const active = isActive(pathname, item.href, item.exact);
-            const { Icon } = item;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={`press relative flex min-w-0 flex-1 flex-col items-center justify-center rounded-lg py-1 transition-colors ${
-                  active ? "text-accent-ink" : "text-secondary hover:text-primary"
-                }`}
-              >
-                {active && (
-                  <span className="absolute inset-0 -z-10 rounded-lg bg-accent/12" />
-                )}
-                <Icon className={`h-5 w-5 shrink-0 ${active ? "text-accent-ink" : "text-secondary"}`} />
-                <span className="mt-0.5 max-w-full truncate text-center text-3xs tracking-tight">
-                  {item.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
       </div>
     </div>
   );
