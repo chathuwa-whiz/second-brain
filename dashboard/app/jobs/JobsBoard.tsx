@@ -10,7 +10,13 @@ import {
   ErrorNote,
   type Tone,
 } from "@/components/ui";
-import { IconExternal, IconSearch, IconX } from "@/components/icons";
+import {
+  IconExternal,
+  IconGrid,
+  IconList,
+  IconSearch,
+  IconX,
+} from "@/components/icons";
 import { relativeTime } from "@/lib/format";
 import type { JobApplication, JobMatch } from "@/lib/mongo";
 import type { AgentAction } from "@/lib/db";
@@ -33,13 +39,14 @@ const MATCH_STATUS_TONE: Record<string, Tone> = {
 
 type ScoreFilter = "all" | "high" | "good" | "moderate";
 type SortOption = "newest" | "score_desc" | "oldest";
+type ViewMode = "grid" | "list";
 
 function ScorePip({ score }: { score: number | null }) {
   if (score == null) return null;
   const tone = score >= 80 ? "text-ok-ink" : score >= 70 ? "text-accent-ink" : "text-warn-ink";
   return (
     <div className="flex shrink-0 flex-col items-center">
-      <span className={`tnum text-lg font-semibold leading-none ${tone}`}>
+      <span className={`tnum text-base font-semibold leading-none sm:text-lg ${tone}`}>
         {score.toFixed(0)}%
       </span>
       <span className="text-2xs uppercase tracking-wide text-muted">fit</span>
@@ -51,22 +58,106 @@ function PendingApprovalRow({
   action,
   onDismiss,
   dismissing,
+  viewMode = "grid",
 }: {
   action: AgentAction;
   onDismiss: (id: string | number) => void;
   dismissing: boolean;
+  viewMode?: ViewMode;
 }) {
   const meta = (action.metadata || {}) as Record<string, any>;
   const score = meta.match_score || Math.round(Number(action.confidence) * 100);
 
+  if (viewMode === "grid") {
+    return (
+      <Card className="flex flex-col justify-between p-3.5 sm:p-4 transition-all">
+        <div>
+          {/* Card Header: Score + Title + Resume */}
+          <div className="flex items-start gap-3">
+            <ScorePip score={score} />
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-sm font-semibold tracking-tight text-primary">
+                {meta.job_title || action.action.replace(/_/g, " ")}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-muted">
+                {meta.company || "TopJobs Employer"}
+                {meta.location && ` · 📍 ${meta.location}`}
+              </p>
+            </div>
+          </div>
+
+          {/* Badges / Meta row */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {meta.suggested_resume && (
+              <div className="inline-flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink">
+                <span className="shrink-0">📄</span>
+                <span className="truncate">{meta.suggested_resume}</span>
+              </div>
+            )}
+            {action.created_at && (
+              <span className="text-2xs text-muted">
+                {relativeTime(action.created_at)}
+              </span>
+            )}
+          </div>
+
+          {/* Reasoning */}
+          {action.reasoning && (
+            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-secondary" title={action.reasoning}>
+              {action.reasoning}
+            </p>
+          )}
+
+          {meta.closing_date && (
+            <p className="mt-2 text-2xs text-muted">
+              Closes: <span className="font-medium text-secondary">{meta.closing_date}</span>
+            </p>
+          )}
+        </div>
+
+        {/* Card Footer Actions */}
+        <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t pt-3">
+          <Link
+            href={`/jobs/approvals/${action.id}`}
+            className="press flex-1 inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-lg bg-accent-solid px-3 py-1 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
+          >
+            Review & Apply
+          </Link>
+
+          <Button
+            variant="reject"
+            size="sm"
+            disabled={dismissing}
+            onClick={() => onDismiss(action.id)}
+            className="min-h-[32px] px-2.5 text-xs font-medium"
+          >
+            {dismissing ? "..." : "✕"}
+          </Button>
+
+          {meta.job_url && (
+            <a
+              href={meta.job_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="press inline-flex min-h-[32px] items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium text-muted hover:text-primary"
+              title="Open TopJobs Posting"
+            >
+              <IconExternal className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  // List View
   return (
-    <Card className="min-w-0 p-3.5 sm:p-5">
-      <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-4">
-        {/* Score Pip + Meta Header on Mobile */}
+    <Card className="min-w-0 p-3 sm:p-4">
+      <div className="flex flex-col gap-2.5 min-w-0 sm:flex-row sm:items-start sm:gap-3.5">
         <div className="flex items-center justify-between gap-2 min-w-0 sm:flex-col sm:items-center sm:justify-start sm:gap-1">
           <ScorePip score={score} />
           {meta.suggested_resume && (
-            <div className="flex min-w-0 max-w-[220px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink sm:hidden">
+            <div className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink sm:hidden">
               <span className="shrink-0">📄</span>
               <span className="truncate">{meta.suggested_resume}</span>
             </div>
@@ -74,9 +165,9 @@ function PendingApprovalRow({
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-semibold tracking-tight text-primary sm:text-base">
+              <p className="break-words text-sm font-semibold tracking-tight text-primary">
                 {meta.job_title || action.action.replace(/_/g, " ")}
               </p>
               <p className="mt-0.5 truncate text-xs text-muted">
@@ -87,7 +178,7 @@ function PendingApprovalRow({
             </div>
 
             {meta.suggested_resume && (
-              <div className="hidden min-w-0 max-w-[240px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent-ink sm:flex">
+              <div className="hidden min-w-0 max-w-[220px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent-ink sm:flex">
                 <span className="shrink-0">📄</span>
                 <span className="truncate">{meta.suggested_resume}</span>
               </div>
@@ -95,21 +186,21 @@ function PendingApprovalRow({
           </div>
 
           {action.reasoning && (
-            <p className="mt-2 break-words text-xs leading-relaxed text-secondary sm:text-sm">
+            <p className="mt-1.5 break-words text-xs leading-relaxed text-secondary">
               {action.reasoning}
             </p>
           )}
 
           {meta.closing_date && (
-            <p className="mt-2 text-2xs text-muted">
+            <p className="mt-1.5 text-2xs text-muted">
               Closing date: <span className="font-medium text-secondary">{meta.closing_date}</span>
             </p>
           )}
 
-          <div className="mt-3.5 flex flex-col gap-2 border-t pt-3 xs:flex-row xs:flex-wrap xs:items-center xs:gap-3">
+          <div className="mt-2.5 flex flex-col gap-2 border-t pt-2 xs:flex-row xs:flex-wrap xs:items-center xs:gap-2.5">
             <Link
               href={`/jobs/approvals/${action.id}`}
-              className="press inline-flex min-h-[36px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
+              className="press inline-flex min-h-[32px] items-center justify-center gap-2 rounded-lg bg-accent-solid px-3.5 py-1 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
             >
               Review & Send Application
             </Link>
@@ -119,7 +210,7 @@ function PendingApprovalRow({
               size="sm"
               disabled={dismissing}
               onClick={() => onDismiss(action.id)}
-              className="min-h-[36px] text-xs font-medium"
+              className="min-h-[32px] text-xs font-medium"
             >
               {dismissing ? "Dismissing..." : "✕ Dismiss"}
             </Button>
@@ -129,10 +220,10 @@ function PendingApprovalRow({
                 href={meta.job_url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="press inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-muted hover:text-primary xs:ml-auto"
+                className="press inline-flex min-h-[32px] items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-muted hover:text-primary xs:ml-auto"
               >
                 TopJobs Posting
-                <IconExternal className="h-3.5 w-3.5" />
+                <IconExternal className="h-3 w-3" />
               </a>
             )}
           </div>
@@ -146,20 +237,95 @@ function ScoredMatchRow({
   match,
   onDismiss,
   dismissing,
+  viewMode = "grid",
 }: {
   match: JobMatch;
   onDismiss: (id: string) => void;
   dismissing: boolean;
+  viewMode?: ViewMode;
 }) {
   const normalizedScore = match.score != null ? (match.score <= 10 ? match.score * 10 : match.score) : null;
 
+  if (viewMode === "grid") {
+    return (
+      <Card className="flex flex-col justify-between p-3.5 sm:p-4">
+        <div>
+          <div className="flex items-start gap-3">
+            <ScorePip score={normalizedScore} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Badge tone={MATCH_STATUS_TONE[match.status] ?? "neutral"}>
+                  {match.status}
+                </Badge>
+                {match.source && (
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
+                    {match.source}
+                  </span>
+                )}
+                {match.remote && (
+                  <Badge tone="violet">Remote</Badge>
+                )}
+              </div>
+              <p className="mt-1 line-clamp-2 text-sm font-semibold text-primary">
+                {match.title}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-muted">
+                {match.company || "Employer"}
+                {match.location && ` · 📍 ${match.location}`}
+              </p>
+            </div>
+          </div>
+
+          {match.reason && (
+            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-secondary" title={match.reason}>
+              {match.reason}
+            </p>
+          )}
+
+          {match.found_at && (
+            <p className="mt-2 text-2xs text-muted">
+              Discovered {relativeTime(match.found_at)}
+            </p>
+          )}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5">
+          {match.url && (
+            <a
+              href={match.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="press inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-primary/[0.04] px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
+            >
+              Open posting
+              <IconExternal className="h-3 w-3" />
+            </a>
+          )}
+
+          {match.status === "new" && (
+            <Button
+              variant="quiet"
+              size="sm"
+              disabled={dismissing}
+              onClick={() => onDismiss(match.id)}
+              className="min-h-[30px] px-2.5 text-xs text-danger-ink hover:bg-danger/10"
+            >
+              {dismissing ? "..." : "✕ Dismiss"}
+            </Button>
+          )}
+        </div>
+      </Card>
+    );
+  }
+
+  // List View
   return (
-    <Card className="min-w-0 p-3.5 sm:p-4">
-      <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-4">
+    <Card className="min-w-0 p-3 sm:p-4">
+      <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-3.5">
         <ScorePip score={normalizedScore} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={MATCH_STATUS_TONE[match.status] ?? "neutral"}>
@@ -191,13 +357,13 @@ function ScoredMatchRow({
             </p>
           )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t pt-2">
             {match.url && (
               <a
                 href={match.url}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="press inline-flex min-h-[32px] items-center gap-1.5 rounded-lg bg-primary/[0.04] px-3 py-1 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
+                className="press inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-primary/[0.04] px-3 py-1 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
               >
                 Open posting
                 <IconExternal className="h-3 w-3" />
@@ -210,7 +376,7 @@ function ScoredMatchRow({
                 size="sm"
                 disabled={dismissing}
                 onClick={() => onDismiss(match.id)}
-                className="min-h-[32px] text-xs text-danger-ink hover:bg-danger/10"
+                className="min-h-[30px] text-xs text-danger-ink hover:bg-danger/10"
               >
                 {dismissing ? "Dismissing..." : "✕ Dismiss"}
               </Button>
@@ -245,6 +411,7 @@ export default function JobsBoard({
   const [searchQuery, setSearchQuery] = useState("");
   const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [dismissingId, setDismissingId] = useState<string | number | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
@@ -457,7 +624,7 @@ export default function JobsBoard({
   }
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div className="space-y-3.5 sm:space-y-4">
       {/* Top Tabs Bar */}
       <div className="no-scrollbar -mx-1 max-w-full overflow-x-auto px-1">
         <div className="inline-flex min-w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:min-w-0">
@@ -479,44 +646,41 @@ export default function JobsBoard({
         </div>
       </div>
 
-      {/* Global Interactive Search & Filter Toolbar */}
-      <div className="space-y-3 rounded-2xl bg-primary/[0.02] p-3 ring-1 ring-inset ring-hairline/10 sm:p-4">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
+      {/* Compact Streamlined Search & Filter Bar */}
+      <div className="flex flex-col gap-2 rounded-xl bg-primary/[0.02] p-2.5 ring-1 ring-inset ring-hairline/10 sm:p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
           {/* Search Input */}
           <div className="relative flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
-              <IconSearch className="h-4 w-4" />
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-muted">
+              <IconSearch className="h-3.5 w-3.5" />
             </div>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by title, company, skills, or location..."
-              className="field w-full pl-9 pr-8 text-xs sm:text-sm"
+              className="field h-8 w-full pl-8 pr-7 text-xs sm:h-9"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
                 aria-label="Clear search"
-                className="press absolute inset-y-0 right-0 flex items-center pr-3 text-muted hover:text-primary"
+                className="press absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted hover:text-primary"
               >
-                <IconX className="h-3.5 w-3.5" />
+                <IconX className="h-3 w-3" />
               </button>
             )}
           </div>
 
           {/* Sort Selector */}
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-2xs font-semibold uppercase tracking-wider text-muted hidden sm:inline">
-              Sort:
-            </span>
+          <div className="flex items-center gap-1.5 shrink-0">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="field select-field min-w-[130px] text-xs"
+              className="field select-field h-8 min-w-[125px] text-2xs sm:h-9 sm:text-xs"
             >
-              <option value="newest">Newest Discovered</option>
-              <option value="score_desc">Highest Fit Score</option>
+              <option value="newest">Newest First</option>
+              <option value="score_desc">Highest Fit</option>
               <option value="oldest">Oldest First</option>
             </select>
           </div>
@@ -524,16 +688,16 @@ export default function JobsBoard({
 
         {/* Score Filter Chips (applicable for Pending and Matches tabs) */}
         {tab !== "applications" && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:gap-2">
-            <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-1">
-              Fit Score:
+          <div className="no-scrollbar -mx-0.5 flex max-w-full items-center gap-1 overflow-x-auto px-0.5 pt-0.5 sm:gap-1.5">
+            <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-0.5 shrink-0 hidden xs:inline">
+              Fit:
             </span>
             {(
               [
                 { key: "all", label: "All Scores" },
-                { key: "high", label: "Top Fit (≥80%)" },
-                { key: "good", label: "Good Fit (70–79%)" },
-                { key: "moderate", label: "Moderate (<70%)" },
+                { key: "high", label: "≥80% Top Fit" },
+                { key: "good", label: "70–79% Good" },
+                { key: "moderate", label: "<70% Moderate" },
               ] as const
             ).map((chip) => {
               const active = scoreFilter === chip.key;
@@ -542,7 +706,7 @@ export default function JobsBoard({
                   key={chip.key}
                   onClick={() => setScoreFilter(chip.key)}
                   aria-pressed={active}
-                  className={`press whitespace-nowrap rounded-lg px-2.5 py-1 text-2xs transition-colors sm:px-3 sm:py-1.5 sm:text-xs ${
+                  className={`press shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-2xs transition-colors sm:px-2.5 sm:py-1 ${
                     active
                       ? "bg-accent/12 font-medium text-accent-ink ring-1 ring-inset ring-accent/25"
                       : "text-secondary ring-1 ring-inset ring-hairline/10 hover:text-primary"
@@ -556,9 +720,9 @@ export default function JobsBoard({
             {hasActiveFilters && (
               <button
                 onClick={clearFilters}
-                className="press ml-auto text-2xs font-medium text-accent-ink hover:underline"
+                className="press ml-auto shrink-0 text-2xs font-medium text-accent-ink hover:underline"
               >
-                Reset filters
+                Reset
               </button>
             )}
           </div>
@@ -566,7 +730,7 @@ export default function JobsBoard({
       </div>
 
       {statusMessage && (
-        <div className="rounded-xl bg-ok/10 px-3.5 py-2.5 text-xs font-medium text-ok-ink ring-1 ring-ok/20">
+        <div className="rounded-xl bg-ok/10 px-3 py-2 text-xs font-medium text-ok-ink ring-1 ring-ok/20">
           {statusMessage}
         </div>
       )}
@@ -594,21 +758,64 @@ export default function JobsBoard({
             }
           />
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5 sm:space-y-3">
+            {/* Results Counter & View Switcher Toolbar */}
             <div className="flex items-center justify-between px-1 text-2xs text-muted">
               <span>
-                Showing {filteredPending.length} of {pendingActions.length} pending{" "}
-                {pendingActions.length === 1 ? "job" : "jobs"}
+                Showing <strong className="font-semibold text-primary">{filteredPending.length}</strong> of {pendingActions.length} pending {pendingActions.length === 1 ? "job" : "jobs"}
               </span>
+
+              {/* View Switcher Toggle */}
+              <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconGrid className="h-3 w-3" />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  title="List view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "list"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconList className="h-3 w-3" />
+                  <span className="hidden sm:inline">List</span>
+                </button>
+              </div>
             </div>
-            {filteredPending.map((a) => (
-              <PendingApprovalRow
-                key={a.id}
-                action={a}
-                onDismiss={handleDismissAction}
-                dismissing={dismissingId === a.id}
-              />
-            ))}
+
+            {/* Jobs Container (Grid or List) */}
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  : "space-y-2.5 sm:space-y-3"
+              }
+            >
+              {filteredPending.map((a) => (
+                <PendingApprovalRow
+                  key={a.id}
+                  action={a}
+                  onDismiss={handleDismissAction}
+                  dismissing={dismissingId === a.id}
+                  viewMode={viewMode}
+                />
+              ))}
+            </div>
           </div>
         )
       )}
@@ -631,78 +838,122 @@ export default function JobsBoard({
             }
           />
         ) : (
-          <div className="space-y-3">
-            {/* MongoDB logged applications */}
-            {filteredApplications.map((a) => (
-              <Card key={a.id} className="min-w-0 p-3.5 sm:p-4">
-                <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <Badge tone={APP_STATUS_TONE[a.status] ?? "neutral"}>
-                      {a.status.replace(/_/g, " ")}
-                    </Badge>
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-semibold text-primary">
-                        {a.role}
-                      </p>
-                      <p className="truncate text-xs text-muted">
-                        {a.company}
-                        {a.resume_version && ` · ${a.resume_version}`}
-                      </p>
-                    </div>
-                  </div>
-                  {a.date_applied && (
-                    <span className="shrink-0 text-2xs text-muted sm:text-xs">
-                      {relativeTime(a.date_applied)}
-                    </span>
-                  )}
-                </div>
-                {a.notes && (
-                  <p className="mt-2.5 break-words text-xs leading-relaxed text-secondary">{a.notes}</p>
-                )}
-                {a.job_url && (
-                  <a
-                    href={a.job_url}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-accent-ink hover:underline"
-                  >
-                    Open posting
-                    <IconExternal className="h-3.5 w-3.5" />
-                  </a>
-                )}
-              </Card>
-            ))}
+          <div className="space-y-2.5 sm:space-y-3">
+            {/* Results Counter & View Switcher */}
+            <div className="flex items-center justify-between px-1 text-2xs text-muted">
+              <span>
+                Showing <strong className="font-semibold text-primary">{filteredApplications.length + filteredApprovedActions.length}</strong> sent applications
+              </span>
 
-            {/* Approved actions not yet in MongoDB */}
-            {filteredApprovedActions.map((action) => {
-              const meta = (action.metadata || {}) as Record<string, any>;
-              return (
-                <Card key={`act-${action.id}`} className="min-w-0 p-3.5 sm:p-4">
-                  <div className="flex flex-col gap-2 xs:flex-row xs:items-center xs:justify-between">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <Badge tone="ok">Approved & Sent</Badge>
-                      <div className="min-w-0 flex-1">
-                        <p className="break-words text-sm font-semibold text-primary">
-                          {meta.job_title || action.action}
-                        </p>
-                        <p className="truncate text-xs text-muted">
-                          {meta.company}
-                          {meta.suggested_resume && ` · ${meta.suggested_resume}`}
-                        </p>
-                      </div>
+              <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconGrid className="h-3 w-3" />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  title="List view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "list"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconList className="h-3 w-3" />
+                  <span className="hidden sm:inline">List</span>
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  : "space-y-2.5 sm:space-y-3"
+              }
+            >
+              {/* MongoDB logged applications */}
+              {filteredApplications.map((a) => (
+                <Card key={a.id} className="flex flex-col justify-between p-3 sm:p-4">
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge tone={APP_STATUS_TONE[a.status] ?? "neutral"}>
+                        {a.status.replace(/_/g, " ")}
+                      </Badge>
+                      {a.date_applied && (
+                        <span className="shrink-0 text-2xs text-muted">
+                          {relativeTime(a.date_applied)}
+                        </span>
+                      )}
                     </div>
-                    {action.executed_at && (
-                      <span className="shrink-0 text-2xs text-muted sm:text-xs">
-                        {relativeTime(action.executed_at)}
-                      </span>
+                    <p className="mt-2 text-sm font-semibold text-primary">
+                      {a.role}
+                    </p>
+                    <p className="truncate text-xs text-muted">
+                      {a.company}
+                      {a.resume_version && ` · ${a.resume_version}`}
+                    </p>
+                    {a.notes && (
+                      <p className="mt-2 text-xs leading-relaxed text-secondary">{a.notes}</p>
                     )}
                   </div>
-                  {action.reasoning && (
-                    <p className="mt-2 break-words text-xs leading-relaxed text-secondary">{action.reasoning}</p>
+                  {a.job_url && (
+                    <div className="mt-3 border-t pt-2">
+                      <a
+                        href={a.job_url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
+                      >
+                        Open posting
+                        <IconExternal className="h-3 w-3" />
+                      </a>
+                    </div>
                   )}
                 </Card>
-              );
-            })}
+              ))}
+
+              {/* Approved actions not yet in MongoDB */}
+              {filteredApprovedActions.map((action) => {
+                const meta = (action.metadata || {}) as Record<string, any>;
+                return (
+                  <Card key={`act-${action.id}`} className="flex flex-col justify-between p-3 sm:p-4">
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <Badge tone="ok">Approved & Sent</Badge>
+                        {action.executed_at && (
+                          <span className="shrink-0 text-2xs text-muted">
+                            {relativeTime(action.executed_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-2 text-sm font-semibold text-primary">
+                        {meta.job_title || action.action}
+                      </p>
+                      <p className="truncate text-xs text-muted">
+                        {meta.company}
+                        {meta.suggested_resume && ` · ${meta.suggested_resume}`}
+                      </p>
+                      {action.reasoning && (
+                        <p className="mt-2 text-xs leading-relaxed text-secondary">{action.reasoning}</p>
+                      )}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         )
       )}
@@ -726,31 +977,79 @@ export default function JobsBoard({
               }
             />
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
+              {/* Results Counter & View Switcher */}
               <div className="flex items-center justify-between px-1 text-2xs text-muted">
                 <span>
-                  Showing {filteredMatches.length} of {matches.length} matches
+                  Showing <strong className="font-semibold text-primary">{filteredMatches.length}</strong> of {matches.length} matches
                 </span>
+
+                <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grid")}
+                    aria-label="Grid view"
+                    title="Grid view"
+                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                      viewMode === "grid"
+                        ? "bg-raised text-primary shadow-xs"
+                        : "text-muted hover:text-primary"
+                    }`}
+                  >
+                    <IconGrid className="h-3 w-3" />
+                    <span className="hidden sm:inline">Grid</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    aria-label="List view"
+                    title="List view"
+                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                      viewMode === "list"
+                        ? "bg-raised text-primary shadow-xs"
+                        : "text-muted hover:text-primary"
+                    }`}
+                  >
+                    <IconList className="h-3 w-3" />
+                    <span className="hidden sm:inline">List</span>
+                  </button>
+                </div>
               </div>
-              {filteredMatches.map((m) => (
-                <ScoredMatchRow
-                  key={m.id}
-                  match={m}
-                  onDismiss={handleDismissMatch}
-                  dismissing={dismissingId === m.id}
-                />
-              ))}
+
+              <div
+                className={
+                  viewMode === "grid"
+                    ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                    : "space-y-2.5 sm:space-y-3"
+                }
+              >
+                {filteredMatches.map((m) => (
+                  <ScoredMatchRow
+                    key={m.id}
+                    match={m}
+                    onDismiss={handleDismissMatch}
+                    dismissing={dismissingId === m.id}
+                    viewMode={viewMode}
+                  />
+                ))}
+              </div>
             </div>
           )
         ) : (
-          /* Fallback if initialMatches is empty but jobActions has history */
-          <div className="space-y-3">
+          <div
+            className={
+              viewMode === "grid"
+                ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                : "space-y-2.5 sm:space-y-3"
+            }
+          >
             {filteredPending.map((a) => (
               <PendingApprovalRow
                 key={a.id}
                 action={a}
                 onDismiss={handleDismissAction}
                 dismissing={dismissingId === a.id}
+                viewMode={viewMode}
               />
             ))}
           </div>
@@ -759,4 +1058,5 @@ export default function JobsBoard({
     </div>
   );
 }
+
 
