@@ -54,6 +54,14 @@ export type JobMatch = {
   found_at: string;
 };
 
+export type JobApplicationStatus =
+  | "applied"
+  | "interview"
+  | "offer"
+  | "rejected"
+  | "no_response"
+  | "withdrawn";
+
 export type JobApplication = {
   id: string;
   user_id?: string | null;
@@ -62,8 +70,11 @@ export type JobApplication = {
   job_url: string;
   resume_version: string;
   notes: string;
-  status: string;
+  status: JobApplicationStatus | string;
   date_applied: string;
+  updated_at?: string | null;
+  interview_date?: string | null;
+  follow_up_date?: string | null;
 };
 
 function iso(v: unknown): string {
@@ -147,6 +158,9 @@ export async function fetchApplications(
         notes: d.notes ?? "",
         status: d.status ?? "applied",
         date_applied: iso(d.date_applied),
+        updated_at: d.updated_at ? iso(d.updated_at) : null,
+        interview_date: d.interview_date ? iso(d.interview_date) : null,
+        follow_up_date: d.follow_up_date ? iso(d.follow_up_date) : null,
       })),
       error: null,
     };
@@ -158,6 +172,7 @@ export async function fetchApplications(
     };
   }
 }
+
 
 export async function setMatchStatus(
   id: string,
@@ -223,6 +238,63 @@ export async function recordJobApplication(app: {
     return { success: false, error: err instanceof Error ? err.message : "MongoDB error" };
   }
 }
+
+export async function updateJobApplication(
+  id: string,
+  updates: Partial<{
+    status: string;
+    notes: string;
+    interview_date: string | null;
+    follow_up_date: string | null;
+  }>,
+  userId?: string
+): Promise<JobApplication | null> {
+  const db = await getDb();
+  const filter: Record<string, any> = { _id: new ObjectId(id) };
+  if (userId) filter.user_id = userId;
+
+  const $set: Record<string, any> = { updated_at: new Date() };
+  if (updates.status !== undefined) $set.status = updates.status;
+  if (updates.notes !== undefined) $set.notes = updates.notes.trim();
+  if (updates.interview_date !== undefined)
+    $set.interview_date = updates.interview_date ? new Date(updates.interview_date) : null;
+  if (updates.follow_up_date !== undefined)
+    $set.follow_up_date = updates.follow_up_date ? new Date(updates.follow_up_date) : null;
+
+  const result = await db
+    .collection("job_applications")
+    .findOneAndUpdate(filter, { $set }, { returnDocument: "after" });
+
+  const d = result && "value" in result ? result.value : result;
+  if (!d) return null;
+  return {
+    id: String(d._id),
+    user_id: d.user_id ? String(d.user_id) : null,
+    company: d.company ?? "",
+    role: d.role ?? "",
+    job_url: d.job_url ?? "",
+    resume_version: d.resume_version ?? "",
+    notes: d.notes ?? "",
+    status: d.status ?? "applied",
+    date_applied: iso(d.date_applied),
+    updated_at: d.updated_at ? iso(d.updated_at) : null,
+    interview_date: d.interview_date ? iso(d.interview_date) : null,
+    follow_up_date: d.follow_up_date ? iso(d.follow_up_date) : null,
+  };
+}
+
+export async function deleteJobApplication(
+  id: string,
+  userId?: string
+): Promise<boolean> {
+  const db = await getDb();
+  const filter: Record<string, any> = { _id: new ObjectId(id) };
+  if (userId) filter.user_id = userId;
+
+  const res = await db.collection("job_applications").deleteOne(filter);
+  return res.deletedCount > 0;
+}
+
 
 // ---------------------------------------------------------------------------
 // Tasks (Daily Tasks module)

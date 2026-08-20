@@ -19,7 +19,7 @@ import {
   IconX,
 } from "@/components/icons";
 import { relativeTime } from "@/lib/format";
-import type { JobApplication, JobMatch } from "@/lib/mongo";
+import type { JobApplication, JobApplicationStatus, JobMatch } from "@/lib/mongo";
 import type { AgentAction } from "@/lib/db";
 import { withBasePath } from "@/lib/basePath";
 
@@ -495,6 +495,232 @@ function ScoredMatchRow({
   );
 }
 
+function ApplicationCard({
+  app,
+  onUpdateStatus,
+  onSaveDetails,
+  onDelete,
+  viewMode = "grid",
+}: {
+  app: JobApplication;
+  onUpdateStatus: (id: string, status: JobApplicationStatus) => Promise<void>;
+  onSaveDetails: (
+    id: string,
+    details: { notes: string; interview_date: string | null; follow_up_date: string | null }
+  ) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
+  viewMode?: ViewMode;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [notes, setNotes] = useState(app.notes || "");
+  const [interviewDate, setInterviewDate] = useState(
+    app.interview_date ? app.interview_date.slice(0, 10) : ""
+  );
+  const [followUpDate, setFollowUpDate] = useState(
+    app.follow_up_date ? app.follow_up_date.slice(0, 10) : ""
+  );
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const status = (app.status || "applied") as JobApplicationStatus;
+
+  async function handleStatusSelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const val = e.target.value as JobApplicationStatus;
+    setIsUpdatingStatus(true);
+    try {
+      await onUpdateStatus(app.id, val);
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    try {
+      await onSaveDetails(app.id, {
+        notes,
+        interview_date: interviewDate || null,
+        follow_up_date: followUpDate || null,
+      });
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm(`Remove application for ${app.role} at ${app.company}?`)) return;
+    setIsDeleting(true);
+    try {
+      await onDelete(app.id);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
+  return (
+    <Card className="flex flex-col justify-between p-3.5 sm:p-4">
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <Badge tone={APP_STATUS_TONE[status] ?? "neutral"}>
+              {status.replace(/_/g, " ")}
+            </Badge>
+            <select
+              value={status}
+              disabled={isUpdatingStatus}
+              onChange={handleStatusSelect}
+              className="field select-field h-6 rounded-md px-1.5 py-0 text-2xs font-medium text-secondary"
+              title="Change application status"
+            >
+              <option value="applied">Applied</option>
+              <option value="interview">Interviewing</option>
+              <option value="offer">Offer Received 🎉</option>
+              <option value="rejected">Rejected</option>
+              <option value="no_response">No Response</option>
+              <option value="withdrawn">Withdrawn</option>
+            </select>
+          </div>
+          {app.date_applied && (
+            <span className="shrink-0 text-2xs text-muted">
+              {relativeTime(app.date_applied)}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-2 text-sm font-semibold tracking-tight text-primary">
+          {app.role}
+        </p>
+        <p className="mt-0.5 truncate text-xs text-muted">
+          {app.company}
+          {app.resume_version && ` · 📄 ${app.resume_version}`}
+        </p>
+
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {app.interview_date && (
+            <div className="inline-flex items-center gap-1 rounded-md bg-violet/10 px-2 py-0.5 text-2xs font-medium text-violet-ink">
+              <span>🗓 Interview:</span>
+              <span>{app.interview_date.slice(0, 10)}</span>
+            </div>
+          )}
+          {app.follow_up_date && (
+            <div className="inline-flex items-center gap-1 rounded-md bg-warn/10 px-2 py-0.5 text-2xs font-medium text-warn-ink">
+              <span>⏰ Follow-up:</span>
+              <span>{app.follow_up_date.slice(0, 10)}</span>
+            </div>
+          )}
+        </div>
+
+        {!isEditing ? (
+          app.notes ? (
+            <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-secondary bg-primary/[0.02] p-2 rounded-lg border border-hairline/20">
+              {app.notes}
+            </p>
+          ) : null
+        ) : (
+          <div className="mt-2.5 space-y-2 rounded-lg bg-primary/[0.03] p-2.5 border border-hairline/30">
+            <div>
+              <label className="block text-2xs font-medium text-muted mb-1">
+                Interview / Follow-up Notes:
+              </label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Log interviewer names, questions, salary notes, next steps..."
+                rows={2}
+                className="field w-full text-xs p-2"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-2xs font-medium text-muted mb-1">
+                  Interview Date:
+                </label>
+                <input
+                  type="date"
+                  value={interviewDate}
+                  onChange={(e) => setInterviewDate(e.target.value)}
+                  className="field h-7 w-full text-2xs px-2"
+                />
+              </div>
+              <div>
+                <label className="block text-2xs font-medium text-muted mb-1">
+                  Next Follow-up:
+                </label>
+                <input
+                  type="date"
+                  value={followUpDate}
+                  onChange={(e) => setFollowUpDate(e.target.value)}
+                  className="field h-7 w-full text-2xs px-2"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsEditing(false)}
+                className="rounded px-2 py-0.5 text-2xs text-muted hover:text-primary"
+              >
+                Cancel
+              </button>
+              <Button
+                size="sm"
+                disabled={isSaving}
+                onClick={handleSave}
+                className="h-6 px-2.5 text-2xs"
+              >
+                {isSaving ? "Saving..." : "Save Notes"}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5">
+        <div className="flex items-center gap-2">
+          {app.job_url ? (
+            <a
+              href={app.job_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="press inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
+            >
+              Open posting
+              <IconExternal className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className="text-2xs text-muted">Direct Email</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsEditing((v) => !v)}
+            className="press rounded-md px-2 py-1 text-2xs font-medium text-secondary hover:text-primary hover:bg-primary/[0.04]"
+          >
+            {isEditing ? "Close" : app.notes || app.interview_date ? "✏️ Edit Notes" : "➕ Add Notes"}
+          </button>
+
+          <Button
+            variant="quiet"
+            size="sm"
+            disabled={isDeleting}
+            onClick={handleDelete}
+            className="h-6 px-1.5 text-2xs text-danger-ink hover:bg-danger/10"
+            title="Delete application record"
+          >
+            {isDeleting ? "..." : "✕"}
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export default function JobsBoard({
   jobActions = [],
   initialMatches = [],
@@ -517,10 +743,10 @@ export default function JobsBoard({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
+  const [appStageFilter, setAppStageFilter] = useState<"all" | "applied" | "interview" | "offer" | "rejected_archived">("all");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
-  // Selection & Star State
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
@@ -530,7 +756,6 @@ export default function JobsBoard({
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
 
-  // Hydrate starred jobs from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem("second_brain_starred_jobs");
@@ -578,7 +803,6 @@ export default function JobsBoard({
     [actions]
   );
 
-  // Bulk low score (< 60%) actions
   const lowScoreActions = useMemo(() => {
     return pendingActions.filter((a) => {
       const meta = (a.metadata || {}) as Record<string, any>;
@@ -587,7 +811,6 @@ export default function JobsBoard({
     });
   }, [pendingActions]);
 
-  // Bulk stale (> 14 days) actions
   const staleActions = useMemo(() => {
     const now = Date.now();
     return pendingActions.filter((a) => {
@@ -597,7 +820,16 @@ export default function JobsBoard({
     });
   }, [pendingActions]);
 
-  // 1-Click Single Dismiss for pending AgentAction
+  const appMetrics = useMemo(() => {
+    const total = apps.length + approvedActions.length;
+    const interviewing = apps.filter((a) => a.status === "interview").length;
+    const offers = apps.filter((a) => a.status === "offer").length;
+    const applied = apps.filter((a) => a.status === "applied" || !a.status).length + approvedActions.length;
+    const rejected = apps.filter((a) => a.status === "rejected" || a.status === "no_response" || a.status === "withdrawn").length;
+    const interviewRate = total > 0 ? Math.round(((interviewing + offers) / total) * 100) : 0;
+    return { total, interviewing, offers, applied, rejected, interviewRate };
+  }, [apps, approvedActions]);
+
   async function handleDismissAction(actionId: string | number) {
     setDismissingId(actionId);
     setOpError(null);
@@ -622,7 +854,6 @@ export default function JobsBoard({
     }
   }
 
-  // Bulk Dismiss via PATCH /api/actions
   async function handleBulkDismiss(idsToDismiss: (string | number)[], msg?: string) {
     if (idsToDismiss.length === 0) return;
     setIsBulkDismissing(true);
@@ -651,7 +882,6 @@ export default function JobsBoard({
     }
   }
 
-  // 1-Click Quick Dismiss for JobMatch in All Scored Matches
   async function handleDismissMatch(matchId: string) {
     setDismissingId(matchId);
     setOpError(null);
@@ -676,7 +906,80 @@ export default function JobsBoard({
     }
   }
 
-  // Filter and Sort pending actions
+  async function handleUpdateAppStatus(id: string, status: JobApplicationStatus) {
+    setOpError(null);
+    try {
+      const res = await fetch(withBasePath(`/api/jobs/applications/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to update application status.");
+
+      setApps((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status } : a))
+      );
+      setStatusMessage(`Updated status to ${status.replace(/_/g, " ")}.`);
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to update status.");
+      throw err;
+    }
+  }
+
+  async function handleSaveAppDetails(
+    id: string,
+    details: { notes: string; interview_date: string | null; follow_up_date: string | null }
+  ) {
+    setOpError(null);
+    try {
+      const res = await fetch(withBasePath(`/api/jobs/applications/${id}`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(details),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to save application notes.");
+
+      setApps((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                notes: details.notes,
+                interview_date: details.interview_date,
+                follow_up_date: details.follow_up_date,
+              }
+            : a
+        )
+      );
+      setStatusMessage("Application notes & dates saved.");
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to save details.");
+      throw err;
+    }
+  }
+
+  async function handleDeleteApp(id: string) {
+    setOpError(null);
+    try {
+      const res = await fetch(withBasePath(`/api/jobs/applications/${id}`), {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to delete application.");
+
+      setApps((prev) => prev.filter((a) => a.id !== id));
+      setStatusMessage("Application record deleted.");
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to delete application.");
+      throw err;
+    }
+  }
+
   const filteredPending = useMemo(() => {
     let list = [...pendingActions];
     const q = searchQuery.trim().toLowerCase();
@@ -737,7 +1040,6 @@ export default function JobsBoard({
     return list;
   }, [pendingActions, searchQuery, scoreFilter, sortBy, starredIds]);
 
-  // Filter and Sort Applications Sent
   const filteredApplications = useMemo(() => {
     let list = [...apps];
     const q = searchQuery.trim().toLowerCase();
@@ -757,11 +1059,28 @@ export default function JobsBoard({
       });
     }
 
+    if (appStageFilter !== "all") {
+      if (appStageFilter === "applied") {
+        list = list.filter((a) => a.status === "applied" || !a.status);
+      } else if (appStageFilter === "interview") {
+        list = list.filter((a) => a.status === "interview");
+      } else if (appStageFilter === "offer") {
+        list = list.filter((a) => a.status === "offer");
+      } else if (appStageFilter === "rejected_archived") {
+        list = list.filter(
+          (a) => a.status === "rejected" || a.status === "no_response" || a.status === "withdrawn"
+        );
+      }
+    }
+
     list.sort((a, b) => (b.date_applied || "").localeCompare(a.date_applied || ""));
     return list;
-  }, [apps, searchQuery]);
+  }, [apps, searchQuery, appStageFilter]);
 
   const filteredApprovedActions = useMemo(() => {
+    if (appStageFilter !== "all" && appStageFilter !== "applied") {
+      return [];
+    }
     let list = [...approvedActions];
     const q = searchQuery.trim().toLowerCase();
 
@@ -777,9 +1096,8 @@ export default function JobsBoard({
 
     list.sort((a, b) => (b.executed_at || b.created_at || "").localeCompare(a.executed_at || a.created_at || ""));
     return list;
-  }, [approvedActions, searchQuery]);
+  }, [approvedActions, searchQuery, appStageFilter]);
 
-  // Filter and Sort All Scored Matches
   const filteredMatches = useMemo(() => {
     let list = [...matches];
     const q = searchQuery.trim().toLowerCase();
@@ -831,11 +1149,16 @@ export default function JobsBoard({
     { key: "matches" as const, label: "All Scored Matches", count: matches.length > 0 ? matches.length : actions.length },
   ];
 
-  const hasActiveFilters = searchQuery.trim().length > 0 || scoreFilter !== "all" || sortBy !== "newest";
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 ||
+    scoreFilter !== "all" ||
+    appStageFilter !== "all" ||
+    sortBy !== "newest";
 
   function clearFilters() {
     setSearchQuery("");
     setScoreFilter("all");
+    setAppStageFilter("all");
     setSortBy("newest");
   }
 
@@ -849,7 +1172,6 @@ export default function JobsBoard({
 
   return (
     <div className="space-y-3.5 sm:space-y-4">
-      {/* Top Tabs Bar */}
       <div className="no-scrollbar -mx-1 max-w-full overflow-x-auto px-1">
         <div className="inline-flex min-w-full gap-1 rounded-xl bg-primary/[0.04] p-1 sm:min-w-0">
           {tabs.map((t) => (
@@ -874,10 +1196,8 @@ export default function JobsBoard({
         </div>
       </div>
 
-      {/* Compact Streamlined Search & Filter Bar */}
       <div className="flex flex-col gap-2 rounded-xl bg-primary/[0.02] p-2.5 ring-1 ring-inset ring-hairline/10 sm:p-3">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2.5">
-          {/* Search Input */}
           <div className="relative flex-1">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2.5 text-muted">
               <IconSearch className="h-3.5 w-3.5" />
@@ -900,7 +1220,6 @@ export default function JobsBoard({
             )}
           </div>
 
-          {/* Sort Selector */}
           <div className="flex items-center gap-1.5 shrink-0">
             <select
               value={sortBy}
@@ -915,10 +1234,8 @@ export default function JobsBoard({
           </div>
         </div>
 
-        {/* Filter Chips & Bulk Action Pills */}
         <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
-          {/* Score & Category Chips */}
-          {tab !== "applications" && (
+          {tab !== "applications" ? (
             <div className="no-scrollbar -mx-0.5 flex max-w-full items-center gap-1 overflow-x-auto px-0.5 sm:gap-1.5">
               <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-0.5 shrink-0 hidden xs:inline">
                 Fit:
@@ -959,9 +1276,48 @@ export default function JobsBoard({
                 </button>
               )}
             </div>
+          ) : (
+            <div className="no-scrollbar -mx-0.5 flex max-w-full items-center gap-1 overflow-x-auto px-0.5 sm:gap-1.5">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-0.5 shrink-0 hidden xs:inline">
+                Stage:
+              </span>
+              {(
+                [
+                  { key: "all" as const, label: `All (${appMetrics.total})` },
+                  { key: "applied" as const, label: `Applied (${appMetrics.applied})` },
+                  { key: "interview" as const, label: `Interviewing (${appMetrics.interviewing})` },
+                  { key: "offer" as const, label: `Offers (${appMetrics.offers})` },
+                  { key: "rejected_archived" as const, label: `Closed (${appMetrics.rejected})` },
+                ] as const
+              ).map((chip) => {
+                const active = appStageFilter === chip.key;
+                return (
+                  <button
+                    key={chip.key}
+                    onClick={() => setAppStageFilter(chip.key)}
+                    aria-pressed={active}
+                    className={`press shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-2xs transition-colors sm:px-2.5 sm:py-1 ${
+                      active
+                        ? "bg-accent/12 font-medium text-accent-ink ring-1 ring-inset ring-accent/25"
+                        : "text-secondary ring-1 ring-inset ring-hairline/10 hover:text-primary"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="press ml-auto shrink-0 text-2xs font-medium text-accent-ink hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
           )}
 
-          {/* Quick Bulk Triage Tools for Pending Tab */}
           {tab === "pending" && (
             <div className="flex flex-wrap items-center gap-1.5 ml-auto">
               {lowScoreActions.length > 0 && (
@@ -1002,7 +1358,6 @@ export default function JobsBoard({
         </div>
       </div>
 
-      {/* Multi-Select Floating Toolbar */}
       {selectionMode && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent-solid p-2.5 text-white shadow-md animate-slide-down">
           <div className="flex items-center gap-2 text-xs font-semibold">
@@ -1057,7 +1412,6 @@ export default function JobsBoard({
       {matchesError && <ErrorNote>{matchesError}</ErrorNote>}
       {applicationsError && <ErrorNote>{applicationsError}</ErrorNote>}
 
-      {/* Tab 1: Pending Approvals */}
       {tab === "pending" && (
         pendingActions.length === 0 ? (
           <EmptyState
@@ -1076,14 +1430,12 @@ export default function JobsBoard({
           />
         ) : (
           <div className="space-y-2.5 sm:space-y-3">
-            {/* Results Counter & View Switcher Toolbar */}
             <div className="flex items-center justify-between px-1 text-2xs text-muted">
               <span>
                 Showing <strong className="font-semibold text-primary">{filteredPending.length}</strong> of {pendingActions.length} pending {pendingActions.length === 1 ? "job" : "jobs"}
               </span>
 
               <div className="flex items-center gap-1.5">
-                {/* Multi-Select Toggle */}
                 <button
                   type="button"
                   onClick={() => {
@@ -1099,7 +1451,6 @@ export default function JobsBoard({
                   {selectionMode ? "Exit Select" : "Select"}
                 </button>
 
-                {/* View Switcher Toggle */}
                 <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
                   <button
                     type="button"
@@ -1133,7 +1484,6 @@ export default function JobsBoard({
               </div>
             </div>
 
-            {/* Jobs Container (Grid or List) */}
             <div
               className={
                 viewMode === "grid"
@@ -1160,7 +1510,6 @@ export default function JobsBoard({
         )
       )}
 
-      {/* Tab 2: Applications Sent */}
       {tab === "applications" && (
         apps.length === 0 && approvedActions.length === 0 ? (
           <EmptyState
@@ -1169,20 +1518,38 @@ export default function JobsBoard({
           />
         ) : filteredApplications.length === 0 && filteredApprovedActions.length === 0 ? (
           <EmptyState
-            title="No applications match your search"
-            body="Try searching for a different company or job title."
+            title="No applications match your filter"
+            body="Try selecting a different stage filter or clearing your search."
             action={
               <Button size="sm" onClick={clearFilters}>
-                Clear search
+                Clear search & stage filters
               </Button>
             }
           />
         ) : (
-          <div className="space-y-2.5 sm:space-y-3">
-            {/* Results Counter & View Switcher */}
+          <div className="space-y-3 sm:space-y-3.5">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-2.5">
+              <div className="rounded-xl bg-primary/[0.03] p-2.5 ring-1 ring-inset ring-hairline/10">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-muted">Sent</span>
+                <p className="mt-0.5 text-lg font-bold text-primary">{appMetrics.total}</p>
+              </div>
+              <div className="rounded-xl bg-violet/10 p-2.5 ring-1 ring-inset ring-violet/20">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-violet-ink">Interviews</span>
+                <p className="mt-0.5 text-lg font-bold text-violet-ink">{appMetrics.interviewing}</p>
+              </div>
+              <div className="rounded-xl bg-ok/10 p-2.5 ring-1 ring-inset ring-ok/20">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-ok-ink">Offers</span>
+                <p className="mt-0.5 text-lg font-bold text-ok-ink">{appMetrics.offers}</p>
+              </div>
+              <div className="rounded-xl bg-accent/10 p-2.5 ring-1 ring-inset ring-accent/20">
+                <span className="text-2xs font-semibold uppercase tracking-wider text-accent-ink">Response Rate</span>
+                <p className="mt-0.5 text-lg font-bold text-accent-ink">{appMetrics.interviewRate}%</p>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between px-1 text-2xs text-muted">
               <span>
-                Showing <strong className="font-semibold text-primary">{filteredApplications.length + filteredApprovedActions.length}</strong> sent applications
+                Showing <strong className="font-semibold text-primary">{filteredApplications.length + filteredApprovedActions.length}</strong> applications
               </span>
 
               <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
@@ -1195,7 +1562,7 @@ export default function JobsBoard({
                     viewMode === "grid"
                       ? "bg-raised text-primary shadow-xs"
                       : "text-muted hover:text-primary"
-                    }`}
+                  }`}
                 >
                   <IconGrid className="h-3 w-3" />
                   <span className="hidden sm:inline">Grid</span>
@@ -1224,52 +1591,21 @@ export default function JobsBoard({
                   : "space-y-2.5 sm:space-y-3"
               }
             >
-              {/* MongoDB logged applications */}
               {filteredApplications.map((a) => (
-                <Card key={a.id} className="flex flex-col justify-between p-3 sm:p-4">
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge tone={APP_STATUS_TONE[a.status] ?? "neutral"}>
-                        {a.status.replace(/_/g, " ")}
-                      </Badge>
-                      {a.date_applied && (
-                        <span className="shrink-0 text-2xs text-muted">
-                          {relativeTime(a.date_applied)}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm font-semibold text-primary">
-                      {a.role}
-                    </p>
-                    <p className="truncate text-xs text-muted">
-                      {a.company}
-                      {a.resume_version && ` · ${a.resume_version}`}
-                    </p>
-                    {a.notes && (
-                      <p className="mt-2 text-xs leading-relaxed text-secondary">{a.notes}</p>
-                    )}
-                  </div>
-                  {a.job_url && (
-                    <div className="mt-3 border-t pt-2">
-                      <a
-                        href={a.job_url}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="inline-flex items-center gap-1 text-xs font-medium text-accent-ink hover:underline"
-                      >
-                        Open posting
-                        <IconExternal className="h-3 w-3" />
-                      </a>
-                    </div>
-                  )}
-                </Card>
+                <ApplicationCard
+                  key={a.id}
+                  app={a}
+                  onUpdateStatus={handleUpdateAppStatus}
+                  onSaveDetails={handleSaveAppDetails}
+                  onDelete={handleDeleteApp}
+                  viewMode={viewMode}
+                />
               ))}
 
-              {/* Approved actions not yet in MongoDB */}
               {filteredApprovedActions.map((action) => {
                 const meta = (action.metadata || {}) as Record<string, any>;
                 return (
-                  <Card key={`act-${action.id}`} className="flex flex-col justify-between p-3 sm:p-4">
+                  <Card key={`act-${action.id}`} className="flex flex-col justify-between p-3.5 sm:p-4">
                     <div>
                       <div className="flex items-center justify-between gap-2">
                         <Badge tone="ok">Approved & Sent</Badge>
@@ -1284,7 +1620,7 @@ export default function JobsBoard({
                       </p>
                       <p className="truncate text-xs text-muted">
                         {meta.company}
-                        {meta.suggested_resume && ` · ${meta.suggested_resume}`}
+                        {meta.suggested_resume && ` · 📄 ${meta.suggested_resume}`}
                       </p>
                       {action.reasoning && (
                         <p className="mt-2 text-xs leading-relaxed text-secondary">{action.reasoning}</p>
@@ -1298,7 +1634,6 @@ export default function JobsBoard({
         )
       )}
 
-      {/* Tab 3: All Scored Matches */}
       {tab === "matches" && (
         matches.length === 0 && actions.length === 0 ? (
           <EmptyState
@@ -1318,7 +1653,6 @@ export default function JobsBoard({
             />
           ) : (
             <div className="space-y-2.5 sm:space-y-3">
-              {/* Results Counter & View Switcher */}
               <div className="flex items-center justify-between px-1 text-2xs text-muted">
                 <span>
                   Showing <strong className="font-semibold text-primary">{filteredMatches.length}</strong> of {matches.length} matches
@@ -1405,6 +1739,3 @@ export default function JobsBoard({
     </div>
   );
 }
-
-
-
