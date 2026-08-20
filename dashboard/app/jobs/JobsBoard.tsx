@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   Badge,
@@ -15,6 +15,7 @@ import {
   IconGrid,
   IconList,
   IconSearch,
+  IconStar,
   IconX,
 } from "@/components/icons";
 import { relativeTime } from "@/lib/format";
@@ -37,9 +38,40 @@ const MATCH_STATUS_TONE: Record<string, Tone> = {
   dismissed: "neutral",
 };
 
-type ScoreFilter = "all" | "high" | "good" | "moderate";
-type SortOption = "newest" | "score_desc" | "oldest";
+type ScoreFilter = "all" | "high" | "good" | "moderate" | "starred" | "deadline_soon";
+type SortOption = "newest" | "score_desc" | "oldest" | "closing_soon";
 type ViewMode = "grid" | "list";
+
+function getDeadlineStatus(closingDateStr?: string | null): {
+  label: string;
+  tone: Tone;
+  isExpired: boolean;
+  isSoon: boolean;
+} | null {
+  if (!closingDateStr) return null;
+  const parsed = new Date(closingDateStr);
+  if (isNaN(parsed.getTime())) {
+    return { label: `Closes: ${closingDateStr}`, tone: "neutral", isExpired: false, isSoon: false };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(parsed);
+  target.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) {
+    return { label: "Deadline Passed", tone: "danger", isExpired: true, isSoon: false };
+  }
+  if (diffDays === 0) {
+    return { label: "Closes Today", tone: "warn", isExpired: false, isSoon: true };
+  }
+  if (diffDays <= 3) {
+    return { label: `Closes in ${diffDays}d`, tone: "warn", isExpired: false, isSoon: true };
+  }
+  return { label: `Closes: ${closingDateStr}`, tone: "neutral", isExpired: false, isSoon: false };
+}
 
 function ScorePip({ score }: { score: number | null }) {
   if (score == null) return null;
@@ -59,21 +91,44 @@ function PendingApprovalRow({
   onDismiss,
   dismissing,
   viewMode = "grid",
+  isStarred,
+  onToggleStar,
+  selectionMode,
+  isSelected,
+  onToggleSelect,
 }: {
   action: AgentAction;
   onDismiss: (id: string | number) => void;
   dismissing: boolean;
   viewMode?: ViewMode;
+  isStarred: boolean;
+  onToggleStar: (id: string | number) => void;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: (id: string | number) => void;
 }) {
   const meta = (action.metadata || {}) as Record<string, any>;
   const score = meta.match_score || Math.round(Number(action.confidence) * 100);
+  const deadline = getDeadlineStatus(meta.closing_date);
 
   if (viewMode === "grid") {
     return (
-      <Card className="flex flex-col justify-between p-3.5 sm:p-4 transition-all">
+      <Card
+        className={`flex flex-col justify-between p-3.5 sm:p-4 transition-all ${
+          isSelected ? "ring-2 ring-accent/60 bg-accent/[0.03]" : ""
+        } ${deadline?.isExpired ? "opacity-75" : ""}`}
+      >
         <div>
-          {/* Card Header: Score + Title + Resume */}
-          <div className="flex items-start gap-3">
+          {/* Card Header: Checkbox + Score + Title + Star */}
+          <div className="flex items-start gap-2.5">
+            {selectionMode && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleSelect(action.id)}
+                className="mt-1 h-4 w-4 rounded border-hairline/40 text-accent focus:ring-accent"
+              />
+            )}
             <ScorePip score={score} />
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 text-sm font-semibold tracking-tight text-primary">
@@ -84,12 +139,26 @@ function PendingApprovalRow({
                 {meta.location && ` · 📍 ${meta.location}`}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => onToggleStar(action.id)}
+              aria-label={isStarred ? "Unstar job" : "Star job"}
+              title={isStarred ? "Starred job" : "Star for later"}
+              className={`press p-1 transition-colors ${
+                isStarred ? "text-warn-ink" : "text-muted/40 hover:text-muted"
+              }`}
+            >
+              <IconStar className="h-4 w-4" filled={isStarred} />
+            </button>
           </div>
 
           {/* Badges / Meta row */}
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+            {deadline && (
+              <Badge tone={deadline.tone}>{deadline.label}</Badge>
+            )}
             {meta.suggested_resume && (
-              <div className="inline-flex min-w-0 max-w-[180px] items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink">
+              <div className="inline-flex min-w-0 max-w-[170px] items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink">
                 <span className="shrink-0">📄</span>
                 <span className="truncate">{meta.suggested_resume}</span>
               </div>
@@ -105,12 +174,6 @@ function PendingApprovalRow({
           {action.reasoning && (
             <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-secondary" title={action.reasoning}>
               {action.reasoning}
-            </p>
-          )}
-
-          {meta.closing_date && (
-            <p className="mt-2 text-2xs text-muted">
-              Closes: <span className="font-medium text-secondary">{meta.closing_date}</span>
             </p>
           )}
         </div>
@@ -130,6 +193,7 @@ function PendingApprovalRow({
             disabled={dismissing}
             onClick={() => onDismiss(action.id)}
             className="min-h-[32px] px-2.5 text-xs font-medium"
+            title="Dismiss job"
           >
             {dismissing ? "..." : "✕"}
           </Button>
@@ -152,24 +216,47 @@ function PendingApprovalRow({
 
   // List View
   return (
-    <Card className="min-w-0 p-3 sm:p-4">
+    <Card
+      className={`min-w-0 p-3 sm:p-4 ${
+        isSelected ? "ring-2 ring-accent/60 bg-accent/[0.03]" : ""
+      } ${deadline?.isExpired ? "opacity-75" : ""}`}
+    >
       <div className="flex flex-col gap-2.5 min-w-0 sm:flex-row sm:items-start sm:gap-3.5">
-        <div className="flex items-center justify-between gap-2 min-w-0 sm:flex-col sm:items-center sm:justify-start sm:gap-1">
-          <ScorePip score={score} />
-          {meta.suggested_resume && (
-            <div className="flex min-w-0 max-w-[200px] items-center gap-1 rounded-lg bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink sm:hidden">
-              <span className="shrink-0">📄</span>
-              <span className="truncate">{meta.suggested_resume}</span>
-            </div>
-          )}
+        <div className="flex items-center justify-between gap-2 min-w-0 sm:flex-col sm:items-center sm:justify-start sm:gap-1.5">
+          <div className="flex items-center gap-2">
+            {selectionMode && (
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => onToggleSelect(action.id)}
+                className="h-4 w-4 rounded border-hairline/40 text-accent focus:ring-accent"
+              />
+            )}
+            <ScorePip score={score} />
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleStar(action.id)}
+            aria-label={isStarred ? "Unstar job" : "Star job"}
+            className={`press p-1 transition-colors ${
+              isStarred ? "text-warn-ink" : "text-muted/40 hover:text-muted"
+            }`}
+          >
+            <IconStar className="h-4 w-4" filled={isStarred} />
+          </button>
         </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-semibold tracking-tight text-primary">
-                {meta.job_title || action.action.replace(/_/g, " ")}
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="break-words text-sm font-semibold tracking-tight text-primary">
+                  {meta.job_title || action.action.replace(/_/g, " ")}
+                </p>
+                {deadline && (
+                  <Badge tone={deadline.tone}>{deadline.label}</Badge>
+                )}
+              </div>
               <p className="mt-0.5 truncate text-xs text-muted">
                 {meta.company || "TopJobs Employer"}
                 {meta.location && ` · 📍 ${meta.location}`}
@@ -188,12 +275,6 @@ function PendingApprovalRow({
           {action.reasoning && (
             <p className="mt-1.5 break-words text-xs leading-relaxed text-secondary">
               {action.reasoning}
-            </p>
-          )}
-
-          {meta.closing_date && (
-            <p className="mt-1.5 text-2xs text-muted">
-              Closing date: <span className="font-medium text-secondary">{meta.closing_date}</span>
             </p>
           )}
 
@@ -238,11 +319,15 @@ function ScoredMatchRow({
   onDismiss,
   dismissing,
   viewMode = "grid",
+  isStarred,
+  onToggleStar,
 }: {
   match: JobMatch;
   onDismiss: (id: string) => void;
   dismissing: boolean;
   viewMode?: ViewMode;
+  isStarred: boolean;
+  onToggleStar: (id: string) => void;
 }) {
   const normalizedScore = match.score != null ? (match.score <= 10 ? match.score * 10 : match.score) : null;
 
@@ -250,7 +335,7 @@ function ScoredMatchRow({
     return (
       <Card className="flex flex-col justify-between p-3.5 sm:p-4">
         <div>
-          <div className="flex items-start gap-3">
+          <div className="flex items-start gap-2.5">
             <ScorePip score={normalizedScore} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -274,6 +359,16 @@ function ScoredMatchRow({
                 {match.location && ` · 📍 ${match.location}`}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => onToggleStar(match.id)}
+              aria-label={isStarred ? "Unstar job" : "Star job"}
+              className={`press p-1 transition-colors ${
+                isStarred ? "text-warn-ink" : "text-muted/40 hover:text-muted"
+              }`}
+            >
+              <IconStar className="h-4 w-4" filled={isStarred} />
+            </button>
           </div>
 
           {match.reason && (
@@ -322,7 +417,19 @@ function ScoredMatchRow({
   return (
     <Card className="min-w-0 p-3 sm:p-4">
       <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-3.5">
-        <ScorePip score={normalizedScore} />
+        <div className="flex items-center gap-2 sm:flex-col sm:items-center">
+          <ScorePip score={normalizedScore} />
+          <button
+            type="button"
+            onClick={() => onToggleStar(match.id)}
+            aria-label={isStarred ? "Unstar job" : "Star job"}
+            className={`press p-1 transition-colors ${
+              isStarred ? "text-warn-ink" : "text-muted/40 hover:text-muted"
+            }`}
+          >
+            <IconStar className="h-4 w-4" filled={isStarred} />
+          </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
@@ -412,9 +519,55 @@ export default function JobsBoard({
   const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [sortBy, setSortBy] = useState<SortOption>("newest");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
+
+  // Selection & Star State
+  const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string | number>>(new Set());
+
   const [dismissingId, setDismissingId] = useState<string | number | null>(null);
+  const [isBulkDismissing, setIsBulkDismissing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
+
+  // Hydrate starred jobs from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("second_brain_starred_jobs");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setStarredIds(new Set(parsed.map(String)));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  function toggleStar(id: string | number) {
+    const strId = String(id);
+    setStarredIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(strId)) next.delete(strId);
+      else next.add(strId);
+      try {
+        localStorage.setItem("second_brain_starred_jobs", JSON.stringify(Array.from(next)));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function toggleSelect(id: string | number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const pendingActions = useMemo(
     () => actions.filter((a) => a.status === "pending"),
@@ -425,7 +578,26 @@ export default function JobsBoard({
     [actions]
   );
 
-  // 1-Click Quick Dismiss for pending AgentAction
+  // Bulk low score (< 60%) actions
+  const lowScoreActions = useMemo(() => {
+    return pendingActions.filter((a) => {
+      const meta = (a.metadata || {}) as Record<string, any>;
+      const score = meta.match_score ?? Math.round(Number(a.confidence) * 100);
+      return score < 60;
+    });
+  }, [pendingActions]);
+
+  // Bulk stale (> 14 days) actions
+  const staleActions = useMemo(() => {
+    const now = Date.now();
+    return pendingActions.filter((a) => {
+      if (!a.created_at) return false;
+      const created = new Date(a.created_at).getTime();
+      return !isNaN(created) && now - created > 14 * 86400000;
+    });
+  }, [pendingActions]);
+
+  // 1-Click Single Dismiss for pending AgentAction
   async function handleDismissAction(actionId: string | number) {
     setDismissingId(actionId);
     setOpError(null);
@@ -447,6 +619,35 @@ export default function JobsBoard({
       setOpError(err instanceof Error ? err.message : "Failed to dismiss job.");
     } finally {
       setDismissingId(null);
+    }
+  }
+
+  // Bulk Dismiss via PATCH /api/actions
+  async function handleBulkDismiss(idsToDismiss: (string | number)[], msg?: string) {
+    if (idsToDismiss.length === 0) return;
+    setIsBulkDismissing(true);
+    setOpError(null);
+    try {
+      const res = await fetch(withBasePath(`/api/actions`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDismiss, status: "rejected" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to dismiss selected jobs.");
+
+      const dismissedSet = new Set(idsToDismiss);
+      setActions((prev) =>
+        prev.map((a) => (dismissedSet.has(a.id) ? { ...a, status: "rejected" } : a))
+      );
+      setSelectedIds(new Set());
+      setSelectionMode(false);
+      setStatusMessage(msg || `Dismissed ${idsToDismiss.length} jobs.`);
+      setTimeout(() => setStatusMessage(null), 3500);
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Bulk dismissal failed.");
+    } finally {
+      setIsBulkDismissing(false);
     }
   }
 
@@ -498,7 +699,15 @@ export default function JobsBoard({
       });
     }
 
-    if (scoreFilter !== "all") {
+    if (scoreFilter === "starred") {
+      list = list.filter((a) => starredIds.has(String(a.id)));
+    } else if (scoreFilter === "deadline_soon") {
+      list = list.filter((a) => {
+        const meta = (a.metadata || {}) as Record<string, any>;
+        const deadline = getDeadlineStatus(meta.closing_date);
+        return deadline?.isSoon || deadline?.isExpired;
+      });
+    } else if (scoreFilter !== "all") {
       list = list.filter((a) => {
         const meta = (a.metadata || {}) as Record<string, any>;
         const score = meta.match_score ?? Math.round(Number(a.confidence) * 100);
@@ -517,11 +726,16 @@ export default function JobsBoard({
 
       if (sortBy === "score_desc") return scoreB - scoreA;
       if (sortBy === "oldest") return (a.created_at || "").localeCompare(b.created_at || "");
+      if (sortBy === "closing_soon") {
+        const dateA = metaA.closing_date ? new Date(metaA.closing_date).getTime() : Infinity;
+        const dateB = metaB.closing_date ? new Date(metaB.closing_date).getTime() : Infinity;
+        return dateA - dateB;
+      }
       return (b.created_at || "").localeCompare(a.created_at || "");
     });
 
     return list;
-  }, [pendingActions, searchQuery, scoreFilter, sortBy]);
+  }, [pendingActions, searchQuery, scoreFilter, sortBy, starredIds]);
 
   // Filter and Sort Applications Sent
   const filteredApplications = useMemo(() => {
@@ -587,7 +801,9 @@ export default function JobsBoard({
       });
     }
 
-    if (scoreFilter !== "all") {
+    if (scoreFilter === "starred") {
+      list = list.filter((m) => starredIds.has(m.id));
+    } else if (scoreFilter !== "all") {
       list = list.filter((m) => {
         const score = m.score != null ? (m.score <= 10 ? m.score * 10 : m.score) : 0;
         if (scoreFilter === "high") return score >= 80;
@@ -607,7 +823,7 @@ export default function JobsBoard({
     });
 
     return list;
-  }, [matches, searchQuery, scoreFilter, sortBy]);
+  }, [matches, searchQuery, scoreFilter, sortBy, starredIds]);
 
   const tabs = [
     { key: "pending" as const, label: "Awaiting Approval", count: pendingActions.length },
@@ -623,6 +839,14 @@ export default function JobsBoard({
     setSortBy("newest");
   }
 
+  function handleSelectAll() {
+    setSelectedIds(new Set(filteredPending.map((a) => a.id)));
+  }
+
+  function handleDeselectAll() {
+    setSelectedIds(new Set());
+  }
+
   return (
     <div className="space-y-3.5 sm:space-y-4">
       {/* Top Tabs Bar */}
@@ -631,7 +855,11 @@ export default function JobsBoard({
           {tabs.map((t) => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key);
+                setSelectionMode(false);
+                setSelectedIds(new Set());
+              }}
               aria-pressed={tab === t.key}
               className={`press flex-1 shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-center text-xs transition-colors sm:flex-initial sm:px-4 sm:py-2 ${
                 tab === t.key
@@ -681,53 +909,142 @@ export default function JobsBoard({
             >
               <option value="newest">Newest First</option>
               <option value="score_desc">Highest Fit</option>
+              <option value="closing_soon">Closing Soon</option>
               <option value="oldest">Oldest First</option>
             </select>
           </div>
         </div>
 
-        {/* Score Filter Chips (applicable for Pending and Matches tabs) */}
-        {tab !== "applications" && (
-          <div className="no-scrollbar -mx-0.5 flex max-w-full items-center gap-1 overflow-x-auto px-0.5 pt-0.5 sm:gap-1.5">
-            <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-0.5 shrink-0 hidden xs:inline">
-              Fit:
-            </span>
-            {(
-              [
-                { key: "all", label: "All Scores" },
-                { key: "high", label: "≥80% Top Fit" },
-                { key: "good", label: "70–79% Good" },
-                { key: "moderate", label: "<70% Moderate" },
-              ] as const
-            ).map((chip) => {
-              const active = scoreFilter === chip.key;
-              return (
-                <button
-                  key={chip.key}
-                  onClick={() => setScoreFilter(chip.key)}
-                  aria-pressed={active}
-                  className={`press shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-2xs transition-colors sm:px-2.5 sm:py-1 ${
-                    active
-                      ? "bg-accent/12 font-medium text-accent-ink ring-1 ring-inset ring-accent/25"
-                      : "text-secondary ring-1 ring-inset ring-hairline/10 hover:text-primary"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
+        {/* Filter Chips & Bulk Action Pills */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+          {/* Score & Category Chips */}
+          {tab !== "applications" && (
+            <div className="no-scrollbar -mx-0.5 flex max-w-full items-center gap-1 overflow-x-auto px-0.5 sm:gap-1.5">
+              <span className="text-2xs font-semibold uppercase tracking-wider text-muted mr-0.5 shrink-0 hidden xs:inline">
+                Fit:
+              </span>
+              {(
+                [
+                  { key: "all", label: "All Scores" },
+                  { key: "high", label: "≥80% Top Fit" },
+                  { key: "good", label: "70–79% Good" },
+                  { key: "moderate", label: "<70% Moderate" },
+                  { key: "starred", label: `⭐ Starred (${starredIds.size})` },
+                  { key: "deadline_soon", label: "⏳ Closing Soon" },
+                ] as const
+              ).map((chip) => {
+                const active = scoreFilter === chip.key;
+                return (
+                  <button
+                    key={chip.key}
+                    onClick={() => setScoreFilter(chip.key)}
+                    aria-pressed={active}
+                    className={`press shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-2xs transition-colors sm:px-2.5 sm:py-1 ${
+                      active
+                        ? "bg-accent/12 font-medium text-accent-ink ring-1 ring-inset ring-accent/25"
+                        : "text-secondary ring-1 ring-inset ring-hairline/10 hover:text-primary"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
 
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                className="press ml-auto shrink-0 text-2xs font-medium text-accent-ink hover:underline"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        )}
+              {hasActiveFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="press ml-auto shrink-0 text-2xs font-medium text-accent-ink hover:underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Quick Bulk Triage Tools for Pending Tab */}
+          {tab === "pending" && (
+            <div className="flex flex-wrap items-center gap-1.5 ml-auto">
+              {lowScoreActions.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isBulkDismissing}
+                  onClick={() =>
+                    handleBulkDismiss(
+                      lowScoreActions.map((a) => a.id),
+                      `Dismissed ${lowScoreActions.length} low-fit (<60%) jobs.`
+                    )
+                  }
+                  className="press inline-flex items-center gap-1 rounded-md bg-warn/10 px-2 py-0.5 text-2xs font-medium text-warn-ink ring-1 ring-inset ring-warn/25 hover:bg-warn/15"
+                  title="Dismiss all pending jobs scoring below 60%"
+                >
+                  ⚡ Dismiss &lt;60% ({lowScoreActions.length})
+                </button>
+              )}
+
+              {staleActions.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isBulkDismissing}
+                  onClick={() =>
+                    handleBulkDismiss(
+                      staleActions.map((a) => a.id),
+                      `Cleared ${staleActions.length} stale jobs older than 14 days.`
+                    )
+                  }
+                  className="press inline-flex items-center gap-1 rounded-md bg-danger/10 px-2 py-0.5 text-2xs font-medium text-danger-ink ring-1 ring-inset ring-danger/25 hover:bg-danger/15"
+                  title="Dismiss unreviewed jobs discovered over 14 days ago"
+                >
+                  🧹 Clear Stale &gt;14d ({staleActions.length})
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Multi-Select Floating Toolbar */}
+      {selectionMode && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-accent-solid p-2.5 text-white shadow-md animate-slide-down">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span>Selected: {selectedIds.size} of {filteredPending.length}</span>
+            <button
+              type="button"
+              onClick={selectedIds.size === filteredPending.length ? handleDeselectAll : handleSelectAll}
+              className="text-2xs underline opacity-90 hover:opacity-100"
+            >
+              {selectedIds.size === filteredPending.length ? "Deselect all" : "Select all"}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="reject"
+              size="sm"
+              disabled={selectedIds.size === 0 || isBulkDismissing}
+              onClick={() =>
+                handleBulkDismiss(
+                  Array.from(selectedIds),
+                  `Dismissed ${selectedIds.size} selected jobs.`
+                )
+              }
+              className="h-7 px-3 text-2xs"
+            >
+              {isBulkDismissing ? "Dismissing..." : `Dismiss Selected (${selectedIds.size})`}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectionMode(false);
+                setSelectedIds(new Set());
+              }}
+              className="rounded-md bg-white/20 px-2.5 py-1 text-2xs font-medium hover:bg-white/30"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {statusMessage && (
         <div className="rounded-xl bg-ok/10 px-3 py-2 text-xs font-medium text-ok-ink ring-1 ring-ok/20">
@@ -765,36 +1082,54 @@ export default function JobsBoard({
                 Showing <strong className="font-semibold text-primary">{filteredPending.length}</strong> of {pendingActions.length} pending {pendingActions.length === 1 ? "job" : "jobs"}
               </span>
 
-              {/* View Switcher Toggle */}
-              <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+              <div className="flex items-center gap-1.5">
+                {/* Multi-Select Toggle */}
                 <button
                   type="button"
-                  onClick={() => setViewMode("grid")}
-                  aria-label="Grid view"
-                  title="Grid view"
-                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
-                    viewMode === "grid"
-                      ? "bg-raised text-primary shadow-xs"
-                      : "text-muted hover:text-primary"
+                  onClick={() => {
+                    setSelectionMode((v) => !v);
+                    setSelectedIds(new Set());
+                  }}
+                  className={`press rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    selectionMode
+                      ? "bg-accent/15 text-accent-ink ring-1 ring-accent/30"
+                      : "text-secondary hover:text-primary ring-1 ring-hairline/10"
                   }`}
                 >
-                  <IconGrid className="h-3 w-3" />
-                  <span className="hidden sm:inline">Grid</span>
+                  {selectionMode ? "Exit Select" : "Select"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode("list")}
-                  aria-label="List view"
-                  title="List view"
-                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
-                    viewMode === "list"
-                      ? "bg-raised text-primary shadow-xs"
-                      : "text-muted hover:text-primary"
-                  }`}
-                >
-                  <IconList className="h-3 w-3" />
-                  <span className="hidden sm:inline">List</span>
-                </button>
+
+                {/* View Switcher Toggle */}
+                <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("grid")}
+                    aria-label="Grid view"
+                    title="Grid view"
+                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                      viewMode === "grid"
+                        ? "bg-raised text-primary shadow-xs"
+                        : "text-muted hover:text-primary"
+                    }`}
+                  >
+                    <IconGrid className="h-3 w-3" />
+                    <span className="hidden sm:inline">Grid</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    aria-label="List view"
+                    title="List view"
+                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                      viewMode === "list"
+                        ? "bg-raised text-primary shadow-xs"
+                        : "text-muted hover:text-primary"
+                    }`}
+                  >
+                    <IconList className="h-3 w-3" />
+                    <span className="hidden sm:inline">List</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -813,6 +1148,11 @@ export default function JobsBoard({
                   onDismiss={handleDismissAction}
                   dismissing={dismissingId === a.id}
                   viewMode={viewMode}
+                  isStarred={starredIds.has(String(a.id))}
+                  onToggleStar={toggleStar}
+                  selectionMode={selectionMode}
+                  isSelected={selectedIds.has(a.id)}
+                  onToggleSelect={toggleSelect}
                 />
               ))}
             </div>
@@ -855,7 +1195,7 @@ export default function JobsBoard({
                     viewMode === "grid"
                       ? "bg-raised text-primary shadow-xs"
                       : "text-muted hover:text-primary"
-                  }`}
+                    }`}
                 >
                   <IconGrid className="h-3 w-3" />
                   <span className="hidden sm:inline">Grid</span>
@@ -1030,6 +1370,8 @@ export default function JobsBoard({
                     onDismiss={handleDismissMatch}
                     dismissing={dismissingId === m.id}
                     viewMode={viewMode}
+                    isStarred={starredIds.has(m.id)}
+                    onToggleStar={toggleStar}
                   />
                 ))}
               </div>
@@ -1050,6 +1392,11 @@ export default function JobsBoard({
                 onDismiss={handleDismissAction}
                 dismissing={dismissingId === a.id}
                 viewMode={viewMode}
+                isStarred={starredIds.has(String(a.id))}
+                onToggleStar={toggleStar}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(a.id)}
+                onToggleSelect={toggleSelect}
               />
             ))}
           </div>
@@ -1058,5 +1405,6 @@ export default function JobsBoard({
     </div>
   );
 }
+
 
 

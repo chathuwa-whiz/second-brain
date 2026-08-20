@@ -87,3 +87,62 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { ids, status } = await req.json();
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { error: "ids array is required and must not be empty" },
+        { status: 400 }
+      );
+    }
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return NextResponse.json(
+        { error: "status must be 'approved', 'rejected', or 'pending'" },
+        { status: 400 }
+      );
+    }
+
+    const userId = (session.user as any)?.id;
+    const userRole = (session.user as any)?.role;
+    const db = await getDb();
+
+    const filter: any = {
+      $or: [
+        { id: { $in: ids } },
+        { id: { $in: ids.map((i) => (typeof i === "number" ? String(i) : i)) } },
+      ],
+    };
+    if (userRole !== "admin" && userId) {
+      filter.user_id = userId;
+    }
+
+    const now = new Date().toISOString();
+    const res = await db.collection("agent_actions").updateMany(filter, {
+      $set: {
+        status,
+        reviewed_at: now,
+        reviewed_by: session.user?.name ?? "dashboard (bulk)",
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      modifiedCount: res.modifiedCount,
+      matchedCount: res.matchedCount,
+    });
+  } catch (err) {
+    console.error("PATCH /api/actions error:", err);
+    return NextResponse.json(
+      { error: "database error", details: String(err) },
+      { status: 500 }
+    );
+  }
+}
+
