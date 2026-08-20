@@ -32,6 +32,16 @@ const APP_STATUS_TONE: Record<string, Tone> = {
   withdrawn: "neutral",
 };
 
+const APP_STATUS_SELECT_STYLE: Record<string, string> = {
+  applied: "bg-accent/10 text-accent-ink border-accent/25 focus:ring-accent/30",
+  interview: "bg-violet/10 text-violet-ink border-violet/25 focus:ring-violet/30",
+  offer: "bg-ok/10 text-ok-ink border-ok/25 focus:ring-ok/30",
+  rejected: "bg-danger/10 text-danger-ink border-danger/25 focus:ring-danger/30",
+  no_response: "bg-primary/[0.04] text-muted border-hairline/20 focus:ring-primary/20",
+  withdrawn: "bg-primary/[0.04] text-muted border-hairline/20 focus:ring-primary/20",
+};
+
+
 const MATCH_STATUS_TONE: Record<string, Tone> = {
   new: "warn",
   applied: "ok",
@@ -563,25 +573,22 @@ function ApplicationCard({
     <Card className="flex flex-col justify-between p-3.5 sm:p-4">
       <div>
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5">
-            <Badge tone={APP_STATUS_TONE[status] ?? "neutral"}>
-              {status.replace(/_/g, " ")}
-            </Badge>
-            <select
-              value={status}
-              disabled={isUpdatingStatus}
-              onChange={handleStatusSelect}
-              className="field select-field h-6 rounded-md px-1.5 py-0 text-2xs font-medium text-secondary"
-              title="Change application status"
-            >
-              <option value="applied">Applied</option>
-              <option value="interview">Interviewing</option>
-              <option value="offer">Offer Received 🎉</option>
-              <option value="rejected">Rejected</option>
-              <option value="no_response">No Response</option>
-              <option value="withdrawn">Withdrawn</option>
-            </select>
-          </div>
+          <select
+            value={status}
+            disabled={isUpdatingStatus}
+            onChange={handleStatusSelect}
+            className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-2xs font-semibold capitalize outline-none transition-colors ${
+              APP_STATUS_SELECT_STYLE[status] || "bg-primary/[0.04] text-secondary border-hairline/20"
+            }`}
+            title="Change application status"
+          >
+            <option value="applied">Applied</option>
+            <option value="interview">Interviewing</option>
+            <option value="offer">Offer Received 🎉</option>
+            <option value="rejected">Rejected</option>
+            <option value="no_response">No Response</option>
+            <option value="withdrawn">Withdrawn</option>
+          </select>
           {app.date_applied && (
             <span className="shrink-0 text-2xs text-muted">
               {relativeTime(app.date_applied)}
@@ -1487,7 +1494,7 @@ export default function JobsBoard({
             <div
               className={
                 viewMode === "grid"
-                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
                   : "space-y-2.5 sm:space-y-3"
               }
             >
@@ -1587,7 +1594,7 @@ export default function JobsBoard({
             <div
               className={
                 viewMode === "grid"
-                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
                   : "space-y-2.5 sm:space-y-3"
               }
             >
@@ -1693,7 +1700,7 @@ export default function JobsBoard({
               <div
                 className={
                   viewMode === "grid"
-                    ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                    ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
                     : "space-y-2.5 sm:space-y-3"
                 }
               >
@@ -1715,7 +1722,7 @@ export default function JobsBoard({
           <div
             className={
               viewMode === "grid"
-                ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
+                ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
                 : "space-y-2.5 sm:space-y-3"
             }
           >
