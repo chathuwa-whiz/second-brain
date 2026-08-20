@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ActionCard from "@/components/ActionCard";
-import { EmptyState, ErrorNote } from "@/components/ui";
+import { Button, EmptyState, ErrorNote } from "@/components/ui";
+import { IconSearch, IconX } from "@/components/icons";
 import type { AgentAction } from "@/lib/db";
 import { withBasePath } from "@/lib/basePath";
 
@@ -14,6 +15,7 @@ export default function ApprovalQueue({
   threshold: number;
 }) {
   const [actions, setActions] = useState(initial);
+  const [searchQuery, setSearchQuery] = useState("");
   const [busyId, setBusyId] = useState<string | number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,8 +79,71 @@ export default function ApprovalQueue({
   const pending = actions.filter((a) => a.status === "pending");
   const settled = actions.filter((a) => a.status !== "pending");
 
+  const filteredPending = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return pending;
+    return pending.filter((a) => {
+      const meta = (a.metadata || {}) as Record<string, any>;
+      const actionName = (a.action || "").toLowerCase();
+      const reasoning = (a.reasoning || "").toLowerCase();
+      const title = (meta.job_title || "").toLowerCase();
+      const company = (meta.company || "").toLowerCase();
+      const recipient = (meta.recipient_email || "").toLowerCase();
+      return (
+        actionName.includes(q) ||
+        reasoning.includes(q) ||
+        title.includes(q) ||
+        company.includes(q) ||
+        recipient.includes(q)
+      );
+    });
+  }, [pending, searchQuery]);
+
+  const filteredSettled = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return settled;
+    return settled.filter((a) => {
+      const meta = (a.metadata || {}) as Record<string, any>;
+      const actionName = (a.action || "").toLowerCase();
+      const reasoning = (a.reasoning || "").toLowerCase();
+      const title = (meta.job_title || "").toLowerCase();
+      const company = (meta.company || "").toLowerCase();
+      return (
+        actionName.includes(q) ||
+        reasoning.includes(q) ||
+        title.includes(q) ||
+        company.includes(q)
+      );
+    });
+  }, [settled, searchQuery]);
+
   return (
     <div className="space-y-6">
+      {/* Search Input if there are actions */}
+      {(pending.length > 0 || settled.length > 0) && (
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted">
+            <IconSearch className="h-4 w-4" />
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search approvals by role, company, action, or reasoning..."
+            className="field w-full pl-9 pr-8 text-xs sm:text-sm"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="press absolute inset-y-0 right-0 flex items-center pr-3 text-muted hover:text-primary"
+            >
+              <IconX className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+
       {error && <ErrorNote>{error}</ErrorNote>}
 
       {pending.length === 0 ? (
@@ -86,9 +151,19 @@ export default function ApprovalQueue({
           title="Nothing needs you right now"
           body="Actions land here when the planner isn't confident enough to run them itself, or when the action is destructive enough that it always asks first."
         />
+      ) : filteredPending.length === 0 ? (
+        <EmptyState
+          title="No pending actions match your search"
+          body="Try searching with different keywords."
+          action={
+            <Button size="sm" onClick={() => setSearchQuery("")}>
+              Clear search
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-3">
-          {pending.map((a, i) => (
+          {filteredPending.map((a, i) => (
             <ActionCard
               key={a.id}
               action={a}
@@ -101,13 +176,13 @@ export default function ApprovalQueue({
         </div>
       )}
 
-      {settled.length > 0 && (
+      {filteredSettled.length > 0 && (
         <section>
           <p className="mb-3 text-2xs font-semibold uppercase tracking-wider text-muted">
             Just decided
           </p>
           <div className="space-y-3">
-            {settled.map((a, i) => (
+            {filteredSettled.map((a, i) => (
               <ActionCard
                 key={a.id}
                 action={a}
@@ -121,3 +196,4 @@ export default function ApprovalQueue({
     </div>
   );
 }
+

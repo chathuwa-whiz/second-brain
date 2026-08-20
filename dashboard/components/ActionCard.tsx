@@ -146,12 +146,24 @@ export default function ActionCard({
         {action.status === "pending" && (
           <div className="mt-4 flex flex-col gap-2.5 border-t pt-3.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2 sm:pt-4">
             {action.action === "send_job_application_email" ? (
-              <Link
-                href={`/jobs/approvals/${action.id}`}
-                className="press inline-flex min-h-[38px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-4 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
-              >
-                Review & Edit Application
-              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/jobs/approvals/${action.id}`}
+                  className="press inline-flex min-h-[34px] items-center justify-center gap-2 rounded-xl bg-accent-solid px-3.5 py-1.5 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
+                >
+                  Review & Edit Application
+                </Link>
+                {onReview && (
+                  <Button
+                    variant="reject"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => onReview(action.id, "rejected")}
+                  >
+                    Reject
+                  </Button>
+                )}
+              </div>
             ) : onReview ? (
               <div className="flex items-center gap-2">
                 <Button
