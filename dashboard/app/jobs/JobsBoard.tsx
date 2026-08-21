@@ -48,6 +48,25 @@ const MATCH_STATUS_TONE: Record<string, Tone> = {
   dismissed: "neutral",
 };
 
+export type UnifiedJobMatch = {
+  id: string;
+  actionId?: string | number;
+  matchId?: string;
+  title: string;
+  company: string;
+  url: string;
+  location: string;
+  remote: boolean | null;
+  source: string;
+  score: number | null;
+  reason: string;
+  status: "new" | "applied" | "dismissed";
+  actionStatus?: "pending" | "approved" | "rejected" | "auto_executed" | "failed";
+  found_at: string;
+  suggested_resume?: string;
+  closing_date?: string;
+};
+
 type ScoreFilter = "all" | "high" | "good" | "moderate" | "starred" | "deadline_soon";
 type SortOption = "newest" | "score_desc" | "oldest" | "closing_soon";
 type ViewMode = "grid" | "list";
@@ -332,25 +351,26 @@ function ScoredMatchRow({
   isStarred,
   onToggleStar,
 }: {
-  match: JobMatch;
-  onDismiss: (id: string) => void;
+  match: UnifiedJobMatch;
+  onDismiss: (match: UnifiedJobMatch) => void;
   dismissing: boolean;
   viewMode?: ViewMode;
   isStarred: boolean;
-  onToggleStar: (id: string) => void;
+  onToggleStar: (id: string | number) => void;
 }) {
   const normalizedScore = match.score != null ? (match.score <= 10 ? match.score * 10 : match.score) : null;
+  const deadline = getDeadlineStatus(match.closing_date);
 
   if (viewMode === "grid") {
     return (
-      <Card className="flex flex-col justify-between p-3.5 sm:p-4">
+      <Card className={`flex flex-col justify-between p-3.5 sm:p-4 ${deadline?.isExpired ? "opacity-75" : ""}`}>
         <div>
           <div className="flex items-start gap-2.5">
             <ScorePip score={normalizedScore} />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Badge tone={MATCH_STATUS_TONE[match.status] ?? "neutral"}>
-                  {match.status}
+                  {match.status === "applied" ? "Applied" : match.status === "dismissed" ? "Dismissed" : "New Match"}
                 </Badge>
                 {match.source && (
                   <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
@@ -373,6 +393,7 @@ function ScoredMatchRow({
               type="button"
               onClick={() => onToggleStar(match.id)}
               aria-label={isStarred ? "Unstar job" : "Star job"}
+              title={isStarred ? "Starred job" : "Star for later"}
               className={`press p-1 transition-colors ${
                 isStarred ? "text-warn-ink" : "text-muted/40 hover:text-muted"
               }`}
@@ -381,38 +402,60 @@ function ScoredMatchRow({
             </button>
           </div>
 
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {deadline && (
+              <Badge tone={deadline.tone}>{deadline.label}</Badge>
+            )}
+            {match.suggested_resume && (
+              <div className="inline-flex min-w-0 max-w-[170px] items-center gap-1 rounded-md bg-accent/10 px-2 py-0.5 text-2xs font-medium text-accent-ink">
+                <span className="shrink-0">📄</span>
+                <span className="truncate">{match.suggested_resume}</span>
+              </div>
+            )}
+            {match.found_at && (
+              <span className="text-2xs text-muted">
+                Discovered {relativeTime(match.found_at)}
+              </span>
+            )}
+          </div>
+
           {match.reason && (
             <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-secondary" title={match.reason}>
               {match.reason}
             </p>
           )}
-
-          {match.found_at && (
-            <p className="mt-2 text-2xs text-muted">
-              Discovered {relativeTime(match.found_at)}
-            </p>
-          )}
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2 border-t pt-2.5">
-          {match.url && (
-            <a
-              href={match.url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="press inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-primary/[0.04] px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
-            >
-              Open posting
-              <IconExternal className="h-3 w-3" />
-            </a>
-          )}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-2.5">
+          <div className="flex items-center gap-2">
+            {match.actionId && (match.status === "new" || match.actionStatus === "pending") && (
+              <Link
+                href={`/jobs/approvals/${match.actionId}`}
+                className="press inline-flex min-h-[30px] items-center justify-center gap-1.5 rounded-lg bg-accent-solid px-3 py-1 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
+              >
+                Review & Apply
+              </Link>
+            )}
 
-          {match.status === "new" && (
+            {match.url && (
+              <a
+                href={match.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="press inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-primary/[0.04] px-2.5 py-1 text-xs font-medium text-accent-ink hover:bg-primary/[0.08]"
+              >
+                Open posting
+                <IconExternal className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+
+          {(match.status === "new" || match.actionStatus === "pending") && (
             <Button
               variant="quiet"
               size="sm"
               disabled={dismissing}
-              onClick={() => onDismiss(match.id)}
+              onClick={() => onDismiss(match)}
               className="min-h-[30px] px-2.5 text-xs text-danger-ink hover:bg-danger/10"
             >
               {dismissing ? "..." : "✕ Dismiss"}
@@ -425,7 +468,7 @@ function ScoredMatchRow({
 
   // List View
   return (
-    <Card className="min-w-0 p-3 sm:p-4">
+    <Card className={`min-w-0 p-3 sm:p-4 ${deadline?.isExpired ? "opacity-75" : ""}`}>
       <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:gap-3.5">
         <div className="flex items-center gap-2 sm:flex-col sm:items-center">
           <ScorePip score={normalizedScore} />
@@ -446,7 +489,7 @@ function ScoredMatchRow({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={MATCH_STATUS_TONE[match.status] ?? "neutral"}>
-                  {match.status}
+                  {match.status === "applied" ? "Applied" : match.status === "dismissed" ? "Dismissed" : "New Match"}
                 </Badge>
                 {match.source && (
                   <span className="text-2xs font-semibold uppercase tracking-wider text-muted">
@@ -455,6 +498,9 @@ function ScoredMatchRow({
                 )}
                 {match.remote && (
                   <Badge tone="violet">Remote</Badge>
+                )}
+                {deadline && (
+                  <Badge tone={deadline.tone}>{deadline.label}</Badge>
                 )}
               </div>
               <p className="mt-1 break-words text-sm font-semibold text-primary sm:text-base">
@@ -466,6 +512,13 @@ function ScoredMatchRow({
                 {match.found_at && ` · Discovered ${relativeTime(match.found_at)}`}
               </p>
             </div>
+
+            {match.suggested_resume && (
+              <div className="hidden min-w-0 max-w-[220px] shrink-0 items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1 text-2xs font-medium text-accent-ink sm:flex">
+                <span className="shrink-0">📄</span>
+                <span className="truncate">{match.suggested_resume}</span>
+              </div>
+            )}
           </div>
 
           {match.reason && (
@@ -475,6 +528,15 @@ function ScoredMatchRow({
           )}
 
           <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t pt-2">
+            {match.actionId && (match.status === "new" || match.actionStatus === "pending") && (
+              <Link
+                href={`/jobs/approvals/${match.actionId}`}
+                className="press inline-flex min-h-[30px] items-center justify-center gap-1.5 rounded-lg bg-accent-solid px-3.5 py-1 text-xs font-medium text-white shadow-sm shadow-accent/25 hover:brightness-110"
+              >
+                Review & Apply
+              </Link>
+            )}
+
             {match.url && (
               <a
                 href={match.url}
@@ -487,12 +549,12 @@ function ScoredMatchRow({
               </a>
             )}
 
-            {match.status === "new" && (
+            {(match.status === "new" || match.actionStatus === "pending") && (
               <Button
                 variant="quiet"
                 size="sm"
                 disabled={dismissing}
-                onClick={() => onDismiss(match.id)}
+                onClick={() => onDismiss(match)}
                 className="min-h-[30px] text-xs text-danger-ink hover:bg-danger/10"
               >
                 {dismissing ? "Dismissing..." : "✕ Dismiss"}
@@ -912,21 +974,36 @@ export default function JobsBoard({
     }
   }
 
-  async function handleDismissMatch(matchId: string) {
-    setDismissingId(matchId);
+  async function handleDismissUnifiedMatch(match: UnifiedJobMatch) {
+    setDismissingId(match.id);
     setOpError(null);
     try {
-      const res = await fetch(withBasePath(`/api/jobs/${matchId}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "dismissed" }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to dismiss match.");
+      if (match.matchId) {
+        const res = await fetch(withBasePath(`/api/jobs/${match.matchId}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "dismissed" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to dismiss match.");
 
-      setMatches((prev) =>
-        prev.map((m) => (m.id === matchId ? { ...m, status: "dismissed" } : m))
-      );
+        setMatches((prev) =>
+          prev.map((m) => (String(m.id) === String(match.matchId) ? { ...m, status: "dismissed" } : m))
+        );
+      }
+      if (match.actionId) {
+        const res = await fetch(withBasePath(`/api/actions/${match.actionId}`), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "rejected" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed to dismiss action.");
+
+        setActions((prev) =>
+          prev.map((a) => (a.id === match.actionId ? { ...a, status: "rejected" } : a))
+        );
+      }
       setStatusMessage("Job match marked as dismissed.");
       setTimeout(() => setStatusMessage(null), 3000);
     } catch (err) {
@@ -1128,8 +1205,93 @@ export default function JobsBoard({
     return list;
   }, [approvedActions, searchQuery, appStageFilter]);
 
+  const allMatches = useMemo<UnifiedJobMatch[]>(() => {
+    const list: UnifiedJobMatch[] = [];
+    const seenUrls = new Set<string>();
+    const seenKeys = new Set<string>();
+
+    for (const m of matches) {
+      const normUrl = m.url ? m.url.trim().toLowerCase() : "";
+      const normKey = `${(m.title || "").trim().toLowerCase()}|${(m.company || "").trim().toLowerCase()}`;
+      if (normUrl) seenUrls.add(normUrl);
+      if (normKey !== "|") seenKeys.add(normKey);
+
+      const matchingAction = actions.find((a) => {
+        const meta = (a.metadata || {}) as Record<string, any>;
+        if (meta.job_match_id && String(meta.job_match_id) === String(m.id)) return true;
+        const aUrl = (meta.job_url || meta.url || "").trim().toLowerCase();
+        if (aUrl && normUrl && aUrl === normUrl) return true;
+        const aKey = `${(meta.job_title || a.action || "").trim().toLowerCase()}|${(meta.company || "").trim().toLowerCase()}`;
+        if (aKey !== "|" && aKey === normKey) return true;
+        return false;
+      });
+
+      const actionMeta = (matchingAction?.metadata || {}) as Record<string, any>;
+
+      list.push({
+        id: String(m.id),
+        matchId: String(m.id),
+        actionId: matchingAction?.id,
+        title: m.title || actionMeta.job_title || "Job Posting",
+        company: m.company || actionMeta.company || "",
+        url: m.url || actionMeta.job_url || actionMeta.url || "",
+        location: m.location || actionMeta.location || "",
+        remote: m.remote,
+        source: m.source || actionMeta.source || "n8n",
+        score: m.score != null ? (m.score <= 10 ? m.score * 10 : m.score) : (actionMeta.match_score ?? null),
+        reason: m.reason || matchingAction?.reasoning || "",
+        status: m.status || (matchingAction?.status === "approved" || matchingAction?.status === "auto_executed" ? "applied" : matchingAction?.status === "rejected" ? "dismissed" : "new"),
+        actionStatus: matchingAction?.status,
+        found_at: m.found_at || matchingAction?.created_at || "",
+        suggested_resume: actionMeta.suggested_resume,
+        closing_date: actionMeta.closing_date,
+      });
+    }
+
+    for (const a of actions) {
+      const meta = (a.metadata || {}) as Record<string, any>;
+      const aUrl = (meta.job_url || meta.url || "").trim().toLowerCase();
+      const aKey = `${(meta.job_title || a.action || "").trim().toLowerCase()}|${(meta.company || "").trim().toLowerCase()}`;
+
+      if (aUrl && seenUrls.has(aUrl)) continue;
+      if (aKey !== "|" && seenKeys.has(aKey)) continue;
+
+      if (aUrl) seenUrls.add(aUrl);
+      if (aKey !== "|") seenKeys.add(aKey);
+
+      const rawScore = meta.match_score ?? (meta.score != null ? meta.score : (a.confidence ? Math.round(Number(a.confidence) * 100) : null));
+      const score = rawScore != null ? (rawScore <= 10 ? rawScore * 10 : rawScore) : null;
+
+      const matchStatus: "new" | "applied" | "dismissed" = (a.status === "approved" || a.status === "auto_executed")
+        ? "applied"
+        : a.status === "rejected"
+        ? "dismissed"
+        : "new";
+
+      list.push({
+        id: String(a.id),
+        actionId: a.id,
+        title: meta.job_title || a.action.replace(/^Apply to\s+/i, "").replace(/_/g, " "),
+        company: meta.company || "",
+        url: meta.job_url || meta.url || "",
+        location: meta.location || "",
+        remote: typeof meta.remote === "boolean" ? meta.remote : null,
+        source: meta.source || "TopJobs",
+        score,
+        reason: a.reasoning || "",
+        status: matchStatus,
+        actionStatus: a.status,
+        found_at: a.created_at || "",
+        suggested_resume: meta.suggested_resume,
+        closing_date: meta.closing_date,
+      });
+    }
+
+    return list;
+  }, [matches, actions]);
+
   const filteredMatches = useMemo(() => {
-    let list = [...matches];
+    let list = [...allMatches];
     const q = searchQuery.trim().toLowerCase();
 
     if (q) {
@@ -1139,18 +1301,25 @@ export default function JobsBoard({
         const location = (m.location || "").toLowerCase();
         const reason = (m.reason || "").toLowerCase();
         const source = (m.source || "").toLowerCase();
+        const resume = (m.suggested_resume || "").toLowerCase();
         return (
           title.includes(q) ||
           company.includes(q) ||
           location.includes(q) ||
           reason.includes(q) ||
-          source.includes(q)
+          source.includes(q) ||
+          resume.includes(q)
         );
       });
     }
 
     if (scoreFilter === "starred") {
       list = list.filter((m) => starredIds.has(m.id));
+    } else if (scoreFilter === "deadline_soon") {
+      list = list.filter((m) => {
+        const deadline = getDeadlineStatus(m.closing_date);
+        return deadline?.isSoon || deadline?.isExpired;
+      });
     } else if (scoreFilter !== "all") {
       list = list.filter((m) => {
         const score = m.score != null ? (m.score <= 10 ? m.score * 10 : m.score) : 0;
@@ -1167,16 +1336,21 @@ export default function JobsBoard({
 
       if (sortBy === "score_desc") return scoreB - scoreA;
       if (sortBy === "oldest") return (a.found_at || "").localeCompare(b.found_at || "");
+      if (sortBy === "closing_soon") {
+        const dateA = a.closing_date ? new Date(a.closing_date).getTime() : Infinity;
+        const dateB = b.closing_date ? new Date(b.closing_date).getTime() : Infinity;
+        return dateA - dateB;
+      }
       return (b.found_at || "").localeCompare(a.found_at || "");
     });
 
     return list;
-  }, [matches, searchQuery, scoreFilter, sortBy, starredIds]);
+  }, [allMatches, searchQuery, scoreFilter, sortBy, starredIds]);
 
   const tabs = [
     { key: "pending" as const, label: "Awaiting Approval", count: pendingActions.length },
     { key: "applications" as const, label: "Applications Sent", count: apps.length + approvedActions.length },
-    { key: "matches" as const, label: "All Scored Matches", count: matches.length > 0 ? matches.length : actions.length },
+    { key: "matches" as const, label: "All Scored Matches", count: allMatches.length },
   ];
 
   const hasActiveFilters =
@@ -1675,104 +1849,79 @@ export default function JobsBoard({
       )}
 
       {tab === "matches" && (
-        matches.length === 0 && actions.length === 0 ? (
+        allMatches.length === 0 ? (
           <EmptyState
             title="No matches recorded yet"
             body="Job matches discovered by n8n and scored by the AI Gateway will appear here."
           />
-        ) : matches.length > 0 ? (
-          filteredMatches.length === 0 ? (
-            <EmptyState
-              title="No matches match your filters"
-              body="Try adjusting your search query or fit score filter."
-              action={
-                <Button size="sm" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              }
-            />
-          ) : (
-            <div className="space-y-2.5 sm:space-y-3">
-              <div className="flex items-center justify-between px-1 text-2xs text-muted">
-                <span>
-                  Showing <strong className="font-semibold text-primary">{filteredMatches.length}</strong> of {matches.length} matches
-                </span>
+        ) : filteredMatches.length === 0 ? (
+          <EmptyState
+            title="No matches match your filters"
+            body="Try adjusting your search query or fit score filter."
+            action={
+              <Button size="sm" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2.5 sm:space-y-3">
+            <div className="flex items-center justify-between px-1 text-2xs text-muted">
+              <span>
+                Showing <strong className="font-semibold text-primary">{filteredMatches.length}</strong> of {allMatches.length} matches
+              </span>
 
-                <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("grid")}
-                    aria-label="Grid view"
-                    title="Grid view"
-                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
-                      viewMode === "grid"
-                        ? "bg-raised text-primary shadow-xs"
-                        : "text-muted hover:text-primary"
-                    }`}
-                  >
-                    <IconGrid className="h-3 w-3" />
-                    <span className="hidden sm:inline">Grid</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("list")}
-                    aria-label="List view"
-                    title="List view"
-                    className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
-                      viewMode === "list"
-                        ? "bg-raised text-primary shadow-xs"
-                        : "text-muted hover:text-primary"
-                    }`}
-                  >
-                    <IconList className="h-3 w-3" />
-                    <span className="hidden sm:inline">List</span>
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className={
-                  viewMode === "grid"
-                    ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
-                    : "space-y-2.5 sm:space-y-3"
-                }
-              >
-                {filteredMatches.map((m) => (
-                  <ScoredMatchRow
-                    key={m.id}
-                    match={m}
-                    onDismiss={handleDismissMatch}
-                    dismissing={dismissingId === m.id}
-                    viewMode={viewMode}
-                    isStarred={starredIds.has(m.id)}
-                    onToggleStar={toggleStar}
-                  />
-                ))}
+              <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("grid")}
+                  aria-label="Grid view"
+                  title="Grid view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "grid"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconGrid className="h-3 w-3" />
+                  <span className="hidden sm:inline">Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  aria-label="List view"
+                  title="List view"
+                  className={`press flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors ${
+                    viewMode === "list"
+                      ? "bg-raised text-primary shadow-xs"
+                      : "text-muted hover:text-primary"
+                  }`}
+                >
+                  <IconList className="h-3 w-3" />
+                  <span className="hidden sm:inline">List</span>
+                </button>
               </div>
             </div>
-          )
-        ) : (
-          <div
-            className={
-              viewMode === "grid"
-                ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
-                : "space-y-2.5 sm:space-y-3"
-            }
-          >
-            {filteredPending.map((a) => (
-              <PendingApprovalRow
-                key={a.id}
-                action={a}
-                onDismiss={handleDismissAction}
-                dismissing={dismissingId === a.id}
-                viewMode={viewMode}
-                isStarred={starredIds.has(String(a.id))}
-                onToggleStar={toggleStar}
-                selectionMode={selectionMode}
-                isSelected={selectedIds.has(a.id)}
-                onToggleSelect={toggleSelect}
-              />
-            ))}
+
+            <div
+              className={
+                viewMode === "grid"
+                  ? "grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 items-start"
+                  : "space-y-2.5 sm:space-y-3"
+              }
+            >
+              {filteredMatches.map((m) => (
+                <ScoredMatchRow
+                  key={m.id}
+                  match={m}
+                  onDismiss={handleDismissUnifiedMatch}
+                  dismissing={dismissingId === m.id}
+                  viewMode={viewMode}
+                  isStarred={starredIds.has(m.id)}
+                  onToggleStar={toggleStar}
+                />
+              ))}
+            </div>
           </div>
         )
       )}
