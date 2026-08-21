@@ -22,6 +22,7 @@ import { relativeTime } from "@/lib/format";
 import type { JobApplication, JobApplicationStatus, JobMatch } from "@/lib/mongo";
 import type { AgentAction } from "@/lib/db";
 import { withBasePath } from "@/lib/basePath";
+import { normalizeJobUrl, normalizeString } from "@/lib/jobDedup";
 
 const APP_STATUS_TONE: Record<string, Tone> = {
   applied: "accent",
@@ -823,6 +824,7 @@ export default function JobsBoard({
   const [dismissingId, setDismissingId] = useState<string | number | null>(null);
   const [isBulkDismissing, setIsBulkDismissing] = useState(false);
   const [isDeduplicating, setIsDeduplicating] = useState(false);
+  const [hideDuplicates, setHideDuplicates] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
 
@@ -1144,8 +1146,35 @@ export default function JobsBoard({
       return (b.created_at || "").localeCompare(a.created_at || "");
     });
 
+    if (hideDuplicates) {
+      const seenKeys = new Set<string>();
+      const deduped: typeof list = [];
+
+      for (const a of list) {
+        const meta = (a.metadata || {}) as Record<string, any>;
+        const cleanUrl = normalizeJobUrl(meta.job_url || meta.url);
+        const title = normalizeString(meta.job_title || a.action);
+        const company = normalizeString(meta.company);
+
+        let key = "";
+        if (cleanUrl) {
+          key = `url_${cleanUrl}`;
+        } else if (title && company) {
+          key = `meta_${company}___${title}`;
+        } else {
+          key = `id_${a.id}`;
+        }
+
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          deduped.push(a);
+        }
+      }
+      list = deduped;
+    }
+
     return list;
-  }, [pendingActions, searchQuery, scoreFilter, sortBy, starredIds]);
+  }, [pendingActions, searchQuery, scoreFilter, sortBy, starredIds, hideDuplicates]);
 
   const filteredApplications = useMemo(() => {
     let list = [...apps];
@@ -1344,8 +1373,34 @@ export default function JobsBoard({
       return (b.found_at || "").localeCompare(a.found_at || "");
     });
 
+    if (hideDuplicates) {
+      const seenKeys = new Set<string>();
+      const deduped: typeof list = [];
+
+      for (const m of list) {
+        const cleanUrl = normalizeJobUrl(m.url);
+        const title = normalizeString(m.title);
+        const company = normalizeString(m.company);
+
+        let key = "";
+        if (cleanUrl) {
+          key = `url_${cleanUrl}`;
+        } else if (title && company) {
+          key = `meta_${company}___${title}`;
+        } else {
+          key = `id_${m.id}`;
+        }
+
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          deduped.push(m);
+        }
+      }
+      list = deduped;
+    }
+
     return list;
-  }, [allMatches, searchQuery, scoreFilter, sortBy, starredIds]);
+  }, [allMatches, searchQuery, scoreFilter, sortBy, starredIds, hideDuplicates]);
 
   const tabs = [
     { key: "pending" as const, label: "Awaiting Approval", count: pendingActions.length },
@@ -1558,12 +1613,41 @@ export default function JobsBoard({
                 </button>
               )}
 
+              {/* Toggle Switch: Show All vs Hide Duplicates (Default: Show All / Switch Off) */}
+              <label
+                className="press inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md bg-primary/[0.04] px-2 py-0.5 text-2xs font-medium text-secondary ring-1 ring-inset ring-hairline/15 hover:bg-primary/[0.08] hover:text-primary"
+                title={
+                  hideDuplicates
+                    ? "Currently hiding duplicate postings. Click to show all."
+                    : "Currently showing all postings. Click to hide duplicates."
+                }
+              >
+                <span>{hideDuplicates ? "Hide Duplicates (On)" : "Hide Duplicates"}</span>
+                <input
+                  type="checkbox"
+                  checked={hideDuplicates}
+                  onChange={(e) => setHideDuplicates(e.target.checked)}
+                  className="sr-only"
+                />
+                <div
+                  className={`relative inline-flex h-3.5 w-6 shrink-0 items-center rounded-full transition-colors ${
+                    hideDuplicates ? "bg-accent-solid" : "bg-primary/[0.18]"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-xs transition-transform ${
+                      hideDuplicates ? "translate-x-3" : "translate-x-0.5"
+                    }`}
+                  />
+                </div>
+              </label>
+
               <button
                 type="button"
                 disabled={isDeduplicating}
                 onClick={handleCleanupDuplicates}
                 className="press inline-flex items-center gap-1 rounded-md bg-primary/[0.05] px-2 py-0.5 text-2xs font-medium text-secondary ring-1 ring-inset ring-hairline/15 hover:bg-primary/[0.08] hover:text-primary"
-                title="Find and merge duplicate job postings for this account"
+                title="Permanently find and merge duplicate job postings for this account in the database"
               >
                 {isDeduplicating ? "Deduplicating..." : "✨ Deduplicate"}
               </button>
@@ -1647,6 +1731,11 @@ export default function JobsBoard({
             <div className="flex items-center justify-between px-1 text-2xs text-muted">
               <span>
                 Showing <strong className="font-semibold text-primary">{filteredPending.length}</strong> of {pendingActions.length} pending {pendingActions.length === 1 ? "job" : "jobs"}
+                {hideDuplicates && pendingActions.length > filteredPending.length && (
+                  <span className="ml-1 font-medium text-accent-ink">
+                    ({pendingActions.length - filteredPending.length} duplicates hidden)
+                  </span>
+                )}
               </span>
 
               <div className="flex items-center gap-1.5">
@@ -1869,6 +1958,11 @@ export default function JobsBoard({
             <div className="flex items-center justify-between px-1 text-2xs text-muted">
               <span>
                 Showing <strong className="font-semibold text-primary">{filteredMatches.length}</strong> of {allMatches.length} matches
+                {hideDuplicates && allMatches.length > filteredMatches.length && (
+                  <span className="ml-1 font-medium text-accent-ink">
+                    ({allMatches.length - filteredMatches.length} duplicates hidden)
+                  </span>
+                )}
               </span>
 
               <div className="flex items-center gap-0.5 rounded-lg bg-primary/[0.04] p-0.5 ring-1 ring-inset ring-hairline/10">
