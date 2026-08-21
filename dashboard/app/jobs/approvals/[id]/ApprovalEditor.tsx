@@ -119,7 +119,7 @@ export default function ApprovalEditor({
           : "Application recorded! Opened pre-filled email in Gmail."
       );
       setTimeout(() => {
-        router.push("/jobs/approvals");
+        router.push("/jobs");
       }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to process approval");
@@ -141,7 +141,7 @@ export default function ApprovalEditor({
         const data = await res.json();
         throw new Error(data.error || "Failed to reject action");
       }
-      router.push("/jobs/approvals");
+      router.push("/jobs");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to reject action");
     } finally {
@@ -163,10 +163,10 @@ export default function ApprovalEditor({
     <div className="space-y-5 sm:space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2.5">
         <Link
-          href="/jobs/approvals"
+          href="/jobs"
           className="press inline-flex items-center text-xs font-medium text-muted hover:text-primary"
         >
-          ← Back to Approvals Queue
+          ← Back to Jobs Board
         </Link>
         <Badge tone={action.status === "pending" ? "warn" : "ok"}>
           {action.status === "pending" ? "Awaiting Approval" : action.status}

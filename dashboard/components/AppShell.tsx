@@ -57,7 +57,6 @@ const JOBS_NAV_ITEM: NavItem = {
   Icon: IconJobs,
   children: [
     { href: "/jobs", label: "Board", Icon: IconJobs, exact: true },
-    { href: "/jobs/approvals", label: "Approvals", Icon: IconApprovals },
     { href: "/jobs/resumes", label: "Resumes", Icon: IconResumes },
     { href: JOBS_MODULE.settingsHref!, label: "Preferences", Icon: IconSettings },
   ],

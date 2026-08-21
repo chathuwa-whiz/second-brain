@@ -47,9 +47,43 @@ def log_action(entry: ActionLogEntry) -> str:
         raise ValueError("confidence must be between 0 and 1")
 
     db = get_mongo_db()
-    action_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc).isoformat()
 
+    # Deduplication check for job_finding module
+    if entry.module == "job_finding" and entry.user_id:
+        meta = entry.metadata or {}
+        job_url = (meta.get("job_url") or meta.get("url") or "").strip()
+        job_title = (meta.get("job_title") or entry.action or "").strip()
+        company = (meta.get("company") or "").strip()
+
+        or_filters = []
+        if job_url:
+            or_filters.append({"metadata.job_url": job_url})
+        if job_title and company:
+            or_filters.append({"metadata.job_title": job_title, "metadata.company": company})
+
+        if or_filters:
+            existing = db.agent_actions.find_one({
+                "user_id": entry.user_id,
+                "module": "job_finding",
+                "$or": or_filters,
+            })
+            if existing:
+                if existing.get("status") == "pending":
+                    db.agent_actions.update_one(
+                        {"_id": existing["_id"]},
+                        {
+                            "$set": {
+                                "confidence": float(entry.confidence),
+                                "reasoning": entry.reasoning or existing.get("reasoning", ""),
+                                "metadata": {**existing.get("metadata", {}), **entry.metadata},
+                                "updated_at": now,
+                            }
+                        },
+                    )
+                return str(existing.get("id") or existing.get("_id"))
+
+    action_id = str(uuid.uuid4())
     doc = {
         "id": action_id,
         "user_id": entry.user_id,

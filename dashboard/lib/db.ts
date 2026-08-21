@@ -1,5 +1,6 @@
 import { MongoClient, type Db, ObjectId } from "mongodb";
 import { randomUUID, randomBytes, createHash } from "crypto";
+import { normalizeJobUrl, normalizeString } from "./jobDedup";
 
 /*
   100% MongoDB Unified Database Adapter for Second Brain.
@@ -1209,4 +1210,144 @@ export async function adminGetCollectionStats() {
 
   return results;
 }
+
+/**
+ * Merges and removes duplicate job actions for a user.
+ * Groups by normalized URL and fallback title + company, preserving the best review status and highest score.
+ */
+export async function deduplicateUserJobActions(userId?: string): Promise<{
+  removedCount: number;
+  preservedCount: number;
+  error: string | null;
+}> {
+  try {
+    const db = await getDb();
+    const query: Record<string, any> = { module: "job_finding" };
+    if (userId) query.user_id = userId;
+
+    const allActions = await db
+      .collection("agent_actions")
+      .find(query)
+      .sort({ created_at: -1 })
+      .toArray();
+
+    if (allActions.length === 0) {
+      return { removedCount: 0, preservedCount: 0, error: null };
+    }
+
+    // Group actions by deduplication key
+    const groups = new Map<string, any[]>();
+
+    for (const doc of allActions) {
+      const meta = doc.metadata || {};
+      const cleanUrl = normalizeJobUrl(meta.job_url || meta.url);
+      const title = normalizeString(meta.job_title || doc.action);
+      const company = normalizeString(meta.company);
+
+      let key = "";
+      if (cleanUrl) {
+        key = `url_${cleanUrl}`;
+      } else if (title && company) {
+        key = `meta_${company}___${title}`;
+      } else {
+        key = `id_${doc.id || doc._id}`;
+      }
+
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(doc);
+    }
+
+    const idsToDelete: any[] = [];
+    const updatesToApply: any[] = [];
+    let preservedCount = 0;
+
+    const statusWeight: Record<string, number> = {
+      approved: 5,
+      auto_executed: 4,
+      rejected: 3,
+      applied: 2,
+      pending: 1,
+      failed: 0,
+    };
+
+    groups.forEach((docs) => {
+      if (docs.length === 1) {
+        preservedCount++;
+        return;
+      }
+
+      // Sort group: highest status weight first, then highest score/confidence, then latest updated
+      docs.sort((a, b) => {
+        const weightA = statusWeight[a.status] ?? 0;
+        const weightB = statusWeight[b.status] ?? 0;
+        if (weightA !== weightB) return weightB - weightA;
+
+        const scoreA = a.metadata?.match_score ?? Math.round(Number(a.confidence) * 100);
+        const scoreB = b.metadata?.match_score ?? Math.round(Number(b.confidence) * 100);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+
+        return (b.created_at || "").localeCompare(a.created_at || "");
+      });
+
+      const best = docs[0];
+      const duplicates = docs.slice(1);
+
+      // Find max score among all duplicates to preserve the highest match fit
+      let maxScore = best.metadata?.match_score ?? Math.round(Number(best.confidence) * 100);
+      let bestResume = best.metadata?.suggested_resume;
+      let bestClosingDate = best.metadata?.closing_date;
+
+      for (const dup of duplicates) {
+        const dupScore = dup.metadata?.match_score ?? Math.round(Number(dup.confidence) * 100);
+        if (dupScore > maxScore) maxScore = dupScore;
+        if (!bestResume && dup.metadata?.suggested_resume) bestResume = dup.metadata.suggested_resume;
+        if (!bestClosingDate && dup.metadata?.closing_date) bestClosingDate = dup.metadata.closing_date;
+        idsToDelete.push(dup._id);
+      }
+
+      // Update best record if any metadata was enriched
+      if (maxScore > (best.metadata?.match_score ?? 0) || bestResume || bestClosingDate) {
+        updatesToApply.push({
+          id: best._id,
+          setDoc: {
+            confidence: Number((maxScore / 100).toFixed(3)),
+            "metadata.match_score": maxScore,
+            ...(bestResume ? { "metadata.suggested_resume": bestResume } : {}),
+            ...(bestClosingDate ? { "metadata.closing_date": bestClosingDate } : {}),
+          },
+        });
+      }
+
+      preservedCount++;
+    });
+
+    if (updatesToApply.length > 0) {
+      await Promise.all(
+        updatesToApply.map((u) =>
+          db.collection("agent_actions").updateOne({ _id: u.id }, { $set: u.setDoc })
+        )
+      );
+    }
+
+    if (idsToDelete.length > 0) {
+      await db.collection("agent_actions").deleteMany({ _id: { $in: idsToDelete } });
+    }
+
+    return {
+      removedCount: idsToDelete.length,
+      preservedCount,
+      error: null,
+    };
+  } catch (err) {
+    console.error("deduplicateUserJobActions error:", err);
+    return {
+      removedCount: 0,
+      preservedCount: 0,
+      error: err instanceof Error ? err.message : "Deduplication error",
+    };
+  }
+}
+
 

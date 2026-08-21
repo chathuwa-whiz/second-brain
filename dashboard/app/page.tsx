@@ -83,7 +83,7 @@ export default async function OverviewPage() {
           value={stats.pending}
           hint={stats.pending === 1 ? "1 decision queued" : "decisions queued"}
           tone={stats.pending > 0 ? "warn" : "neutral"}
-          href="/jobs/approvals"
+          href="/jobs"
         />
         <StatTile
           label="Ran on its own"

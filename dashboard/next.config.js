@@ -33,7 +33,8 @@ const nextConfig = {
   // These keep old bookmarks and browser history working.
   async redirects() {
     return [
-      { source: "/approvals", destination: "/jobs/approvals", permanent: true },
+      { source: "/approvals", destination: "/jobs", permanent: true },
+      { source: "/jobs/approvals", destination: "/jobs", permanent: true },
       { source: "/approvals/:id", destination: "/jobs/approvals/:id", permanent: true },
       { source: "/resumes", destination: "/jobs/resumes", permanent: true },
     ];

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { fetchActions, fetchActionById, getDb } from "@/lib/db";
+import { normalizeJobUrl, normalizeString } from "@/lib/jobDedup";
 import { randomUUID } from "crypto";
 
 export async function GET(req: NextRequest) {
@@ -55,20 +56,66 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { module, action, reasoning, confidence, status, metadata, user_id, userId: bodyUserId } = body;
     const resolvedUserId = user_id || bodyUserId || req.headers.get("x-user-id") || (session?.user as any)?.id || null;
+    const resolvedModule = module || "job_finding";
+    const resolvedMetadata = metadata && typeof metadata === "object" ? metadata : {};
 
     const db = await getDb();
-    const id = randomUUID();
     const now = new Date().toISOString();
 
+    // Deduplication check for job_finding actions
+    if (resolvedModule === "job_finding" && resolvedUserId) {
+      const cleanUrl = normalizeJobUrl(resolvedMetadata.job_url || resolvedMetadata.url);
+      const title = resolvedMetadata.job_title || action || "";
+      const company = resolvedMetadata.company || "";
+
+      const filters: any[] = [];
+      if (cleanUrl) {
+        filters.push({ "metadata.job_url": cleanUrl });
+      }
+      if (title && company) {
+        filters.push({
+          "metadata.job_title": title,
+          "metadata.company": company,
+        });
+      }
+
+      if (filters.length > 0) {
+        const existing = await db.collection("agent_actions").findOne({
+          user_id: resolvedUserId,
+          module: "job_finding",
+          $or: filters,
+        });
+
+        if (existing) {
+          if (existing.status === "pending") {
+            await db.collection("agent_actions").updateOne(
+              { _id: existing._id },
+              {
+                $set: {
+                  confidence: Number(confidence ?? existing.confidence),
+                  reasoning: reasoning || existing.reasoning,
+                  metadata: { ...existing.metadata, ...resolvedMetadata },
+                  updated_at: now,
+                },
+              }
+            );
+          }
+          const { action: updatedAction } = await fetchActionById(existing.id, resolvedUserId);
+          return NextResponse.json({ success: true, action: updatedAction, updated: true });
+        }
+      }
+    }
+
+    const id = randomUUID();
     const doc = {
       id,
       user_id: resolvedUserId,
-      module: module || "job_finding",
+      module: resolvedModule,
       action: action || "send_job_application_email",
       reasoning: reasoning || "",
       confidence: Number(confidence ?? 0.8),
       status: status || "pending",
-      metadata: metadata && typeof metadata === "object" ? metadata : {},
+      metadata: resolvedMetadata,
       reviewed_at: null,
       reviewed_by: null,
       executed_at: null,

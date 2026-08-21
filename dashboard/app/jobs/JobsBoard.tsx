@@ -760,6 +760,7 @@ export default function JobsBoard({
 
   const [dismissingId, setDismissingId] = useState<string | number | null>(null);
   const [isBulkDismissing, setIsBulkDismissing] = useState(false);
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
 
@@ -886,6 +887,28 @@ export default function JobsBoard({
       setOpError(err instanceof Error ? err.message : "Bulk dismissal failed.");
     } finally {
       setIsBulkDismissing(false);
+    }
+  }
+
+  async function handleCleanupDuplicates() {
+    setIsDeduplicating(true);
+    setOpError(null);
+    try {
+      const res = await fetch(withBasePath(`/api/jobs/cleanup-duplicates`), {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to clean duplicates.");
+
+      if (Array.isArray(data.actions)) {
+        setActions(data.actions);
+      }
+      setStatusMessage(data.message || "Deduplicated jobs successfully.");
+      setTimeout(() => setStatusMessage(null), 3500);
+    } catch (err) {
+      setOpError(err instanceof Error ? err.message : "Failed to deduplicate jobs.");
+    } finally {
+      setIsDeduplicating(false);
     }
   }
 
@@ -1360,6 +1383,16 @@ export default function JobsBoard({
                   🧹 Clear Stale &gt;14d ({staleActions.length})
                 </button>
               )}
+
+              <button
+                type="button"
+                disabled={isDeduplicating}
+                onClick={handleCleanupDuplicates}
+                className="press inline-flex items-center gap-1 rounded-md bg-primary/[0.05] px-2 py-0.5 text-2xs font-medium text-secondary ring-1 ring-inset ring-hairline/15 hover:bg-primary/[0.08] hover:text-primary"
+                title="Find and merge duplicate job postings for this account"
+              >
+                {isDeduplicating ? "Deduplicating..." : "✨ Deduplicate"}
+              </button>
             </div>
           )}
         </div>
